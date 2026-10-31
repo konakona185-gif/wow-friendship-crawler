@@ -3,9 +3,9 @@ mod camera;
 mod combat;
 
 use bevy::prelude::*;
-use player::{Character, FellowshipRole, Health, MovementSpeed, Velocity, PlayerPlugin};
+use player::{Character, FellowshipRole, MovementSpeed, Velocity, PlayerPlugin};
 use camera::{ThirdPersonCamera, CameraPlugin};
-use combat::{Target, Enemy, CombatPlugin};
+use combat::{Target, Enemy, CombatStats, CombatPlugin};
 
 fn main() {
     let mut app = App::new();
@@ -51,10 +51,10 @@ fn setup_game(
     commands.spawn((
         Character,
         FellowshipRole::Tank,
-        Health { current: 100.0, max: 100.0 },
         MovementSpeed(8.0),
         Velocity(Vec3::ZERO),
         Target { entity: None },
+        CombatStats { current_health: 100.0, max_health: 100.0, resource: 0.0 },
         PbrBundle {
             mesh: meshes.add(Capsule3d::new(0.5, 1.0)),
             material: materials.add(Color::from(LinearRgba::new(0.0, 0.8, 0.2, 1.0))),
@@ -65,7 +65,7 @@ fn setup_game(
 
     commands.spawn((
         Enemy,
-        Health { current: 50.0, max: 50.0 },
+        CombatStats { current_health: 150.0, max_health: 150.0, resource: 0.0 },
         PbrBundle {
             mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
             material: materials.add(Color::from(LinearRgba::new(0.9, 0.1, 0.1, 1.0))),
