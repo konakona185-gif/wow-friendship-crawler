@@ -66,7 +66,7 @@ fn player_cast_system(
         return;
     };
 
-    let Ok(mut enemy_stats) = enemy_query.get_component_mut::<CombatStats>(target_entity) else { return; };
+    let Ok(mut enemy_stats) = enemy_query.get_mut(target_entity) else { return; };
 
     match role {
         FellowshipRole::Tank => {
