@@ -1,3 +1,4 @@
+
 [package]
 name = "fellowship_wow_crawler"
 version = "0.1.0"
@@ -14,6 +15,8 @@ bevy = { version = "0.18.1", default-features = false, features = [
     "scene",
     "picking",
 ] }
+
+avian3d = "0.6"
 
 benilla-assets = { git = "https://github.com/samwhosung/benilla", rev = "135ce8889217bf268d1dadbbabcba56df80f3108", default-features = false }
 benilla-formats = { git = "https://github.com/samwhosung/benilla", rev = "135ce8889217bf268d1dadbbabcba56df80f3108", default-features = false }
