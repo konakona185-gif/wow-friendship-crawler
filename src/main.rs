@@ -19,7 +19,12 @@ use player::{
 
 use camera::{ThirdPersonCamera, CameraPlugin};
 use combat::{Target, Enemy, CombatStats, CombatPlugin};
-use fellowship::{Fellowship, FellowshipPlugin};
+use fellowship::{
+    Fellowship,
+    FellowshipPlugin,
+    JoinFellowship,
+    LeaveFellowship,
+};
 
 fn main() {
     let mut app = App::new();
@@ -51,6 +56,14 @@ fn main() {
     if is_headless {
         app.update();
 
+        run_headless_tests(&mut app);
+    } else {
+        app.run();
+    }
+}
+
+fn run_headless_tests(app: &mut App) {
+    {
         let world = app.world_mut();
 
         let mut player_query = world.query_filtered::<Entity, With<Character>>();
@@ -70,8 +83,6 @@ fn main() {
 
         let mut enemy_query = world.query_filtered::<Entity, With<Enemy>>();
         let enemy_count = enemy_query.iter(world).count();
-
-        let fellowship = world.resource::<Fellowship>();
 
         assert_eq!(
             player_count,
@@ -94,7 +105,7 @@ fn main() {
         assert_eq!(
             player_id_count,
             1,
-            "Il test headless deve assegnare PlayerId(1) al giocatore."
+            "Il test headless deve assegnare PlayerId(1)."
         );
 
         assert_eq!(
@@ -103,28 +114,94 @@ fn main() {
             "Il test headless deve creare esattamente tre nemici."
         );
 
+        let fellowship = world.resource::<Fellowship>();
+
         assert_eq!(
             fellowship.member_count(),
             1,
-            "La Fellowship deve contenere esattamente un membro."
+            "La Fellowship deve contenere un membro iniziale."
         );
 
         assert!(
             fellowship.get_member(PlayerId(1)).is_some(),
-            "Il giocatore PlayerId(1) deve essere registrato nella Fellowship."
+            "PlayerId(1) deve essere registrato nella Fellowship."
         );
 
         assert!(
             !fellowship.has_duplicate_ids(),
-            "La Fellowship non deve contenere identificativi duplicati."
+            "La Fellowship non deve contenere ID duplicati."
+        );
+    }
+
+    println!("Test iniziale della Fellowship superato.");
+
+    app.world_mut().send_event(LeaveFellowship {
+        player_id: PlayerId(1),
+    });
+
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let fellowship = world.resource::<Fellowship>();
+
+        assert_eq!(
+            fellowship.member_count(),
+            0,
+            "Il giocatore deve essere rimosso dalla Fellowship."
         );
 
-        println!(
-            "Test headless completato: giocatore identificato, comandi assegnati, Fellowship registrata e 3 nemici creati correttamente."
+        assert!(
+            fellowship.get_member(PlayerId(1)).is_none(),
+            "Il giocatore non deve risultare ancora registrato."
         );
-    } else {
-        app.run();
     }
+
+    {
+        let world = app.world_mut();
+        let mut player_query = world.query_filtered::<Entity, With<Character>>();
+
+        assert_eq!(
+            player_query.iter(world).count(),
+            1,
+            "Uscire dalla Fellowship non deve eliminare il personaggio dal mondo."
+        );
+    }
+
+    println!("Test di uscita dalla Fellowship superato.");
+
+    app.world_mut().send_event(JoinFellowship {
+        player_id: PlayerId(1),
+    });
+
+    app.update();
+
+    {
+        let world = app.world_mut();
+        let fellowship = world.resource::<Fellowship>();
+
+        assert_eq!(
+            fellowship.member_count(),
+            1,
+            "Il giocatore deve poter rientrare nella Fellowship."
+        );
+
+        assert!(
+            fellowship.get_member(PlayerId(1)).is_some(),
+            "PlayerId(1) deve essere nuovamente registrato."
+        );
+
+        assert!(
+            !fellowship.has_duplicate_ids(),
+            "Non devono esserci identificativi duplicati."
+        );
+    }
+
+    println!("Test di rientro nella Fellowship superato.");
+
+    println!(
+        "Test headless completato: giocatore, comandi, combattimento, ingresso e uscita dalla Fellowship verificati."
+    );
 }
 
 fn setup_headless_game(mut commands: Commands) {
