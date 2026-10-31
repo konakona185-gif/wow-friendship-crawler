@@ -4,7 +4,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = "0.14"
+bevy = { version = "0.18.1", default-features = false, features = [
+    "default_app",
+    "default_platform",
+    "2d_bevy_render",
+    "3d_bevy_render",
+    "ui_api",
+    "ui_bevy_render",
+    "scene",
+    "picking",
+] }
+
+benilla-assets = { git = "https://github.com/samwhosung/benilla", rev = "135ce8889217bf268d1dadbbabcba56df80f3108", default-features = false }
+benilla-formats = { git = "https://github.com/samwhosung/benilla", rev = "135ce8889217bf268d1dadbbabcba56df80f3108", default-features = false }
+benilla-world = { git = "https://github.com/samwhosung/benilla", rev = "135ce8889217bf268d1dadbbabcba56df80f3108", default-features = false }
 
 [profile.dev.package."*"]
 opt-level = 3
