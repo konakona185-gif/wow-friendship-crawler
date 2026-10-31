@@ -1,6 +1,11 @@
-
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
+
+use benilla_assets::AdtTile;
+use benilla_world::terrain_stream::{
+    terrain_height_under,
+    TerrainStreamer,
+};
 
 #[derive(Component)]
 pub struct Character;
@@ -114,6 +119,8 @@ fn local_player_command_system(
 
 fn player_movement_system(
     time: Res<Time>,
+    terrain_streamer: Option<Res<TerrainStreamer>>,
+    adt_tiles: Option<Res<Assets<AdtTile>>>,
     mut query: Query<
         (
             &mut Transform,
@@ -126,7 +133,7 @@ fn player_movement_system(
 ) {
     let gravity = -25.0;
     let jump_force = 9.0;
-    let floor_y = 1.0;
+    let floor_offset = 1.0;
     let delta = time.delta_secs();
 
     for (mut transform, speed, mut velocity, mut command) in &mut query {
@@ -162,25 +169,42 @@ fn player_movement_system(
             }
         }
 
-        let is_grounded = transform.translation.y <= floor_y;
+        let horizontal_velocity = move_direction * speed.0;
+        transform.translation += horizontal_velocity * delta;
+
+        let (Some(streamer), Some(tiles)) =
+            (terrain_streamer.as_deref(), adt_tiles.as_deref())
+        else {
+            continue;
+        };
+
+        let Some(terrain_height) =
+            terrain_height_under(streamer, tiles, transform.translation)
+        else {
+            continue;
+        };
+
+        let floor_y = terrain_height + floor_offset;
+
+        let is_grounded =
+            transform.translation.y <= floor_y + 0.05
+            && velocity.0.y <= 0.0;
 
         if is_grounded {
-            velocity.0.y = 0.0;
             transform.translation.y = floor_y;
 
             if jump_requested {
                 velocity.0.y = jump_force;
+            } else {
+                velocity.0.y = 0.0;
             }
         } else {
             velocity.0.y += gravity * delta;
         }
 
-        let horizontal_velocity = move_direction * speed.0;
-
-        transform.translation += horizontal_velocity * delta;
         transform.translation.y += velocity.0.y * delta;
 
-        if transform.translation.y < floor_y {
+        if transform.translation.y <= floor_y {
             transform.translation.y = floor_y;
             velocity.0.y = 0.0;
         }
