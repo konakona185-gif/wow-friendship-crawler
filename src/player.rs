@@ -1,3 +1,4 @@
+
 use std::time::Duration;
 
 use avian3d::prelude::{
@@ -77,6 +78,11 @@ pub struct MovementSpeed(pub f32);
 
 #[derive(Component)]
 pub struct Velocity(pub Vec3);
+
+#[derive(Component, Default)]
+pub struct GroundingState {
+    pub deep_support: bool,
+}
 
 #[derive(Clone, Copy)]
 struct StepUp {
@@ -166,6 +172,7 @@ fn player_movement_system(
             &MovementSpeed,
             &mut Velocity,
             &mut CharacterCommand,
+            Option<&mut GroundingState>,
         ),
         With<Character>,
     >,
@@ -190,7 +197,7 @@ fn player_movement_system(
             progress.focus_resident && progress.presentable()
         });
 
-    for (mut transform, speed, mut velocity, mut command) in &mut query {
+    for (mut transform, speed, mut velocity, mut command, grounding_state) in &mut query {
         if command.look_delta != 0.0 {
             let sensitivity = 0.003;
             transform.rotate_y(-command.look_delta * sensitivity);
@@ -223,9 +230,16 @@ fn player_movement_system(
             transform.translation += horizontal_velocity * delta;
         } else if let Some(world) = world.as_ref().filter(|_| world_ready) {
             let mut grounded = false;
+            let mut deep_support = grounding_state
+                .as_deref()
+                .is_some_and(|state| state.deep_support);
 
             if velocity.0.y <= 0.0 {
-                let probe_distance = vertical_probe_distance(velocity.0.y);
+                let probe_distance = if deep_support {
+                    STEP_UP_HEIGHT + GROUND_PROBE_DISTANCE
+                } else {
+                    vertical_probe_distance(velocity.0.y)
+                };
 
                 if let Some(hit) = world.cast_mover(
                     &capsule,
@@ -234,17 +248,26 @@ fn player_movement_system(
                     PLAYER_SKIN_WIDTH,
                 ) {
                     if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
-                        transform.translation.y +=
-                            GROUND_PROBE_LIFT - hit.distance;
+                        if !deep_support {
+                            transform.translation.y +=
+                                GROUND_PROBE_LIFT - hit.distance;
+                        }
                         velocity.0.y = 0.0;
                         grounded = true;
+                    } else {
+                        deep_support = false;
                     }
+                } else {
+                    deep_support = false;
                 }
+            } else {
+                deep_support = false;
             }
 
             if jump_requested && grounded {
                 velocity.0.y = JUMP_SPEED;
                 grounded = false;
+                deep_support = false;
             }
 
             let grounded_walk = grounded;
@@ -358,10 +381,12 @@ fn player_movement_system(
                     let horizontal_distance =
                         slide_delta.x.hypot(slide_delta.z);
 
-                    let snap_reach =
-                        horizontal_distance * STEP_SLOPE_RATIO
-                        + STEP_SNAP_SLACK
-                        + if step.is_some_and(|step| step.ride_to.is_none()) {
+                    let cone_reach =
+                        horizontal_distance * STEP_SLOPE_RATIO + STEP_SNAP_SLACK;
+                    let snap_reach = cone_reach
+                        + if deep_support {
+                            STEP_UP_HEIGHT
+                        } else if step.is_some_and(|step| step.ride_to.is_none()) {
                             step.map_or(0.0, |step| step.rise)
                         } else {
                             0.0
@@ -377,13 +402,17 @@ fn player_movement_system(
                     ) {
                         if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
                             let drop = (hit.distance - GROUND_PROBE_LIFT).max(0.0);
-                            transform.translation.y -= drop;
+                            let (descent, support_continues) =
+                                descent_step(drop, horizontal_distance);
+                            transform.translation.y -= descent;
                             velocity.0.y = 0.0;
+                            deep_support = support_continues;
                             walkable_support = true;
                         }
                     }
 
                     if !walkable_support && !rode {
+                        deep_support = false;
                         let (end_velocity, average_velocity) = fall_step(0.0, delta);
                         velocity.0.y = end_velocity;
 
@@ -425,10 +454,14 @@ fn player_movement_system(
                         }
                     }
 
-                    if rode && velocity.0.y > 0.0 {
-                        velocity.0.y = 0.0;
+                    if rode {
+                        deep_support = false;
+                        if velocity.0.y > 0.0 {
+                            velocity.0.y = 0.0;
+                        }
                     }
                 } else {
+                    deep_support = false;
                     let mut ceiling_contact = false;
 
                     let output = world.slide_mover(
@@ -479,6 +512,10 @@ fn player_movement_system(
                     }
                 }
             }
+
+            if let Some(mut state) = grounding_state {
+                state.deep_support = deep_support;
+            }
         }
 
         if let Some(focus) = view_focus.as_deref_mut() {
@@ -497,6 +534,11 @@ fn player_movement_system(
             };
         }
     }
+}
+
+fn descent_step(drop: f32, horizontal_distance: f32) -> (f32, bool) {
+    let cone_reach = horizontal_distance * STEP_SLOPE_RATIO + STEP_SNAP_SLACK;
+    (drop.min(cone_reach), drop > cone_reach)
 }
 
 fn vertical_probe_distance(vertical_velocity: f32) -> f32 {
@@ -683,6 +725,23 @@ mod tests {
         assert_eq!(vertical_probe_distance(1.0), GROUND_PROBE_DISTANCE);
         assert_eq!(vertical_probe_distance(-0.01), LAND_PROBE_DISTANCE);
         assert!(LAND_PROBE_DISTANCE < GROUND_PROBE_DISTANCE);
+    }
+
+    #[test]
+    fn descent_is_limited_to_the_foot_cone_reach() {
+        let horizontal_distance = 0.1;
+        let cone_reach = horizontal_distance * STEP_SLOPE_RATIO + STEP_SNAP_SLACK;
+        let (descent, support_continues) =
+            descent_step(cone_reach * 2.0, horizontal_distance);
+
+        assert!((descent - cone_reach).abs() < 1.0e-6);
+        assert!(support_continues);
+
+        let (full_descent, support_ends) =
+            descent_step(cone_reach * 0.5, horizontal_distance);
+
+        assert!((full_descent - cone_reach * 0.5).abs() < 1.0e-6);
+        assert!(!support_ends);
     }
 
     #[test]
