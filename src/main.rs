@@ -59,13 +59,10 @@ fn setup_game(
         },
     ));
 
-    let camera_offset = Vec3::new(0.0, 4.5, 8.0);
-    
     commands.spawn((
-        ThirdPersonCamera { offset: camera_offset },
+        ThirdPersonCamera { distance: 8.0, height: 4.5 },
         Camera3dBundle {
-            transform: Transform::from_translation(camera_offset)
-                .looking_at(Vec3::new(0.0, 1.0, 0.0), Vec3::Y),
+            transform: Transform::from_xyz(0.0, 4.5, 8.0).looking_at(Vec3::new(0.0, 1.0, 0.0), Vec3::Y),
             ..default()
         },
     ));
