@@ -1,4 +1,4 @@
-name: Compila ed Esporta Eseguibile
+name: Compila, Testa ed Esporta Eseguibile
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
 
@@ -20,6 +20,11 @@ jobs:
 
     - name: Compila per Windows
       run: cargo build --release
+
+    - name: Esegui test headless Windows
+      run: cargo run --release
+      env:
+        CI: "true"
 
     - name: Carica Artifact Windows
       uses: actions/upload-artifact@v4
@@ -31,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
 
@@ -45,6 +50,11 @@ jobs:
 
     - name: Compila per Linux
       run: cargo build --release
+
+    - name: Esegui test headless Linux
+      run: cargo run --release
+      env:
+        CI: "true"
 
     - name: Carica Artifact Linux
       uses: actions/upload-artifact@v4
