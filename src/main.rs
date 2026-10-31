@@ -1,11 +1,28 @@
+
 mod player;
 mod camera;
 mod combat;
 mod fellowship;
 mod character;
 
-use bevy::prelude::*;
+use bevy::camera::{PerspectiveProjection, Projection};
+use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::InputPlugin;
+use bevy::prelude::*;
+use bevy::render::view::Hdr;
+
+use benilla_assets::coords::wow_to_bevy;
+use benilla_world::ffx_glow::FfxGlow;
+use benilla_world::schedule::WorldLive;
+use benilla_world::terrain_stream::SPAWN_XY;
+use benilla_world::view::{
+    MsaaSetting,
+    WorldCamera,
+    CAM_FAR,
+    CAM_FOVY,
+    NEARCLIP_DEFAULT,
+};
+use benilla_world::world_plugins::WorldPlugins;
 
 use player::{
     Character,
@@ -29,24 +46,21 @@ use fellowship::{
 use character::{CharacterBuild, CharacterClass, CharacterRace};
 
 fn main() {
-    let mut app = App::new();
-
-    let is_headless = std::env::var("CI").is_ok();
+    let is_headless = std::env::var_os("CI").is_some();
 
     if is_headless {
-        app.add_plugins(MinimalPlugins)
-            .add_plugins(InputPlugin)
-            .add_systems(Startup, setup_headless_game);
+        run_headless();
     } else {
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Fellowship Fan Project (Bevy 0.14)".into(),
-                ..default()
-            }),
-            ..default()
-        }))
-        .add_systems(Startup, setup_game);
+        run_game();
     }
+}
+
+fn run_headless() {
+    let mut app = App::new();
+
+    app.add_plugins(MinimalPlugins)
+        .add_plugins(InputPlugin)
+        .add_systems(Startup, setup_headless_game);
 
     app.add_plugins((
         PlayerPlugin,
@@ -55,12 +69,49 @@ fn main() {
         FellowshipPlugin,
     ));
 
-    if is_headless {
-        app.update();
-        run_headless_tests(&mut app);
+    app.update();
+    run_headless_tests(&mut app);
+}
+
+fn run_game() {
+    let mut app = App::new();
+
+    if let Some(data_dir) = benilla_formats::wow_data() {
+        if let Err(error) =
+            benilla_assets::register_mpq_source(&mut app, &data_dir)
+        {
+            eprintln!("Impossibile registrare gli archivi WoW: {error:#}");
+        }
     } else {
-        app.run();
+        eprintln!(
+            "Installazione WoW 1.12.1 non trovata. Percorsi controllati: {:?}",
+            benilla_formats::candidates()
+        );
     }
+
+    app.add_plugins(benilla_world::boot::tuned_default_plugins(Window {
+        title: "Fellowship WoW Crawler".into(),
+        resolution: UVec2::new(1280, 720).into(),
+        ..default()
+    }));
+
+    app.add_plugins(benilla_world::thread_qos::ThreadQosPlugin);
+    app.add_plugins(WorldPlugins);
+
+    app.insert_resource(WorldLive(true));
+
+    benilla_assets::register_asset_loaders(&mut app);
+
+    app.add_systems(Startup, setup_game);
+
+    app.add_plugins((
+        PlayerPlugin,
+        CameraPlugin,
+        CombatPlugin,
+        FellowshipPlugin,
+    ));
+
+    app.run();
 }
 
 fn run_headless_tests(app: &mut App) {
@@ -175,7 +226,7 @@ fn run_headless_tests(app: &mut App) {
 
     println!("Test iniziale della Fellowship superato.");
 
-    app.world_mut().send_event(LeaveFellowship {
+    app.world_mut().write_message(LeaveFellowship {
         player_id: PlayerId(1),
     });
 
@@ -206,7 +257,7 @@ fn run_headless_tests(app: &mut App) {
 
     println!("Test di uscita dalla Fellowship superato.");
 
-    app.world_mut().send_event(JoinFellowship {
+    app.world_mut().write_message(JoinFellowship {
         player_id: PlayerId(1),
     });
 
@@ -283,21 +334,29 @@ fn setup_game(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    msaa: Res<MsaaSetting>,
 ) {
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
+    let spawn_position = wow_to_bevy([
+        SPAWN_XY.0,
+        SPAWN_XY.1,
+        1.0,
+    ]);
+
+    commands.spawn((
+        DirectionalLight {
             shadows_enabled: true,
             illuminance: 4000.0,
             ..default()
         },
-        transform: Transform::from_xyz(10.0, 20.0, 10.0)
-            .looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
+        Transform::from_translation(
+            spawn_position + Vec3::new(10.0, 20.0, 10.0),
+        )
+        .looking_at(spawn_position, Vec3::Y),
+    ));
 
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Plane3d::default().mesh().size(50.0, 50.0)),
-        material: materials.add(Color::from(LinearRgba::new(0.2, 0.2, 0.2, 1.0))),
+    let player_mesh = meshes.add(Capsule3d::new(0.5, 1.0));
+    let player_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.0, 0.8, 0.2),
         ..default()
     });
 
@@ -320,18 +379,21 @@ fn setup_game(
             max_health: 100.0,
             resource: 0.0,
         },
-        PbrBundle {
-            mesh: meshes.add(Capsule3d::new(0.5, 1.0)),
-            material: materials.add(Color::from(LinearRgba::new(0.0, 0.8, 0.2, 1.0))),
-            transform: Transform::from_xyz(0.0, 1.0, 0.0),
-            ..default()
-        },
+        Mesh3d(player_mesh),
+        MeshMaterial3d(player_material),
+        Transform::from_translation(spawn_position),
     ));
 
+    let enemy_mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+    let enemy_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.9, 0.1, 0.1),
+        ..default()
+    });
+
     let enemy_positions = [
-        Vec3::new(5.0, 0.5, -5.0),
-        Vec3::new(-6.0, 0.5, -8.0),
-        Vec3::new(2.0, 0.5, -12.0),
+        spawn_position + Vec3::new(5.0, -0.5, -5.0),
+        spawn_position + Vec3::new(-6.0, -0.5, -8.0),
+        spawn_position + Vec3::new(2.0, -0.5, -12.0),
     ];
 
     for (i, pos) in enemy_positions.iter().enumerate() {
@@ -344,12 +406,9 @@ fn setup_game(
                 max_health: health,
                 resource: 0.0,
             },
-            PbrBundle {
-                mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-                material: materials.add(Color::from(LinearRgba::new(0.9, 0.1, 0.1, 1.0))),
-                transform: Transform::from_translation(*pos),
-                ..default()
-            },
+            Mesh3d(enemy_mesh.clone()),
+            MeshMaterial3d(enemy_material.clone()),
+            Transform::from_translation(*pos),
         ));
     }
 
@@ -358,10 +417,21 @@ fn setup_game(
             distance: 8.0,
             height: 4.5,
         },
-        Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 4.5, 8.0)
-                .looking_at(Vec3::new(0.0, 1.0, 0.0), Vec3::Y),
+        Camera3d::default(),
+        WorldCamera,
+        msaa.level(),
+        Hdr,
+        Tonemapping::None,
+        FfxGlow::WORLD,
+        Projection::from(PerspectiveProjection {
+            far: CAM_FAR,
+            near: NEARCLIP_DEFAULT,
+            fov: CAM_FOVY,
             ..default()
-        },
+        }),
+        Transform::from_translation(
+            spawn_position + Vec3::new(0.0, 4.5, 8.0),
+        )
+        .looking_at(spawn_position, Vec3::Y),
     ));
 }
