@@ -1,4 +1,3 @@
-
 use std::time::Duration;
 
 use avian3d::prelude::{
@@ -31,6 +30,9 @@ const STEP_SLOPE_RATIO: f32 = 1.849_399;
 const STEP_SNAP_SLACK: f32 = 0.027_777_8;
 const FOOT_CONE_HEIGHT: f32 = PLAYER_CAPSULE_RADIUS * STEP_SLOPE_RATIO;
 const OVERHANG_EPS: f32 = -1.0e-4;
+const GRAVITY: f32 = -25.0;
+const JUMP_SPEED: f32 = 9.0;
+const TERMINAL_FALL_SPEED: f32 = 60.148_003;
 
 #[derive(Component)]
 pub struct Character;
@@ -167,8 +169,6 @@ fn player_movement_system(
         With<Character>,
     >,
 ) {
-    let gravity = -25.0;
-    let jump_force = 9.0;
     let delta = time.delta_secs();
 
     if delta <= 0.0 {
@@ -240,19 +240,25 @@ fn player_movement_system(
             }
 
             if jump_requested && grounded {
-                velocity.0.y = jump_force;
+                velocity.0.y = JUMP_SPEED;
                 grounded = false;
-            } else if !grounded {
-                velocity.0.y += gravity * delta;
-            } else {
-                velocity.0.y = 0.0;
             }
 
             let grounded_walk = grounded;
+            let vertical_move_velocity = if grounded_walk {
+                velocity.0.y = 0.0;
+                0.0
+            } else {
+                let (end_velocity, average_velocity) =
+                    fall_step(velocity.0.y, delta);
+                velocity.0.y = end_velocity;
+                average_velocity
+            };
+
             let movement_velocity = if grounded_walk {
                 horizontal_velocity
             } else {
-                horizontal_velocity + Vec3::Y * velocity.0.y
+                horizontal_velocity + Vec3::Y * vertical_move_velocity
             };
 
             let step_preview = if grounded_walk {
@@ -443,6 +449,30 @@ fn player_movement_system(
             };
         }
     }
+}
+
+fn fall_step(initial_velocity: f32, delta: f32) -> (f32, f32) {
+    let terminal_velocity = -TERMINAL_FALL_SPEED;
+    let unconstrained_end = initial_velocity + GRAVITY * delta;
+
+    if unconstrained_end >= terminal_velocity {
+        return (
+            unconstrained_end,
+            0.5 * (initial_velocity + unconstrained_end),
+        );
+    }
+
+    if initial_velocity <= terminal_velocity {
+        return (terminal_velocity, terminal_velocity);
+    }
+
+    let time_to_terminal =
+        (terminal_velocity - initial_velocity) / GRAVITY;
+    let displacement =
+        0.5 * (initial_velocity + terminal_velocity) * time_to_terminal
+        + terminal_velocity * (delta - time_to_terminal);
+
+    (terminal_velocity, displacement / delta)
 }
 
 fn try_step_up(
