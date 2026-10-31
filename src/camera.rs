@@ -458,7 +458,7 @@ mod tests {
 
     #[test]
     fn initial_pitch_preserves_the_configured_camera_position() {
-        let distance = 8.0;
+        let distance: f32 = 8.0;
         let height = 4.5;
         let vertical_offset = height - CAMERA_LOOK_HEIGHT;
         let boom_length = distance.hypot(vertical_offset);
