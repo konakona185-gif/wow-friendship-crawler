@@ -1,9 +1,11 @@
 mod player;
 mod camera;
 mod combat;
+mod fellowship;
 
 use bevy::prelude::*;
 use bevy::input::InputPlugin;
+
 use player::{
     Character,
     LocalPlayer,
@@ -14,8 +16,10 @@ use player::{
     Velocity,
     PlayerPlugin,
 };
+
 use camera::{ThirdPersonCamera, CameraPlugin};
 use combat::{Target, Enemy, CombatStats, CombatPlugin};
+use fellowship::{Fellowship, FellowshipPlugin};
 
 fn main() {
     let mut app = App::new();
@@ -37,7 +41,12 @@ fn main() {
         .add_systems(Startup, setup_game);
     }
 
-    app.add_plugins((PlayerPlugin, CameraPlugin, CombatPlugin));
+    app.add_plugins((
+        PlayerPlugin,
+        CameraPlugin,
+        CombatPlugin,
+        FellowshipPlugin,
+    ));
 
     if is_headless {
         app.update();
@@ -61,6 +70,8 @@ fn main() {
 
         let mut enemy_query = world.query_filtered::<Entity, With<Enemy>>();
         let enemy_count = enemy_query.iter(world).count();
+
+        let fellowship = world.resource::<Fellowship>();
 
         assert_eq!(
             player_count,
@@ -92,8 +103,24 @@ fn main() {
             "Il test headless deve creare esattamente tre nemici."
         );
 
+        assert_eq!(
+            fellowship.member_count(),
+            1,
+            "La Fellowship deve contenere esattamente un membro."
+        );
+
+        assert!(
+            fellowship.get_member(PlayerId(1)).is_some(),
+            "Il giocatore PlayerId(1) deve essere registrato nella Fellowship."
+        );
+
+        assert!(
+            !fellowship.has_duplicate_ids(),
+            "La Fellowship non deve contenere identificativi duplicati."
+        );
+
         println!(
-            "Test headless completato: giocatore locale identificato, comandi assegnati e 3 nemici creati correttamente."
+            "Test headless completato: giocatore identificato, comandi assegnati, Fellowship registrata e 3 nemici creati correttamente."
         );
     } else {
         app.run();
