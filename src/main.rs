@@ -1,28 +1,9 @@
+mod player;
+mod camera;
+
 use bevy::prelude::*;
-
-#[derive(Component)]
-pub struct Character;
-
-#[derive(Component)]
-pub enum FellowshipRole {
-    Tank,
-    Healer,
-    Dps,
-}
-
-#[derive(Component)]
-pub struct Health {
-    pub current: f32,
-    pub max: f32,
-}
-
-#[derive(Component)]
-pub struct MovementSpeed(pub f32);
-
-#[derive(Component)]
-pub struct ThirdPersonCamera {
-    pub offset: Vec3,
-}
+use player::{Character, FellowshipRole, Health, MovementSpeed, PlayerPlugin};
+use camera::{ThirdPersonCamera, CameraPlugin};
 
 fn main() {
     let mut app = App::new();
@@ -39,8 +20,8 @@ fn main() {
         }));
     }
 
-    app.add_systems(Startup, setup_game)
-       .add_systems(Update, (player_movement_system, camera_follow_system))
+    app.add_plugins((PlayerPlugin, CameraPlugin))
+       .add_systems(Startup, setup_game)
        .run();
 }
 
@@ -88,54 +69,4 @@ fn setup_game(
             ..default()
         },
     ));
-}
-
-fn player_movement_system(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    time: Res<Time>,
-    mut query: Query<(&mut Transform, &MovementSpeed), With<Character>>,
-) {
-    for (mut transform, speed) in &mut query {
-        let mut direction = Vec3::ZERO;
-
-        if keyboard_input.pressed(KeyCode::KeyW) || keyboard_input.pressed(KeyCode::ArrowUp) {
-            direction.z -= 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::KeyS) || keyboard_input.pressed(KeyCode::ArrowDown) {
-            direction.z += 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::KeyA) || keyboard_input.pressed(KeyCode::ArrowLeft) {
-            direction.x -= 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::KeyD) || keyboard_input.pressed(KeyCode::ArrowRight) {
-            direction.x += 1.0;
-        }
-
-        if direction != Vec3::ZERO {
-            direction = direction.normalize();
-            transform.translation += direction * speed.0 * time.delta_seconds();
-            info!("Player position: {:?}", transform.translation);
-        }
-    }
-}
-
-fn camera_follow_system(
-    player_query: Query<&Transform, (With<Character>, Without<ThirdPersonCamera>)>,
-    mut camera_query: Query<(&mut Transform, &ThirdPersonCamera), With<Camera>>,
-    time: Res<Time>,
-) {
-    if let Ok(player_transform) = player_query.get_single() {
-        if let Ok((mut camera_transform, camera)) = camera_query.get_single_mut() {
-            let target_position = player_transform.translation + camera.offset;
-            let smoothness = 5.0; 
-            
-            camera_transform.translation = camera_transform.translation.lerp(
-                target_position, 
-                smoothness * time.delta_seconds()
-            );
-            
-            let look_at_target = player_transform.translation + Vec3::new(0.0, 1.0, 0.0);
-            camera_transform.look_at(look_at_target, Vec3::Y);
-        }
-    }
 }
