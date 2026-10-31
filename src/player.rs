@@ -392,7 +392,7 @@ fn player_movement_system(
                             0.0
                         };
 
-                    let mut walkable_support = false;
+                    let mut support_found = false;
 
                     if let Some(hit) = world.cast_mover(
                         &capsule,
@@ -400,18 +400,23 @@ fn player_movement_system(
                         Vec3::NEG_Y * (snap_reach + GROUND_PROBE_LIFT),
                         PLAYER_SKIN_WIDTH,
                     ) {
+                        let drop = (hit.distance - GROUND_PROBE_LIFT).max(0.0);
+                        let (descent, support_continues) =
+                            descent_step(drop, horizontal_distance);
+                        transform.translation.y -= descent;
+                        velocity.0.y = 0.0;
+                        support_found = true;
+
                         if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
-                            let drop = (hit.distance - GROUND_PROBE_LIFT).max(0.0);
-                            let (descent, support_continues) =
-                                descent_step(drop, horizontal_distance);
-                            transform.translation.y -= descent;
-                            velocity.0.y = 0.0;
                             steep_support = support_continues;
-                            walkable_support = true;
+                        } else {
+                            steep_support = drop > STEP_SNAP_SLACK;
                         }
+                    } else if !rode {
+                        transform.translation.y -= cone_reach;
                     }
 
-                    if !walkable_support && !rode {
+                    if !support_found && !rode {
                         steep_support = step.is_some_and(|step| step.ride_to.is_none());
                         let (end_velocity, average_velocity) = fall_step(0.0, delta);
                         velocity.0.y = end_velocity;
