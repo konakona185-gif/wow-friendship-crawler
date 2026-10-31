@@ -33,31 +33,34 @@ fn player_movement_system(
     mut query: Query<(&mut Transform, &MovementSpeed), With<Character>>,
 ) {
     for (mut transform, speed) in &mut query {
-        let mut direction = Vec3::ZERO;
+        let mut forward_move = 0.0;
+        let mut strafe_move = 0.0;
 
         if keyboard_input.pressed(KeyCode::KeyW) || keyboard_input.pressed(KeyCode::ArrowUp) {
-            direction.z -= 1.0;
+            forward_move += 1.0;
         }
         if keyboard_input.pressed(KeyCode::KeyS) || keyboard_input.pressed(KeyCode::ArrowDown) {
-            direction.z += 1.0;
+            forward_move -= 1.0;
         }
         if keyboard_input.pressed(KeyCode::KeyA) || keyboard_input.pressed(KeyCode::ArrowLeft) {
-            direction.x -= 1.0;
+            strafe_move -= 1.0;
         }
         if keyboard_input.pressed(KeyCode::KeyD) || keyboard_input.pressed(KeyCode::ArrowRight) {
-            direction.x += 1.0;
+            strafe_move += 1.0;
         }
 
-        if direction != Vec3::ZERO {
-            direction = direction.normalize();
+        if forward_move != 0.0 || strafe_move != 0.0 {
+            let forward = transform.forward();
+            let right = transform.right();
             
-            transform.translation += direction * speed.0 * time.delta_seconds();
+            let mut direction = (forward * forward_move) + (right * strafe_move);
+            direction.y = 0.0;
             
-            let target_rotation = Quat::from_rotation_y(direction.x.atan2(direction.z));
-            let rotation_speed = 10.0;
-            transform.rotation = transform.rotation.slerp(target_rotation, rotation_speed * time.delta_seconds());
-            
-            info!("Player position: {:?}", transform.translation);
+            if direction != Vec3::ZERO {
+                direction = direction.normalize();
+                transform.translation += direction * speed.0 * time.delta_seconds();
+                info!("Player position: {:?}", transform.translation);
+            }
         }
     }
 }
