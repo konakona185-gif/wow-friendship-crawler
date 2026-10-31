@@ -20,7 +20,7 @@ pub struct CombatPlugin;
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (target_tab_system, player_cast_system));
+        app.add_systems(Update, (target_tab_system, player_cast_system, enemy_death_system));
     }
 }
 
@@ -74,14 +74,29 @@ fn target_tab_system(
                             }
                         }
                     }
-
-                    if enemy_stats.current_health <= 0.0 {
-                        enemy_stats.current_health = 0.0;
-                        info!("Il nemico è stato sconfitto!");
-                    }
                 }
             } else {
                 info!("Nessun target selezionato! Premi TAB per agganciare il nemico.");
+            }
+        }
+    }
+}
+
+fn enemy_death_system(
+    mut commands: Commands,
+    enemy_query: Query<(Entity, &CombatStats), With<Enemy>>,
+    mut player_target_query: Query<&mut Target, With<Character>>,
+) {
+    for (enemy_entity, stats) in &enemy_query {
+        if stats.current_health <= 0.0 {
+            info!("Nemico {:?} sconfitto. Rimozione dal mondo ECS.", enemy_entity);
+            commands.entity(enemy_entity).despawn_recursive();
+
+            if let Ok(mut player_target) = player_target_query.get_single_mut() {
+                if player_target.entity == Some(enemy_entity) {
+                    player_target.entity = None;
+                    info!("Target del giocatore resettato.");
+                }
             }
         }
     }
