@@ -1,4 +1,3 @@
-
 mod player;
 mod camera;
 mod combat;
@@ -29,8 +28,37 @@ fn main() {
         .add_systems(Startup, setup_game);
     }
 
-    app.add_plugins((PlayerPlugin, CameraPlugin, CombatPlugin))
-        .run();
+    app.add_plugins((PlayerPlugin, CameraPlugin, CombatPlugin));
+
+    if is_headless {
+        app.update();
+
+        let world = app.world_mut();
+
+        let mut player_query = world.query_filtered::<Entity, With<Character>>();
+        let player_count = player_query.iter(world).count();
+
+        let mut enemy_query = world.query_filtered::<Entity, With<Enemy>>();
+        let enemy_count = enemy_query.iter(world).count();
+
+        assert_eq!(
+            player_count,
+            1,
+            "Il test headless deve creare esattamente un giocatore."
+        );
+
+        assert_eq!(
+            enemy_count,
+            3,
+            "Il test headless deve creare esattamente tre nemici."
+        );
+
+        println!(
+            "Test headless completato: 1 giocatore e 3 nemici creati correttamente."
+        );
+    } else {
+        app.run();
+    }
 }
 
 fn setup_headless_game(mut commands: Commands) {
