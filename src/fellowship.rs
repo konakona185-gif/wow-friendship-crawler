@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 
-use crate::player::{Character, FellowshipRole, PlayerId};
+use crate::character::CharacterBuild;
+use crate::player::{Character, PlayerId};
 
 #[derive(Resource, Default)]
 pub struct Fellowship {
@@ -69,28 +70,38 @@ impl Plugin for FellowshipPlugin {
 
 fn register_new_members(
     new_players: Query<
-        (Entity, &PlayerId),
+        (Entity, &PlayerId, &CharacterBuild),
         (
             With<Character>,
-            With<FellowshipRole>,
             Or<(
                 Added<Character>,
                 Added<PlayerId>,
-                Added<FellowshipRole>,
+                Added<CharacterBuild>,
             )>,
         ),
     >,
     all_players: Query<
-        (Entity, &PlayerId),
-        (With<Character>, With<FellowshipRole>),
+        (Entity, &PlayerId, &CharacterBuild),
+        With<Character>,
     >,
     mut fellowship: ResMut<Fellowship>,
 ) {
-    for (entity, player_id) in &new_players {
+    for (entity, player_id, build) in &new_players {
+        if !build.is_valid() {
+            fellowship.members.remove(player_id);
+
+            warn!(
+                "PlayerId {:?} non registrato: configurazione razza-classe non valida.",
+                player_id
+            );
+
+            continue;
+        }
+
         let matching_entities: Vec<Entity> = all_players
             .iter()
-            .filter(|(_, active_id)| **active_id == *player_id)
-            .map(|(active_entity, _)| active_entity)
+            .filter(|(_, active_id, _)| **active_id == *player_id)
+            .map(|(active_entity, _, _)| active_entity)
             .take(2)
             .collect();
 
@@ -114,21 +125,21 @@ fn process_membership_requests(
     mut join_events: EventReader<JoinFellowship>,
     mut leave_events: EventReader<LeaveFellowship>,
     player_query: Query<
-        (Entity, &PlayerId),
-        (With<Character>, With<FellowshipRole>),
+        (Entity, &PlayerId, &CharacterBuild),
+        With<Character>,
     >,
     mut fellowship: ResMut<Fellowship>,
 ) {
     for event in join_events.read() {
-        let matching_entities: Vec<Entity> = player_query
+        let matching_players: Vec<(Entity, CharacterBuild)> = player_query
             .iter()
-            .filter(|(_, player_id)| **player_id == event.player_id)
-            .map(|(entity, _)| entity)
+            .filter(|(_, player_id, _)| **player_id == event.player_id)
+            .map(|(entity, _, build)| (entity, *build))
             .take(2)
             .collect();
 
-        if matching_entities.len() != 1 {
-            if matching_entities.len() > 1 {
+        if matching_players.len() != 1 {
+            if matching_players.len() > 1 {
                 fellowship.members.remove(&event.player_id);
                 fellowship.duplicate_ids.insert(event.player_id);
             }
@@ -150,10 +161,18 @@ fn process_membership_requests(
             continue;
         }
 
-        fellowship.members.insert(
-            event.player_id,
-            matching_entities[0],
-        );
+        let (entity, build) = matching_players[0];
+
+        if !build.is_valid() {
+            warn!(
+                "Impossibile aggiungere PlayerId {:?}: configurazione razza-classe non valida.",
+                event.player_id
+            );
+
+            continue;
+        }
+
+        fellowship.members.insert(event.player_id, entity);
 
         info!(
             "PlayerId {:?} aggiunto alla Fellowship.",
@@ -173,18 +192,18 @@ fn process_membership_requests(
 
 fn cleanup_fellowship(
     player_query: Query<
-        (Entity, &PlayerId),
-        (With<Character>, With<FellowshipRole>),
+        (Entity, &PlayerId, &CharacterBuild),
+        With<Character>,
     >,
     mut fellowship: ResMut<Fellowship>,
 ) {
-    let mut active_players: HashMap<PlayerId, Vec<Entity>> = HashMap::new();
+    let mut active_players: HashMap<PlayerId, Vec<(Entity, bool)>> = HashMap::new();
 
-    for (entity, player_id) in &player_query {
+    for (entity, player_id, build) in &player_query {
         active_players
             .entry(*player_id)
             .or_default()
-            .push(entity);
+            .push((entity, build.is_valid()));
     }
 
     let mut duplicate_ids = HashSet::new();
@@ -206,7 +225,9 @@ fn cleanup_fellowship(
         active_players
             .get(player_id)
             .map(|entities| {
-                entities.len() == 1 && entities[0] == *entity
+                entities.len() == 1
+                    && entities[0].0 == *entity
+                    && entities[0].1
             })
             .unwrap_or(false)
     });
