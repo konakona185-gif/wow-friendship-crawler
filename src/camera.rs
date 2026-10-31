@@ -68,17 +68,41 @@ fn camera_follow_system(
                 }
             }
 
-            if obstructed {
-                camera_transform.translation = target_position;
+            let next_position = if obstructed {
+                target_position
             } else {
                 let delta = time.delta_secs();
                 let interpolation = 1.0
                     - (-CAMERA_SMOOTHNESS * delta).exp();
 
-                camera_transform.translation = camera_transform.translation.lerp(
+                camera_transform.translation.lerp(
                     target_position,
                     interpolation,
-                );
+                )
+            };
+
+            let movement = next_position - camera_transform.translation;
+            let movement_length = movement.length();
+
+            if movement_length > f32::EPSILON {
+                if let Some(world) = world.as_ref() {
+                    if let Some(hit_distance) = world.cast_camera(
+                        camera_transform.translation,
+                        movement,
+                        false,
+                    ) {
+                        let safe_distance = (hit_distance
+                            - CAMERA_COLLISION_MARGIN)
+                            .clamp(0.0, movement_length);
+
+                        camera_transform.translation +=
+                            movement * (safe_distance / movement_length);
+                    } else {
+                        camera_transform.translation = next_position;
+                    }
+                } else {
+                    camera_transform.translation = next_position;
+                }
             }
 
             camera_transform.look_at(look_at_target, Vec3::Y);
