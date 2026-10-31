@@ -3,8 +3,9 @@ use bevy::prelude::*;
 
 use benilla_world::collision::WorldCollision;
 use benilla_world::schedule::WorldStage;
+use benilla_world::view::WorldCamera;
 
-use crate::player::LocalPlayer;
+use crate::player::{CharacterInputSet, LocalPlayer};
 
 const CAMERA_COLLISION_MARGIN: f32 = 0.05;
 const CAMERA_SMOOTHNESS: f32 = 10.0;
@@ -22,14 +23,16 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            camera_follow_system.in_set(WorldStage::Present),
+            camera_follow_system
+                .in_set(WorldStage::Input)
+                .after(CharacterInputSet::Process),
         );
     }
 }
 
 fn camera_follow_system(
     player_query: Query<&Transform, (With<LocalPlayer>, Without<ThirdPersonCamera>)>,
-    mut camera_query: Query<(&mut Transform, &ThirdPersonCamera), With<Camera>>,
+    mut camera_query: Query<(&mut Transform, &ThirdPersonCamera), With<WorldCamera>>,
     time: Res<Time>,
     world: Option<WorldCollision<'_, '_>>,
 ) {
@@ -72,8 +75,8 @@ fn camera_follow_system(
                 target_position
             } else {
                 let delta = time.delta_secs();
-                let interpolation = 1.0
-                    - (-CAMERA_SMOOTHNESS * delta).exp();
+                let interpolation =
+                    1.0 - (-CAMERA_SMOOTHNESS * delta).exp();
 
                 camera_transform.translation.lerp(
                     target_position,
@@ -105,7 +108,11 @@ fn camera_follow_system(
                 }
             }
 
-            camera_transform.look_at(look_at_target, Vec3::Y);
+            if camera_transform.translation.distance_squared(look_at_target)
+                > f32::EPSILON
+            {
+                camera_transform.look_at(look_at_target, Vec3::Y);
+            }
         }
     }
 }
