@@ -67,10 +67,13 @@ fn player_movement_system(
         }
 
         if forward_move != 0.0 || strafe_move != 0.0 {
-            let forward = transform.forward();
-            let right = transform.right();
+            let forward = transform.forward().to_array();
+            let right = transform.right().to_array();
             
-            let mut direction = (forward * forward_move) + (right * strafe_move);
+            let forward_vec = Vec3::from_array(forward);
+            let right_vec = Vec3::from_array(right);
+            
+            let mut direction = (forward_vec * forward_move) + (right_vec * strafe_move);
             direction.y = 0.0;
             
             if direction != Vec3::ZERO {
