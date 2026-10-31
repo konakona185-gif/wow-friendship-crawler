@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::input::mouse::MouseMotion;
 
 #[derive(Component)]
 pub struct Character;
@@ -29,10 +30,26 @@ impl Plugin for PlayerPlugin {
 
 fn player_movement_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
+    mouse_button: Res<ButtonInput<MouseButton>>,
+    mut mouse_motion: EventReader<MouseMotion>,
     time: Res<Time>,
     mut query: Query<(&mut Transform, &MovementSpeed), With<Character>>,
 ) {
     for (mut transform, speed) in &mut query {
+        if mouse_button.pressed(MouseButton::Right) {
+            let mut mouse_delta = 0.0;
+            for event in mouse_motion.read() {
+                mouse_delta += event.delta.x;
+            }
+            
+            if mouse_delta != 0.0 {
+                let sensitivity = 0.003;
+                transform.rotate_y(-mouse_delta * sensitivity);
+            }
+        } else {
+            mouse_motion.clear();
+        }
+
         let mut forward_move = 0.0;
         let mut strafe_move = 0.0;
 
