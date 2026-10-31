@@ -1,3 +1,4 @@
+
 mod player;
 mod camera;
 mod combat;
@@ -31,6 +32,7 @@ use player::{
     FellowshipRole,
     MovementSpeed,
     Velocity,
+    GroundingState,
     PlayerPlugin,
 };
 
@@ -300,6 +302,7 @@ fn setup_headless_game(mut commands: Commands) {
         FellowshipRole::Tank,
         MovementSpeed(8.0),
         Velocity(Vec3::ZERO),
+        GroundingState::default(),
         Target { entity: None },
         CombatStats {
             current_health: 100.0,
@@ -375,6 +378,7 @@ fn setup_game(
         FellowshipRole::Tank,
         MovementSpeed(8.0),
         Velocity(Vec3::ZERO),
+        GroundingState::default(),
         Target { entity: None },
         CombatStats {
             current_health: 100.0,
