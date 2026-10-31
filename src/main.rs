@@ -63,16 +63,24 @@ fn setup_game(
         },
     ));
 
-    commands.spawn((
-        Enemy,
-        CombatStats { current_health: 150.0, max_health: 150.0, resource: 0.0 },
-        PbrBundle {
-            mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-            material: materials.add(Color::from(LinearRgba::new(0.9, 0.1, 0.1, 1.0))),
-            transform: Transform::from_xyz(5.0, 0.5, -5.0),
-            ..default()
-        },
-    ));
+    let enemy_positions = [
+        Vec3::new(5.0, 0.5, -5.0),
+        Vec3::new(-6.0, 0.5, -8.0),
+        Vec3::new(2.0, 0.5, -12.0),
+    ];
+
+    for (i, pos) in enemy_positions.iter().enumerate() {
+        commands.spawn((
+            Enemy,
+            CombatStats { current_health: 50.0 + (i as f32 * 20.0), max_health: 50.0 + (i as f32 * 20.0), resource: 0.0 },
+            PbrBundle {
+                mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+                material: materials.add(Color::from(LinearRgba::new(0.9, 0.1, 0.1, 1.0))),
+                transform: Transform::from_translation(*pos),
+                ..default()
+            },
+        ));
+    }
 
     commands.spawn((
         ThirdPersonCamera { distance: 8.0, height: 4.5 },
