@@ -50,7 +50,13 @@ fn player_movement_system(
 
         if direction != Vec3::ZERO {
             direction = direction.normalize();
+            
             transform.translation += direction * speed.0 * time.delta_seconds();
+            
+            let target_rotation = Quat::from_rotation_y(direction.x.atan2(direction.z));
+            let rotation_speed = 10.0;
+            transform.rotation = transform.rotation.slerp(target_rotation, rotation_speed * time.delta_seconds());
+            
             info!("Player position: {:?}", transform.translation);
         }
     }
