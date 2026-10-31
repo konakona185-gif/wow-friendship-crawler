@@ -1,4 +1,3 @@
-
 mod player;
 mod camera;
 mod combat;
@@ -342,7 +341,7 @@ fn setup_game(
     let spawn_position = wow_to_bevy([
         SPAWN_XY.0,
         SPAWN_XY.1,
-        1.0,
+        84.53,
     ]);
 
     commands.spawn((
