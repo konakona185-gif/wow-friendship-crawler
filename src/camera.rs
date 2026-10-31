@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::input::mouse::MouseMotion;
 use crate::player::Character;
 
 #[derive(Component)]
@@ -17,8 +16,6 @@ impl Plugin for CameraPlugin {
 }
 
 fn camera_follow_system(
-    mouse_button: Res<ButtonInput<MouseButton>>,
-    mut mouse_motion: EventReader<MouseMotion>,
     player_query: Query<&Transform, (With<Character>, Without<ThirdPersonCamera>)>,
     mut camera_query: Query<(&mut Transform, &ThirdPersonCamera), With<Camera>>,
     time: Res<Time>,
