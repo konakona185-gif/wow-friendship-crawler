@@ -1,4 +1,6 @@
+
 use bevy::prelude::*;
+
 use crate::player::{
     Character,
     CharacterCommand,
@@ -157,7 +159,7 @@ fn enemy_death_system(
                 enemy_entity
             );
 
-            commands.entity(enemy_entity).despawn_recursive();
+            commands.entity(enemy_entity).despawn();
 
             for mut player_target in &mut player_target_query {
                 if player_target.entity == Some(enemy_entity) {
