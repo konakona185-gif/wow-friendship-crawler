@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::player::Character;
+use crate::player::{Character, FellowshipRole};
 
 #[derive(Component)]
 pub struct Enemy;
@@ -9,11 +9,18 @@ pub struct Target {
     pub entity: Option<Entity>,
 }
 
+#[derive(Component)]
+pub struct CombatStats {
+    pub current_health: f32,
+    pub max_health: f32,
+    pub resource: f32,
+}
+
 pub struct CombatPlugin;
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, target_tab_system);
+        app.add_systems(Update, (target_tab_system, player_cast_system));
     }
 }
 
@@ -32,18 +39,49 @@ fn target_tab_system(
                     let distance = player_transform.translation.distance(enemy_transform.translation);
                     
                     if let Some((_, nearest_distance)) = nearest_enemy {
-                        if distance < nearest_distance {
-                            nearest_enemy = Some((enemy_entity, distance));
+                        if distance ,
+    mut player_query: Query<(&FellowshipRole, &mut CombatStats, &Target), With<Character>>,
+    mut enemy_query: Query<&mut CombatStats, (With<Enemy>, Without<Character>)>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Digit1) {
+        if let Ok((role, mut player_stats, target)) = player_query.get_single_mut() {
+            if let Some(target_entity) = target.entity {
+                if let Ok(mut enemy_stats) = enemy_query.get_component_mut::<CombatStats>(target_entity) {
+                    match role {
+                        FellowshipRole::Tank => {
+                            enemy_stats.current_health -= 15.0;
+                            player_stats.resource += 20.0;
+                            info!("Tank colpisce! Danno: 15. Vita Nemico: {}/{}. Rabbia generata: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
                         }
-                    } else {
-                        nearest_enemy = Some((enemy_entity, distance));
+                        FellowshipRole::Dps => {
+                            if player_stats.resource >= 30.0 {
+                                player_stats.resource -= 30.0;
+                                enemy_stats.current_health -= 40.0;
+                                info!("DPS scatta l'abilità! Danno pesante: 40. Vita Nemico: {}/{}. Energia residua: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
+                            } else {
+                                enemy_stats.current_health -= 10.0;
+                                player_stats.resource += 15.0;
+                                info!("DPS attacco base! Danno: 10. Vita Nemico: {}/{}. Energia rigenerata: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
+                            }
+                        }
+                        FellowshipRole::Healer => {
+                            if player_stats.resource >= 20.0 {
+                                player_stats.resource -= 20.0;
+                                enemy_stats.current_health -= 25.0;
+                                info!("Healer lancia incantesimo! Danno: 25. Vita Nemico: {}/{}. Mana residuo: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
+                            } else {
+                                info!("Mana insufficiente per curare/attaccare!");
+                            }
+                        }
+                    }
+
+                    if enemy_stats.current_health <= 0.0 {
+                        enemy_stats.current_health = 0.0;
+                        info!("Il nemico è stato sconfitto!");
                     }
                 }
-
-                if let Some((enemy_entity, _)) = nearest_enemy {
-                    player_target.entity = Some(enemy_entity);
-                    info!("Target selezionato: {:?}", enemy_entity);
-                }
+            } else {
+                info!("Nessun target selezionato! Premi TAB per agganciare il nemico.");
             }
         }
     }
