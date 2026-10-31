@@ -2,7 +2,7 @@ mod player;
 mod camera;
 
 use bevy::prelude::*;
-use player::{Character, FellowshipRole, Health, MovementSpeed, PlayerPlugin};
+use player::{Character, FellowshipRole, Health, MovementSpeed, Velocity, PlayerPlugin};
 use camera::{ThirdPersonCamera, CameraPlugin};
 
 fn main() {
@@ -51,6 +51,7 @@ fn setup_game(
         FellowshipRole::Tank,
         Health { current: 100.0, max: 100.0 },
         MovementSpeed(8.0),
+        Velocity(Vec3::ZERO),
         PbrBundle {
             mesh: meshes.add(Capsule3d::new(0.5, 1.0)),
             material: materials.add(Color::from(LinearRgba::new(0.0, 0.8, 0.2, 1.0))),
