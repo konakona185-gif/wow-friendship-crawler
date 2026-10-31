@@ -1,14 +1,24 @@
 
+use bevy::color::Alpha;
 use bevy::input::mouse::{
     AccumulatedMouseMotion,
     AccumulatedMouseScroll,
     MouseScrollUnit,
 };
 use bevy::prelude::*;
+use bevy::render::alpha::AlphaMode;
 
 use benilla_world::collision::WorldCollision;
+use benilla_world::model_fade::{
+    self_model_fade_alpha,
+    SELF_FADE_WINDOW,
+};
 use benilla_world::schedule::WorldStage;
-use benilla_world::view::WorldCamera;
+use benilla_world::view::{
+    ViewDistance,
+    Viewer,
+    WorldCamera,
+};
 
 use crate::player::{CharacterInputSet, LocalPlayer};
 
@@ -18,7 +28,7 @@ const CAMERA_LOOK_HEIGHT: f32 = 1.0;
 const CAMERA_LOOK_SENSITIVITY: f32 = 0.003;
 const CAMERA_PITCH_LIMIT: f32 = 89.0 * std::f32::consts::PI / 180.0;
 const CAMERA_ZOOM_SPEED: f32 = 8.33;
-const CAMERA_MIN_DISTANCE: f32 = 2.0;
+const CAMERA_MIN_DISTANCE: f32 = 0.0;
 const CAMERA_MAX_DISTANCE: f32 = 50.0;
 const CAMERA_FOLLOW_SPEED: f32 = std::f32::consts::PI;
 const CAMERA_FOLLOW_MIN_TIME: f32 = 0.1;
@@ -66,6 +76,9 @@ struct CameraOrbitState {
     collision_distance: f32,
     last_command: Option<u32>,
     follow_return: Option<CameraFollowReturn>,
+    player_material: Option<Handle<StandardMaterial>>,
+    material_base_color: Option<Color>,
+    material_alpha_mode: Option<AlphaMode>,
 }
 
 pub struct CameraPlugin;
@@ -82,7 +95,13 @@ impl Plugin for CameraPlugin {
 }
 
 fn camera_follow_system(
-    player_query: Query<&Transform, (With<LocalPlayer>, Without<ThirdPersonCamera>)>,
+    player_query: Query<
+        (
+            &Transform,
+            Option<&MeshMaterial3d<StandardMaterial>>,
+        ),
+        (With<LocalPlayer>, Without<ThirdPersonCamera>),
+    >,
     mut camera_query: Query<
         (Entity, &mut Transform, &ThirdPersonCamera),
         With<WorldCamera>,
@@ -93,9 +112,12 @@ fn camera_follow_system(
     mouse_scroll: Res<AccumulatedMouseScroll>,
     time: Res<Time>,
     world: Option<WorldCollision<'_, '_>>,
+    view_distance: Option<Res<ViewDistance>>,
+    mut viewer: Option<ResMut<Viewer>>,
+    material_assets: Option<ResMut<Assets<StandardMaterial>>>,
     mut orbit: Local<CameraOrbitState>,
 ) {
-    if let Ok(player_transform) = player_query.single() {
+    if let Ok((player_transform, player_material)) = player_query.single() {
         if let Ok((camera_entity, mut camera_transform, camera)) =
             camera_query.single_mut()
         {
@@ -179,12 +201,14 @@ fn camera_follow_system(
             let boom = camera_forward * orbit.distance;
             let mut open_distance = orbit.distance;
 
-            if let Some(world) = world.as_ref() {
-                if let Some(hit_distance) =
-                    world.cast_camera(look_at_target, boom, false)
-                {
-                    open_distance = (hit_distance - CAMERA_COLLISION_MARGIN)
-                        .clamp(0.0, orbit.distance);
+            if orbit.distance > f32::EPSILON {
+                if let Some(world) = world.as_ref() {
+                    if let Some(hit_distance) =
+                        world.cast_camera(look_at_target, boom, false)
+                    {
+                        open_distance = (hit_distance - CAMERA_COLLISION_MARGIN)
+                            .clamp(0.0, orbit.distance);
+                    }
                 }
             }
 
@@ -199,11 +223,88 @@ fn camera_follow_system(
 
             camera_transform.translation =
                 look_at_target + camera_forward * orbit.collision_distance;
+            camera_transform.rotation = camera_rotation;
 
-            if orbit.collision_distance > f32::EPSILON {
-                camera_transform.look_at(look_at_target, Vec3::Y);
+            let nearclip = view_distance
+                .as_deref()
+                .map_or(0.1, |distance| distance.nearclip);
+
+            let self_fade = self_model_fade_alpha(
+                orbit.collision_distance,
+                nearclip,
+                SELF_FADE_WINDOW,
+            );
+
+            if let Some(viewer) = viewer.as_deref_mut() {
+                viewer.self_fade = self_fade;
             }
+
+            update_player_material_fade(
+                player_material,
+                material_assets,
+                &mut orbit,
+                self_fade,
+            );
         }
+    }
+}
+
+fn update_player_material_fade(
+    player_material: Option<&MeshMaterial3d<StandardMaterial>>,
+    mut materials: Option<ResMut<Assets<StandardMaterial>>>,
+    orbit: &mut CameraOrbitState,
+    alpha: f32,
+) {
+    let Some(player_material) = player_material else {
+        return;
+    };
+
+    let handle = player_material.0.clone();
+
+    if orbit.player_material.as_ref() != Some(&handle) {
+        let Some(assets) = materials.as_deref() else {
+            return;
+        };
+
+        let Some(material) = assets.get(&handle) else {
+            return;
+        };
+
+        orbit.player_material = Some(handle.clone());
+        orbit.material_base_color = Some(material.base_color);
+        orbit.material_alpha_mode = Some(material.alpha_mode);
+    }
+
+    let Some(assets) = materials.as_deref_mut() else {
+        return;
+    };
+
+    let Some(material) = assets.get_mut(&handle) else {
+        return;
+    };
+
+    let Some(base_color) = orbit.material_base_color else {
+        return;
+    };
+
+    let alpha = alpha.clamp(0.0, 1.0);
+    let target_color = base_color.with_alpha(base_color.alpha() * alpha);
+    let original_mode = orbit
+        .material_alpha_mode
+        .unwrap_or(AlphaMode::Opaque);
+
+    let target_mode = if alpha < 0.9999 {
+        AlphaMode::Blend
+    } else {
+        original_mode
+    };
+
+    if material.base_color != target_color {
+        material.base_color = target_color;
+    }
+
+    if material.alpha_mode != target_mode {
+        material.alpha_mode = target_mode;
     }
 }
 
@@ -487,5 +588,38 @@ mod tests {
 
         assert!(orbit.follow_return.is_none());
         assert_eq!(orbit.yaw_offset, 0.8);
+    }
+
+    #[test]
+    fn self_fade_hides_the_character_at_first_person_distance() {
+        let alpha = self_model_fade_alpha(
+            0.0,
+            0.1,
+            SELF_FADE_WINDOW,
+        );
+
+        assert_eq!(alpha, 0.0);
+    }
+
+    #[test]
+    fn self_fade_restores_the_character_at_normal_distance() {
+        let alpha = self_model_fade_alpha(
+            0.1 + SELF_FADE_WINDOW,
+            0.1,
+            SELF_FADE_WINDOW,
+        );
+
+        assert_eq!(alpha, 1.0);
+    }
+
+    #[test]
+    fn self_fade_is_continuous_between_first_and_third_person() {
+        let alpha = self_model_fade_alpha(
+            0.1 + SELF_FADE_WINDOW * 0.5,
+            0.1,
+            SELF_FADE_WINDOW,
+        );
+
+        assert!((alpha - 0.5).abs() < 1.0e-5);
     }
 }
