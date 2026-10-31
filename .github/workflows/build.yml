@@ -21,6 +21,9 @@ jobs:
     - name: Compila per Windows
       run: cargo build --release
 
+    - name: Esegui test unitari Windows
+      run: cargo test --release
+
     - name: Esegui test headless Windows
       run: cargo run --release
       env:
@@ -50,6 +53,9 @@ jobs:
 
     - name: Compila per Linux
       run: cargo build --release
+
+    - name: Esegui test unitari Linux
+      run: cargo test --release
 
     - name: Esegui test headless Linux
       run: cargo run --release
