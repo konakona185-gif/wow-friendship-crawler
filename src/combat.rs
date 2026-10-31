@@ -30,53 +30,59 @@ fn target_tab_system(
     enemy_query: Query<(Entity, &Transform), With<Enemy>>,
     mut target_query: Query<&mut Target, With<Character>>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::Tab) {
-        if let Ok(player_transform) = player_query.get_single() {
-            if let Ok(mut player_target) = target_query.get_single_mut() {
-                let mut nearest_enemy: Option<(Entity, f32)> = None;
+    if !keyboard_input.just_pressed(KeyCode::Tab) {
+        return;
+    }
 
-                for (enemy_entity, enemy_transform) in &enemy_query {
-                    let distance = player_transform.translation.distance(enemy_transform.translation);
-                    
-                    if let Some((_, nearest_distance)) = nearest_enemy {
-                        if distance ,
+    let Ok(player_transform) = player_query.get_single() else { return; };
+    let Ok(mut player_target) = target_query.get_single_mut() else { return; };
+    
+    let mut nearest_enemy: Option<(Entity, f32)> = None;
+
+    for (enemy_entity, enemy_transform) in &enemy_query {
+        let distance = player_transform.translation.distance(enemy_transform.translation);
+        
+        if let Some((_, nearest_distance)) = nearest_enemy {
+            if distance ,
     mut player_query: Query<(&FellowshipRole, &mut CombatStats, &Target), With<Character>>,
     mut enemy_query: Query<&mut CombatStats, (With<Enemy>, Without<Character>)>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::Digit1) {
-        if let Ok((role, mut player_stats, target)) = player_query.get_single_mut() {
-            if let Some(target_entity) = target.entity {
-                if let Ok(mut enemy_stats) = enemy_query.get_component_mut::<CombatStats>(target_entity) {
-                    match role {
-                        FellowshipRole::Tank => {
-                            enemy_stats.current_health -= 15.0;
-                            player_stats.resource += 20.0;
-                            info!("Tank colpisce! Danno: 15. Vita Nemico: {}/{}. Rabbia generata: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
-                        }
-                        FellowshipRole::Dps => {
-                            if player_stats.resource >= 30.0 {
-                                player_stats.resource -= 30.0;
-                                enemy_stats.current_health -= 40.0;
-                                info!("DPS scatta l'abilità! Danno pesante: 40. Vita Nemico: {}/{}. Energia residua: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
-                            } else {
-                                enemy_stats.current_health -= 10.0;
-                                player_stats.resource += 15.0;
-                                info!("DPS attacco base! Danno: 10. Vita Nemico: {}/{}. Energia rigenerata: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
-                            }
-                        }
-                        FellowshipRole::Healer => {
-                            if player_stats.resource >= 20.0 {
-                                player_stats.resource -= 20.0;
-                                enemy_stats.current_health -= 25.0;
-                                info!("Healer lancia incantesimo! Danno: 25. Vita Nemico: {}/{}. Mana residuo: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
-                            } else {
-                                info!("Mana insufficiente per curare/attaccare!");
-                            }
-                        }
-                    }
-                }
+    if !keyboard_input.just_pressed(KeyCode::Digit1) {
+        return;
+    }
+
+    let Ok((role, mut player_stats, target)) = player_query.get_single_mut() else { return; };
+    let Some(target_entity) = target.entity else {
+        info!("Nessun target selezionato! Premi TAB per agganciare il nemico.");
+        return;
+    };
+
+    let Ok(mut enemy_stats) = enemy_query.get_component_mut::<CombatStats>(target_entity) else { return; };
+
+    match role {
+        FellowshipRole::Tank => {
+            enemy_stats.current_health -= 15.0;
+            player_stats.resource += 20.0;
+            info!("Tank colpisce! Danno: 15. Vita Nemico: {}/{}. Rabbia generata: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
+        }
+        FellowshipRole::Dps => {
+            if player_stats.resource >= 30.0 {
+                player_stats.resource -= 30.0;
+                enemy_stats.current_health -= 40.0;
+                info!("DPS scatta l'abilità! Danno pesante: 40. Vita Nemico: {}/{}. Energia residua: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
             } else {
-                info!("Nessun target selezionato! Premi TAB per agganciare il nemico.");
+                enemy_stats.current_health -= 10.0;
+                player_stats.resource += 15.0;
+                info!("DPS attacco base! Danno: 10. Vita Nemico: {}/{}. Energia rigenerata: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
+            }
+        }
+        FellowshipRole::Healer => {
+            if player_stats.resource >= 20.0 {
+                player_stats.resource -= 20.0;
+                enemy_stats.current_health -= 25.0;
+                info!("Healer lancia incantesimo! Danno: 25. Vita Nemico: {}/{}. Mana residuo: {}", enemy_stats.current_health, enemy_stats.max_health, player_stats.resource);
+            } else {
+                info!("Mana insufficiente per curare/attaccare!");
             }
         }
     }
