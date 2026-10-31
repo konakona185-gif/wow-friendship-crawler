@@ -22,9 +22,15 @@ use benilla_world::view::Viewer;
 const PLAYER_CAPSULE_RADIUS: f32 = 1.0 / 3.0;
 const PLAYER_CAPSULE_HEIGHT: f32 = 2.027_777_7;
 const PLAYER_SKIN_WIDTH: f32 = 0.02;
-const GROUND_NORMAL_THRESHOLD: f32 = 0.642_787_64;
+const GROUND_NORMAL_THRESHOLD: f32 = 0.642_788;
 const GROUND_PROBE_LIFT: f32 = 0.1;
 const GROUND_PROBE_DISTANCE: f32 = 0.3;
+const STEP_UP_HEIGHT: f32 = 1.0;
+const STEP_UP_ADVANCE: f32 = 1.191_753_6;
+const STEP_SLOPE_RATIO: f32 = 1.849_399;
+const STEP_SNAP_SLACK: f32 = 0.027_777_8;
+const FOOT_CONE_HEIGHT: f32 = PLAYER_CAPSULE_RADIUS * STEP_SLOPE_RATIO;
+const OVERHANG_EPS: f32 = -1.0e-4;
 
 #[derive(Component)]
 pub struct Character;
@@ -68,6 +74,12 @@ pub struct MovementSpeed(pub f32);
 
 #[derive(Component)]
 pub struct Velocity(pub Vec3);
+
+#[derive(Clone, Copy)]
+struct StepUp {
+    rise: f32,
+    ride_to: Option<f32>,
+}
 
 pub struct PlayerPlugin;
 
@@ -201,7 +213,6 @@ fn player_movement_system(
                 + (right * movement_input.x);
 
             move_direction.y = 0.0;
-
             move_direction = move_direction.normalize_or_zero();
         }
 
@@ -237,12 +248,22 @@ fn player_movement_system(
                 velocity.0.y = 0.0;
             }
 
-            let movement_velocity =
-                horizontal_velocity + Vec3::Y * velocity.0.y;
+            let grounded_walk = grounded;
+            let movement_velocity = if grounded_walk {
+                horizontal_velocity
+            } else {
+                horizontal_velocity + Vec3::Y * velocity.0.y
+            };
+
+            let step_preview = if grounded_walk {
+                move_direction * STEP_UP_ADVANCE
+            } else {
+                Vec3::ZERO
+            };
 
             let start_position = transform.translation;
             let end_position =
-                start_position + movement_velocity * delta;
+                start_position + movement_velocity * delta + step_preview;
 
             let start_wow = bevy_to_wow(start_position);
             let end_wow = bevy_to_wow(end_position);
@@ -258,67 +279,148 @@ fn player_movement_system(
             ];
 
             if world.terrain_resident(min, max) {
-                let mut floor_contact = false;
-                let mut ceiling_contact = false;
+                if grounded_walk {
+                    let travel = horizontal_velocity.length() * delta;
 
-                let output = world.slide_mover(
-                    &capsule,
-                    start_position,
-                    movement_velocity,
-                    duration,
-                    &MoveAndSlideConfig::default(),
-                    |hit| {
-                        let normal = **hit.normal;
-                        let hit_velocity = *hit.velocity;
+                    let step = if travel > 1.0e-6 {
+                        try_step_up(
+                            world,
+                            &capsule,
+                            start_position,
+                            move_direction,
+                            travel,
+                        )
+                    } else {
+                        None
+                    };
 
-                        if normal.y >= GROUND_NORMAL_THRESHOLD
-                            && hit_velocity.y <= 0.0
-                        {
-                            floor_contact = true;
+                    let mut slide_start = start_position;
 
-                            if grounded && normal.y > 0.0 {
-                                *hit.velocity = Vec3::new(
-                                    hit_velocity.x,
-                                    -(hit_velocity.x * normal.x
-                                        + hit_velocity.z * normal.z)
-                                        / normal.y,
-                                    hit_velocity.z,
-                                );
+                    if let Some(step) = step {
+                        if step.ride_to.is_none() {
+                            slide_start.y += step.rise;
+                        }
+                    }
+
+                    let ride_to = step.and_then(|step| step.ride_to);
+                    let mut rode = false;
+
+                    let output = world.slide_mover(
+                        &capsule,
+                        slide_start,
+                        horizontal_velocity,
+                        duration,
+                        &MoveAndSlideConfig::default(),
+                        |hit| {
+                            let normal = **hit.normal;
+                            let hit_velocity = *hit.velocity;
+
+                            if let Some(ride) =
+                                walkable_ride_velocity(normal, hit_velocity)
+                            {
+                                *hit.velocity = ride;
+                                return MoveAndSlideHitResponse::Accept;
                             }
-                        }
 
-                        if normal.y <= -GROUND_NORMAL_THRESHOLD
-                            && hit_velocity.y > 0.0
-                        {
-                            ceiling_contact = true;
-                        }
+                            if ride_to.is_some_and(|ceiling| hit.position.y < ceiling) {
+                                if let Some(up) = foot_cone_ride(
+                                    normal,
+                                    hit_velocity,
+                                ) {
+                                    *hit.velocity = up;
+                                    rode = true;
+                                    return MoveAndSlideHitResponse::Accept;
+                                }
+                            }
 
-                        MoveAndSlideHitResponse::Accept
-                    },
-                );
+                            if let Some(followed) =
+                                steep_contact_shear(normal, hit_velocity)
+                            {
+                                *hit.velocity = followed;
+                            }
 
-                transform.translation = output.position;
+                            MoveAndSlideHitResponse::Accept
+                        },
+                    );
 
-                if floor_contact {
-                    velocity.0.y = 0.0;
-                    grounded = true;
-                }
+                    transform.translation = output.position;
 
-                if ceiling_contact {
-                    velocity.0.y = 0.0;
-                }
+                    let slide_delta = output.position - slide_start;
+                    let horizontal_distance =
+                        slide_delta.x.hypot(slide_delta.z);
 
-                if velocity.0.y <= 0.0 {
+                    let snap_reach =
+                        horizontal_distance * STEP_SLOPE_RATIO
+                        + STEP_SNAP_SLACK
+                        + if step.is_some_and(|step| step.ride_to.is_none()) {
+                            step.map_or(0.0, |step| step.rise)
+                        } else {
+                            0.0
+                        };
+
                     if let Some(hit) = world.cast_mover(
                         &capsule,
                         transform.translation + Vec3::Y * GROUND_PROBE_LIFT,
-                        Vec3::NEG_Y * GROUND_PROBE_DISTANCE,
+                        Vec3::NEG_Y * (snap_reach + GROUND_PROBE_LIFT),
                         PLAYER_SKIN_WIDTH,
                     ) {
                         if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
-                            transform.translation.y +=
-                                GROUND_PROBE_LIFT - hit.distance;
+                            let drop = (hit.distance - GROUND_PROBE_LIFT).max(0.0);
+                            transform.translation.y -= drop;
                             velocity.0.y = 0.0;
+                        }
+                    }
+
+                    if rode && velocity.0.y > 0.0 {
+                        velocity.0.y = 0.0;
+                    }
+                } else {
+                    let mut ceiling_contact = false;
+
+                    let output = world.slide_mover(
+                        &capsule,
+                        start_position,
+                        movement_velocity,
+                        duration,
+                        &MoveAndSlideConfig::default(),
+                        |hit| {
+                            let normal = **hit.normal;
+                            let hit_velocity = *hit.velocity;
+
+                            if normal.y <= -GROUND_NORMAL_THRESHOLD
+                                && hit_velocity.y > 0.0
+                            {
+                                ceiling_contact = true;
+                            }
+
+                            if let Some(followed) =
+                                steep_contact_shear(normal, hit_velocity)
+                            {
+                                *hit.velocity = followed;
+                            }
+
+                            MoveAndSlideHitResponse::Accept
+                        },
+                    );
+
+                    transform.translation = output.position;
+
+                    if ceiling_contact {
+                        velocity.0.y = 0.0;
+                    }
+
+                    if velocity.0.y <= 0.0 {
+                        if let Some(hit) = world.cast_mover(
+                            &capsule,
+                            transform.translation + Vec3::Y * GROUND_PROBE_LIFT,
+                            Vec3::NEG_Y * GROUND_PROBE_DISTANCE,
+                            PLAYER_SKIN_WIDTH,
+                        ) {
+                            if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
+                                transform.translation.y +=
+                                    GROUND_PROBE_LIFT - hit.distance;
+                                velocity.0.y = 0.0;
+                            }
                         }
                     }
                 }
@@ -341,4 +443,146 @@ fn player_movement_system(
             };
         }
     }
+}
+
+fn try_step_up(
+    world: &WorldCollision<'_, '_>,
+    capsule: &Collider,
+    center: Vec3,
+    direction: Vec3,
+    travel: f32,
+) -> Option<StepUp> {
+    let cast = |from: Vec3, movement: Vec3| {
+        world.cast_mover(
+            capsule,
+            from,
+            movement,
+            PLAYER_SKIN_WIDTH,
+        )
+    };
+
+    let ahead = cast(center, direction * travel)?;
+    let normal = ahead.face_normal;
+
+    if normal.y >= GROUND_NORMAL_THRESHOLD
+        || normal.y < OVERHANG_EPS
+        || normal.dot(direction) >= 0.0
+    {
+        return None;
+    }
+
+    let feet_y = center.y - PLAYER_CAPSULE_HEIGHT * 0.5;
+    let contact_height = ahead.point1.y - feet_y;
+
+    let rise = cast(
+        center,
+        Vec3::Y * STEP_UP_HEIGHT,
+    )
+    .map_or(STEP_UP_HEIGHT, |hit| hit.distance);
+
+    if rise < 1.0e-3 {
+        return None;
+    }
+
+    let raised = center + Vec3::Y * rise;
+    let advance = travel.max(STEP_UP_ADVANCE);
+    let forward_distance = cast(
+        raised,
+        direction * advance,
+    )
+    .map_or(advance, |hit| hit.distance);
+
+    let over = raised + direction * forward_distance;
+    let reach = rise + advance * STEP_SLOPE_RATIO + STEP_SNAP_SLACK;
+
+    let down = cast(over, Vec3::NEG_Y * reach)?;
+
+    if down.face_normal.y < GROUND_NORMAL_THRESHOLD {
+        return None;
+    }
+
+    let landed = over + Vec3::NEG_Y * down.distance;
+    let height_gain = landed.y - center.y;
+
+    if height_gain <= 0.05 {
+        return None;
+    }
+
+    let ride_to = (contact_height <= FOOT_CONE_HEIGHT)
+        .then_some(landed.y);
+
+    Some(StepUp {
+        rise,
+        ride_to,
+    })
+}
+
+fn walkable_ride_velocity(
+    normal: Vec3,
+    velocity: Vec3,
+) -> Option<Vec3> {
+    if normal.y < GROUND_NORMAL_THRESHOLD
+        || velocity.dot(normal) >= 0.0
+    {
+        return None;
+    }
+
+    Some(Vec3::new(
+        velocity.x,
+        -(velocity.x * normal.x + velocity.z * normal.z) / normal.y,
+        velocity.z,
+    ))
+}
+
+fn foot_cone_ride(
+    normal: Vec3,
+    velocity: Vec3,
+) -> Option<Vec3> {
+    if !(OVERHANG_EPS..GROUND_NORMAL_THRESHOLD).contains(&normal.y) {
+        return None;
+    }
+
+    let horizontal_normal =
+        Vec3::new(normal.x, 0.0, normal.z).normalize_or_zero();
+
+    let into = -(velocity.x * horizontal_normal.x
+        + velocity.z * horizontal_normal.z);
+
+    if into <= 0.0 {
+        return None;
+    }
+
+    Some(Vec3::new(
+        velocity.x,
+        into * STEP_SLOPE_RATIO,
+        velocity.z,
+    ))
+}
+
+fn steep_contact_shear(
+    normal: Vec3,
+    velocity: Vec3,
+) -> Option<Vec3> {
+    if !(OVERHANG_EPS..GROUND_NORMAL_THRESHOLD).contains(&normal.y) {
+        return None;
+    }
+
+    let normal_velocity = velocity.dot(normal);
+
+    if normal_velocity >= 0.0 {
+        return None;
+    }
+
+    let horizontal_normal = Vec3::new(normal.x, 0.0, normal.z);
+    let horizontal_normal_length_squared = horizontal_normal.length_squared();
+
+    if horizontal_normal_length_squared <= f32::EPSILON {
+        return None;
+    }
+
+    Some(
+        velocity
+            - (normal_velocity / horizontal_normal_length_squared)
+                * horizontal_normal,
+    )
 }
