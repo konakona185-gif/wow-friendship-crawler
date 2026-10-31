@@ -9,7 +9,7 @@ use bevy::camera::{PerspectiveProjection, Projection};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::InputPlugin;
 use bevy::prelude::*;
-use bevy::camera::Hdr;
+use bevy::render::view::Hdr;
 
 use benilla_assets::coords::wow_to_bevy;
 use benilla_world::ffx_glow::FfxGlow;
@@ -102,7 +102,10 @@ fn run_game() {
 
     benilla_assets::register_asset_loaders(&mut app);
 
-    app.add_systems(Startup, setup_game);
+    app.add_systems(
+        Startup,
+        setup_game.after(benilla_assets::AssetSet::Open),
+    );
 
     app.add_plugins((
         PlayerPlugin,
