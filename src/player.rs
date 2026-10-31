@@ -1,5 +1,6 @@
+
+use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
-use bevy::input::mouse::MouseMotion;
 
 #[derive(Component)]
 pub struct Character;
@@ -66,7 +67,7 @@ impl Plugin for PlayerPlugin {
 fn local_player_command_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
-    mut mouse_motion: EventReader<MouseMotion>,
+    mouse_motion: Res<AccumulatedMouseMotion>,
     mut query: Query<&mut CharacterCommand, With<LocalPlayer>>,
 ) {
     let mut forward_move = 0.0;
@@ -96,15 +97,11 @@ fn local_player_command_system(
         strafe_move += 1.0;
     }
 
-    let mut mouse_delta = 0.0;
-
-    if mouse_button.pressed(MouseButton::Right) {
-        for event in mouse_motion.read() {
-            mouse_delta += event.delta.x;
-        }
+    let mouse_delta = if mouse_button.pressed(MouseButton::Right) {
+        mouse_motion.delta.x
     } else {
-        mouse_motion.clear();
-    }
+        0.0
+    };
 
     for mut command in &mut query {
         command.movement = Vec2::new(strafe_move, forward_move);
@@ -130,6 +127,7 @@ fn player_movement_system(
     let gravity = -25.0;
     let jump_force = 9.0;
     let floor_y = 1.0;
+    let delta = time.delta_secs();
 
     for (mut transform, speed, mut velocity, mut command) in &mut query {
         if command.look_delta != 0.0 {
@@ -174,13 +172,13 @@ fn player_movement_system(
                 velocity.0.y = jump_force;
             }
         } else {
-            velocity.0.y += gravity * time.delta_seconds();
+            velocity.0.y += gravity * delta;
         }
 
         let horizontal_velocity = move_direction * speed.0;
 
-        transform.translation += horizontal_velocity * time.delta_seconds();
-        transform.translation.y += velocity.0.y * time.delta_seconds();
+        transform.translation += horizontal_velocity * delta;
+        transform.translation.y += velocity.0.y * delta;
 
         if transform.translation.y < floor_y {
             transform.translation.y = floor_y;
