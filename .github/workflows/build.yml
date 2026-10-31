@@ -1,0 +1,53 @@
+name: Compila ed Esporta Eseguibile
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+
+    - name: Compila per Windows
+      run: cargo build --release
+
+    - name: Carica Artifact Windows
+      uses: actions/upload-artifact@v4
+      with:
+        name: gioco-windows
+        path: target/release/*.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Installa dipendenze grafiche/audio Linux per Bevy
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libasound2-dev libudev-dev libx11-dev libwayland-dev
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+
+    - name: Compila per Linux
+      run: cargo build --release
+
+    - name: Carica Artifact Linux
+      uses: actions/upload-artifact@v4
+      with:
+        name: gioco-linux
+        path: target/release/fellowship_wow_crawler
