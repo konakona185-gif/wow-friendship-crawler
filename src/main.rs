@@ -2,6 +2,7 @@ mod player;
 mod camera;
 mod combat;
 mod fellowship;
+mod character;
 
 use bevy::prelude::*;
 use bevy::input::InputPlugin;
@@ -25,6 +26,7 @@ use fellowship::{
     JoinFellowship,
     LeaveFellowship,
 };
+use character::{CharacterBuild, CharacterClass, CharacterRace};
 
 fn main() {
     let mut app = App::new();
@@ -55,7 +57,6 @@ fn main() {
 
     if is_headless {
         app.update();
-
         run_headless_tests(&mut app);
     } else {
         app.run();
@@ -63,6 +64,28 @@ fn main() {
 }
 
 fn run_headless_tests(app: &mut App) {
+    assert!(
+        CharacterBuild::new(CharacterRace::Dwarf, CharacterClass::Shaman).is_some(),
+        "Il Nano deve poter scegliere Sciamano."
+    );
+
+    assert!(
+        CharacterBuild::new(CharacterRace::Tauren, CharacterClass::Paladin).is_some(),
+        "Il Tauren deve poter scegliere Paladino."
+    );
+
+    assert!(
+        CharacterBuild::new(CharacterRace::Gnome, CharacterClass::Shaman).is_none(),
+        "Lo Gnomo non deve poter scegliere Sciamano."
+    );
+
+    assert!(
+        CharacterBuild::new(CharacterRace::Human, CharacterClass::Druid).is_none(),
+        "L'Umano non deve poter scegliere Druido."
+    );
+
+    println!("Test delle combinazioni razza-classe superato.");
+
     {
         let world = app.world_mut();
 
@@ -81,6 +104,9 @@ fn run_headless_tests(app: &mut App) {
             .filter(|id| **id == PlayerId(1))
             .count();
 
+        let mut build_query = world.query_filtered::<&CharacterBuild, With<Character>>();
+        let builds: Vec<CharacterBuild> = build_query.iter(world).copied().collect();
+
         let mut enemy_query = world.query_filtered::<Entity, With<Enemy>>();
         let enemy_count = enemy_query.iter(world).count();
 
@@ -93,7 +119,7 @@ fn run_headless_tests(app: &mut App) {
         assert_eq!(
             local_player_count,
             1,
-            "Il test headless deve assegnare esattamente un LocalPlayer."
+            "Il test headless deve assegnare un LocalPlayer."
         );
 
         assert_eq!(
@@ -109,9 +135,23 @@ fn run_headless_tests(app: &mut App) {
         );
 
         assert_eq!(
+            builds.len(),
+            1,
+            "Il giocatore deve avere una configurazione razza-classe."
+        );
+
+        assert!(
+            builds[0].is_valid(),
+            "La configurazione del personaggio deve essere valida."
+        );
+
+        assert_eq!(builds[0].race, CharacterRace::Human);
+        assert_eq!(builds[0].class, CharacterClass::Warrior);
+
+        assert_eq!(
             enemy_count,
             3,
-            "Il test headless deve creare esattamente tre nemici."
+            "Il test headless deve creare tre nemici."
         );
 
         let fellowship = world.resource::<Fellowship>();
@@ -145,15 +185,11 @@ fn run_headless_tests(app: &mut App) {
         let world = app.world_mut();
         let fellowship = world.resource::<Fellowship>();
 
-        assert_eq!(
-            fellowship.member_count(),
-            0,
-            "Il giocatore deve essere rimosso dalla Fellowship."
-        );
+        assert_eq!(fellowship.member_count(), 0);
 
         assert!(
             fellowship.get_member(PlayerId(1)).is_none(),
-            "Il giocatore non deve risultare ancora registrato."
+            "Il giocatore deve essere uscito dalla Fellowship."
         );
     }
 
@@ -164,7 +200,7 @@ fn run_headless_tests(app: &mut App) {
         assert_eq!(
             player_query.iter(world).count(),
             1,
-            "Uscire dalla Fellowship non deve eliminare il personaggio dal mondo."
+            "Uscire dalla Fellowship non deve eliminare il personaggio."
         );
     }
 
@@ -180,27 +216,20 @@ fn run_headless_tests(app: &mut App) {
         let world = app.world_mut();
         let fellowship = world.resource::<Fellowship>();
 
-        assert_eq!(
-            fellowship.member_count(),
-            1,
-            "Il giocatore deve poter rientrare nella Fellowship."
-        );
+        assert_eq!(fellowship.member_count(), 1);
 
         assert!(
             fellowship.get_member(PlayerId(1)).is_some(),
-            "PlayerId(1) deve essere nuovamente registrato."
+            "Il giocatore deve poter rientrare nella Fellowship."
         );
 
-        assert!(
-            !fellowship.has_duplicate_ids(),
-            "Non devono esserci identificativi duplicati."
-        );
+        assert!(!fellowship.has_duplicate_ids());
     }
 
     println!("Test di rientro nella Fellowship superato.");
 
     println!(
-        "Test headless completato: giocatore, comandi, combattimento, ingresso e uscita dalla Fellowship verificati."
+        "Test headless completato: personaggio, razza, classe, Fellowship e tre nemici verificati."
     );
 }
 
@@ -209,6 +238,11 @@ fn setup_headless_game(mut commands: Commands) {
         Character,
         LocalPlayer,
         PlayerId(1),
+        CharacterBuild::new(
+            CharacterRace::Human,
+            CharacterClass::Warrior,
+        )
+        .expect("Configurazione iniziale razza-classe non valida."),
         CharacterCommand::default(),
         FellowshipRole::Tank,
         MovementSpeed(8.0),
@@ -271,6 +305,11 @@ fn setup_game(
         Character,
         LocalPlayer,
         PlayerId(1),
+        CharacterBuild::new(
+            CharacterRace::Human,
+            CharacterClass::Warrior,
+        )
+        .expect("Configurazione iniziale razza-classe non valida."),
         CharacterCommand::default(),
         FellowshipRole::Tank,
         MovementSpeed(8.0),
