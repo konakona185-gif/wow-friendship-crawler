@@ -1,106 +1,141 @@
 use bevy::prelude::*;
 
-// =========================================================================
-// 1. COMPONENTI (Dati puri)
-// =========================================================================
+#[derive(Component)]
+pub struct Character;
 
-#[derive(Component, Debug)]
-enum FellowshipRole {
+#[derive(Component)]
+pub enum FellowshipRole {
     Tank,
     Healer,
     Dps,
 }
 
 #[derive(Component)]
-struct Character {
-    name: String,
-    role: FellowshipRole,
+pub struct Health {
+    pub current: f32,
+    pub max: f32,
 }
 
 #[derive(Component)]
-struct MovementSpeed(f32);
+pub struct MovementSpeed(pub f32);
 
 #[derive(Component)]
-struct Health {
-    current: u32,
-    max: u32,
+pub struct ThirdPersonCamera {
+    pub offset: Vec3,
 }
 
-// =========================================================================
-// 2. SISTEMI (Logica di Gioco)
-// =========================================================================
+fn main() {
+    let mut app = App::new();
 
-// Sistema di setup: spawna la telecamera e un eroe di prova (Tank)
-fn setup_game(mut commands: Commands) {
-    // Spawna una telecamera 3D di base per la terza persona
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+    if std::env::var("CI").is_ok() {
+        app.add_plugins(MinimalPlugins);
+    } else {
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Fellowship Fan Project (Bevy 0.14)".into(),
+                ..default()
+            }),
+            ..default()
+        }));
+    }
+
+    app.add_systems(Startup, setup_game)
+       .add_systems(Update, (player_movement_system, camera_follow_system))
+       .run();
+}
+
+fn setup_game(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            shadows_enabled: true,
+            illuminance: 4000.0,
+            ..default()
+        },
+        transform: Transform::from_xyz(10.0, 20.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
 
-    // Spawna l'entità del giocatore principale (es. un Guerriero Tank di WoW)
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Plane3d::default().mesh().size(50.0, 50.0)),
+        material: materials.add(Color::from(LinearRgba::new(0.2, 0.2, 0.2, 1.0))),
+        ..default()
+    });
+
     commands.spawn((
-        Character {
-            name: "Tauren Warrior".to_string(),
-            role: FellowshipRole::Tank,
+        Character,
+        FellowshipRole::Tank,
+        Health { current: 100.0, max: 100.0 },
+        MovementSpeed(8.0),
+        PbrBundle {
+            mesh: meshes.add(Capsule3d::new(0.5, 1.0)),
+            material: materials.add(Color::from(LinearRgba::new(0.0, 0.8, 0.2, 1.0))),
+            transform: Transform::from_xyz(0.0, 1.0, 0.0),
+            ..default()
         },
-        Health { current: 500, max: 500 },
-        MovementSpeed(5.0),
-        TransformBundle::from(Transform::from_xyz(0.0, 0.0, 0.0)),
-        VisibilityBundle::default(),
     ));
 
-    println!("Eroe inizializzato correttamente! Premi W, A, S, D per muoverti in 3D.");
+    let camera_offset = Vec3::new(0.0, 4.5, 8.0);
+    
+    commands.spawn((
+        ThirdPersonCamera { offset: camera_offset },
+        Camera3dBundle {
+            transform: Transform::from_translation(camera_offset)
+                .looking_at(Vec3::new(0.0, 1.0, 0.0), Vec3::Y),
+            ..default()
+        },
+    ));
 }
 
-// Sistema di movimento 3D d'azione lineare (stile Fellowship / WoW libero)
 fn player_movement_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &MovementSpeed, &Character)>,
+    mut query: Query<(&mut Transform, &MovementSpeed), With<Character>>,
 ) {
-    for (mut transform, speed, character) in query.iter_mut() {
+    for (mut transform, speed) in &mut query {
         let mut direction = Vec3::ZERO;
 
-        if keyboard_input.pressed(KeyCode::KeyW) {
-            direction.z -= 1.0; // Avanti
+        if keyboard_input.pressed(KeyCode::KeyW) || keyboard_input.pressed(KeyCode::ArrowUp) {
+            direction.z -= 1.0;
         }
-        if keyboard_input.pressed(KeyCode::KeyS) {
-            direction.z += 1.0; // Indietro
+        if keyboard_input.pressed(KeyCode::KeyS) || keyboard_input.pressed(KeyCode::ArrowDown) {
+            direction.z += 1.0;
         }
-        if keyboard_input.pressed(KeyCode::KeyA) {
-            direction.x -= 1.0; // Sinistra
+        if keyboard_input.pressed(KeyCode::KeyA) || keyboard_input.pressed(KeyCode::ArrowLeft) {
+            direction.x -= 1.0;
         }
-        if keyboard_input.pressed(KeyCode::KeyD) {
-            direction.x += 1.0; // Destra
+        if keyboard_input.pressed(KeyCode::KeyD) || keyboard_input.pressed(KeyCode::ArrowRight) {
+            direction.x += 1.0;
         }
 
-        // Se c'è movimento, normalizza il vettore e aggiorna la posizione nello spazio 3D
         if direction != Vec3::ZERO {
             direction = direction.normalize();
             transform.translation += direction * speed.0 * time.delta_seconds();
-            println!(
-                "[{}] Si muove a: X: {:.2}, Z: {:.2}",
-                character.name, transform.translation.x, transform.translation.z
-            );
+            info!("Player position: {:?}", transform.translation);
         }
     }
 }
 
-// =========================================================================
-// 3. APPLICAZIONE PRINCIPALE
-// =========================================================================
-fn main() {
-    App::new()
-        // DefaultPlugins carica la finestra grafica e la logica core di Bevy
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Fellowship WoW Crawler".into(),
-                ..default()
-            }),
-            ..default()
-        }))
-        .add_systems(Startup, setup_game)
-        .add_systems(Update, player_movement_system)
-        .run();
+fn camera_follow_system(
+    player_query: Query<&Transform, (With<Character>, Without<ThirdPersonCamera>)>,
+    mut camera_query: Query<(&mut Transform, &ThirdPersonCamera), With<Camera>>,
+    time: Res<Time>,
+) {
+    if let Ok(player_transform) = player_query.get_single() {
+        if let Ok((mut camera_transform, camera)) = camera_query.get_single_mut() {
+            let target_position = player_transform.translation + camera.offset;
+            let smoothness = 5.0; 
+            
+            camera_transform.translation = camera_transform.translation.lerp(
+                target_position, 
+                smoothness * time.delta_seconds()
+            );
+            
+            let look_at_target = player_transform.translation + Vec3::new(0.0, 1.0, 0.0);
+            camera_transform.look_at(look_at_target, Vec3::Y);
+        }
+    }
 }
