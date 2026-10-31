@@ -22,8 +22,9 @@ const PLAYER_CAPSULE_RADIUS: f32 = 1.0 / 3.0;
 const PLAYER_CAPSULE_HEIGHT: f32 = 2.027_777_7;
 const PLAYER_SKIN_WIDTH: f32 = 0.02;
 const GROUND_NORMAL_THRESHOLD: f32 = 0.642_788;
-const GROUND_PROBE_LIFT: f32 = 0.1;
-const GROUND_PROBE_DISTANCE: f32 = 0.3;
+const GROUND_PROBE_LIFT: f32 = 0.02;
+const GROUND_PROBE_DISTANCE: f32 = 0.18;
+const LAND_PROBE_DISTANCE: f32 = 0.03;
 const STEP_UP_HEIGHT: f32 = 1.0;
 const STEP_UP_ADVANCE: f32 = 1.191_753_6;
 const STEP_SLOPE_RATIO: f32 = 1.849_399;
@@ -224,10 +225,12 @@ fn player_movement_system(
             let mut grounded = false;
 
             if velocity.0.y <= 0.0 {
+                let probe_distance = vertical_probe_distance(velocity.0.y);
+
                 if let Some(hit) = world.cast_mover(
                     &capsule,
                     transform.translation + Vec3::Y * GROUND_PROBE_LIFT,
-                    Vec3::NEG_Y * GROUND_PROBE_DISTANCE,
+                    Vec3::NEG_Y * probe_distance,
                     PLAYER_SKIN_WIDTH,
                 ) {
                     if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
@@ -364,6 +367,8 @@ fn player_movement_system(
                             0.0
                         };
 
+                    let mut walkable_support = false;
+
                     if let Some(hit) = world.cast_mover(
                         &capsule,
                         transform.translation + Vec3::Y * GROUND_PROBE_LIFT,
@@ -374,6 +379,49 @@ fn player_movement_system(
                             let drop = (hit.distance - GROUND_PROBE_LIFT).max(0.0);
                             transform.translation.y -= drop;
                             velocity.0.y = 0.0;
+                            walkable_support = true;
+                        }
+                    }
+
+                    if !walkable_support && !rode {
+                        let (end_velocity, average_velocity) = fall_step(0.0, delta);
+                        velocity.0.y = end_velocity;
+
+                        let output = world.slide_mover(
+                            &capsule,
+                            transform.translation,
+                            Vec3::Y * average_velocity,
+                            duration,
+                            &MoveAndSlideConfig::default(),
+                            |hit| {
+                                let normal = **hit.normal;
+                                let hit_velocity = *hit.velocity;
+
+                                if let Some(followed) =
+                                    steep_contact_shear(normal, hit_velocity)
+                                {
+                                    *hit.velocity = followed;
+                                }
+
+                                MoveAndSlideHitResponse::Accept
+                            },
+                        );
+
+                        transform.translation = output.position;
+
+                        if velocity.0.y <= 0.0 {
+                            if let Some(hit) = world.cast_mover(
+                                &capsule,
+                                transform.translation + Vec3::Y * GROUND_PROBE_LIFT,
+                                Vec3::NEG_Y * (LAND_PROBE_DISTANCE + GROUND_PROBE_LIFT),
+                                PLAYER_SKIN_WIDTH,
+                            ) {
+                                if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
+                                    transform.translation.y +=
+                                        GROUND_PROBE_LIFT - hit.distance;
+                                    velocity.0.y = 0.0;
+                                }
+                            }
                         }
                     }
 
@@ -419,7 +467,7 @@ fn player_movement_system(
                         if let Some(hit) = world.cast_mover(
                             &capsule,
                             transform.translation + Vec3::Y * GROUND_PROBE_LIFT,
-                            Vec3::NEG_Y * GROUND_PROBE_DISTANCE,
+                            Vec3::NEG_Y * (LAND_PROBE_DISTANCE + GROUND_PROBE_LIFT),
                             PLAYER_SKIN_WIDTH,
                         ) {
                             if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
@@ -448,6 +496,14 @@ fn player_movement_system(
                 ..Viewer::default()
             };
         }
+    }
+}
+
+fn vertical_probe_distance(vertical_velocity: f32) -> f32 {
+    if vertical_velocity < 0.0 {
+        LAND_PROBE_DISTANCE
+    } else {
+        GROUND_PROBE_DISTANCE
     }
 }
 
@@ -615,4 +671,32 @@ fn steep_contact_shear(
             - (normal_velocity / horizontal_normal_length_squared)
                 * horizontal_normal,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn falling_uses_a_shorter_ground_probe_than_standing() {
+        assert_eq!(vertical_probe_distance(0.0), GROUND_PROBE_DISTANCE);
+        assert_eq!(vertical_probe_distance(1.0), GROUND_PROBE_DISTANCE);
+        assert_eq!(vertical_probe_distance(-0.01), LAND_PROBE_DISTANCE);
+        assert!(LAND_PROBE_DISTANCE < GROUND_PROBE_DISTANCE);
+    }
+
+    #[test]
+    fn falling_uses_average_velocity_and_respects_terminal_speed() {
+        let delta = 1.0 / 60.0;
+        let (end_velocity, average_velocity) = fall_step(0.0, delta);
+
+        assert!((end_velocity - GRAVITY * delta).abs() < 1.0e-6);
+        assert!((average_velocity - 0.5 * GRAVITY * delta).abs() < 1.0e-6);
+
+        let (terminal_end, terminal_average) =
+            fall_step(-TERMINAL_FALL_SPEED, delta);
+
+        assert_eq!(terminal_end, -TERMINAL_FALL_SPEED);
+        assert_eq!(terminal_average, -TERMINAL_FALL_SPEED);
+    }
 }
