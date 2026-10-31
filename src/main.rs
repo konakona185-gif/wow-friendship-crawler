@@ -4,7 +4,7 @@ mod combat;
 
 use bevy::prelude::*;
 use bevy::input::InputPlugin;
-use player::{Character, FellowshipRole, MovementSpeed, Velocity, PlayerPlugin};
+use player::{Character, LocalPlayer, FellowshipRole, MovementSpeed, Velocity, PlayerPlugin};
 use camera::{ThirdPersonCamera, CameraPlugin};
 use combat::{Target, Enemy, CombatStats, CombatPlugin};
 
@@ -38,6 +38,9 @@ fn main() {
         let mut player_query = world.query_filtered::<Entity, With<Character>>();
         let player_count = player_query.iter(world).count();
 
+        let mut local_player_query = world.query_filtered::<Entity, With<LocalPlayer>>();
+        let local_player_count = local_player_query.iter(world).count();
+
         let mut enemy_query = world.query_filtered::<Entity, With<Enemy>>();
         let enemy_count = enemy_query.iter(world).count();
 
@@ -48,13 +51,19 @@ fn main() {
         );
 
         assert_eq!(
+            local_player_count,
+            1,
+            "Il test headless deve assegnare esattamente un LocalPlayer."
+        );
+
+        assert_eq!(
             enemy_count,
             3,
             "Il test headless deve creare esattamente tre nemici."
         );
 
         println!(
-            "Test headless completato: 1 giocatore e 3 nemici creati correttamente."
+            "Test headless completato: 1 giocatore locale e 3 nemici creati correttamente."
         );
     } else {
         app.run();
@@ -64,6 +73,7 @@ fn main() {
 fn setup_headless_game(mut commands: Commands) {
     commands.spawn((
         Character,
+        LocalPlayer,
         FellowshipRole::Tank,
         MovementSpeed(8.0),
         Velocity(Vec3::ZERO),
@@ -123,6 +133,7 @@ fn setup_game(
 
     commands.spawn((
         Character,
+        LocalPlayer,
         FellowshipRole::Tank,
         MovementSpeed(8.0),
         Velocity(Vec3::ZERO),
