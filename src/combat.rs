@@ -36,14 +36,23 @@ fn target_tab_system(
 
     let Ok(player_transform) = player_query.get_single() else { return; };
     let Ok(mut player_target) = target_query.get_single_mut() else { return; };
-    
-    let mut nearest_enemy: Option<(Entity, f32)> = None;
 
-    for (enemy_entity, enemy_transform) in &enemy_query {
-        let distance = player_transform.translation.distance(enemy_transform.translation);
-        
-        if let Some((_, nearest_distance)) = nearest_enemy {
-            if distance ,
+    let nearest = enemy_query
+        .iter()
+        .map(|(entity, transform)| {
+            let dist = player_transform.translation.distance(transform.translation);
+            (entity, dist)
+        })
+        .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    if let Some((enemy_entity, _)) = nearest {
+        player_target.entity = Some(enemy_entity);
+        info!("Target selezionato: {:?}", enemy_entity);
+    }
+}
+
+fn player_cast_system(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut player_query: Query<(&FellowshipRole, &mut CombatStats, &Target), With<Character>>,
     mut enemy_query: Query<&mut CombatStats, (With<Enemy>, Without<Character>)>,
 ) {
