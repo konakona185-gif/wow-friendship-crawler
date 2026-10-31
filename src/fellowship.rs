@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 
@@ -23,6 +23,10 @@ impl Fellowship {
         self.members.is_empty()
     }
 
+    pub fn contains(&self, player_id: PlayerId) -> bool {
+        self.members.contains_key(&player_id)
+    }
+
     pub fn members(&self) -> impl Iterator<Item = (PlayerId, Entity)> + '_ {
         self.members
             .iter()
@@ -34,38 +38,160 @@ impl Fellowship {
     }
 }
 
+#[derive(Event, Clone, Copy)]
+pub struct JoinFellowship {
+    pub player_id: PlayerId,
+}
+
+#[derive(Event, Clone, Copy)]
+pub struct LeaveFellowship {
+    pub player_id: PlayerId,
+}
+
 pub struct FellowshipPlugin;
 
 impl Plugin for FellowshipPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Fellowship>()
-            .add_systems(Update, update_fellowship);
+            .add_event::<JoinFellowship>()
+            .add_event::<LeaveFellowship>()
+            .add_systems(
+                Update,
+                (
+                    register_new_members,
+                    process_membership_requests,
+                    cleanup_fellowship,
+                )
+                    .chain(),
+            );
     }
 }
 
-fn update_fellowship(
+fn register_new_members(
+    new_players: Query<
+        (Entity, &PlayerId),
+        (
+            With<Character>,
+            With<FellowshipRole>,
+            Or<(
+                Added<Character>,
+                Added<PlayerId>,
+                Added<FellowshipRole>,
+            )>,
+        ),
+    >,
+    all_players: Query<
+        (Entity, &PlayerId),
+        (With<Character>, With<FellowshipRole>),
+    >,
+    mut fellowship: ResMut<Fellowship>,
+) {
+    for (entity, player_id) in &new_players {
+        let matching_entities: Vec<Entity> = all_players
+            .iter()
+            .filter(|(_, active_id)| **active_id == *player_id)
+            .map(|(active_entity, _)| active_entity)
+            .take(2)
+            .collect();
+
+        if matching_entities.len() == 1 {
+            if !fellowship.duplicate_ids.contains(player_id) {
+                fellowship.members.insert(*player_id, entity);
+            }
+        } else {
+            fellowship.members.remove(player_id);
+            fellowship.duplicate_ids.insert(*player_id);
+
+            warn!(
+                "PlayerId duplicato rilevato: {:?}. Registrazione rifiutata.",
+                player_id
+            );
+        }
+    }
+}
+
+fn process_membership_requests(
+    mut join_events: EventReader<JoinFellowship>,
+    mut leave_events: EventReader<LeaveFellowship>,
     player_query: Query<
         (Entity, &PlayerId),
         (With<Character>, With<FellowshipRole>),
     >,
     mut fellowship: ResMut<Fellowship>,
 ) {
-    let mut members = HashMap::new();
-    let mut duplicate_ids = HashSet::new();
+    for event in join_events.read() {
+        let matching_entities: Vec<Entity> = player_query
+            .iter()
+            .filter(|(_, player_id)| **player_id == event.player_id)
+            .map(|(entity, _)| entity)
+            .take(2)
+            .collect();
 
-    for (entity, player_id) in &player_query {
-        if duplicate_ids.contains(player_id) {
+        if matching_entities.len() != 1 {
+            if matching_entities.len() > 1 {
+                fellowship.members.remove(&event.player_id);
+                fellowship.duplicate_ids.insert(event.player_id);
+            }
+
+            warn!(
+                "Impossibile aggiungere PlayerId {:?}: personaggio inesistente o identificativo duplicato.",
+                event.player_id
+            );
+
             continue;
         }
 
-        match members.entry(*player_id) {
-            Entry::Vacant(entry) => {
-                entry.insert(entity);
-            }
-            Entry::Occupied(entry) => {
-                entry.remove();
-                duplicate_ids.insert(*player_id);
-            }
+        if fellowship.duplicate_ids.contains(&event.player_id) {
+            warn!(
+                "Impossibile aggiungere PlayerId {:?}: identificativo in conflitto.",
+                event.player_id
+            );
+
+            continue;
+        }
+
+        fellowship.members.insert(
+            event.player_id,
+            matching_entities[0],
+        );
+
+        info!(
+            "PlayerId {:?} aggiunto alla Fellowship.",
+            event.player_id
+        );
+    }
+
+    for event in leave_events.read() {
+        if fellowship.members.remove(&event.player_id).is_some() {
+            info!(
+                "PlayerId {:?} uscito dalla Fellowship.",
+                event.player_id
+            );
+        }
+    }
+}
+
+fn cleanup_fellowship(
+    player_query: Query<
+        (Entity, &PlayerId),
+        (With<Character>, With<FellowshipRole>),
+    >,
+    mut fellowship: ResMut<Fellowship>,
+) {
+    let mut active_players: HashMap<PlayerId, Vec<Entity>> = HashMap::new();
+
+    for (entity, player_id) in &player_query {
+        active_players
+            .entry(*player_id)
+            .or_default()
+            .push(entity);
+    }
+
+    let mut duplicate_ids = HashSet::new();
+
+    for (player_id, entities) in &active_players {
+        if entities.len() > 1 {
+            duplicate_ids.insert(*player_id);
         }
     }
 
@@ -76,6 +202,18 @@ fn update_fellowship(
         );
     }
 
-    fellowship.members = members;
+    fellowship.members.retain(|player_id, entity| {
+        active_players
+            .get(player_id)
+            .map(|entities| {
+                entities.len() == 1 && entities[0] == *entity
+            })
+            .unwrap_or(false)
+    });
+
+    for player_id in &duplicate_ids {
+        fellowship.members.remove(player_id);
+    }
+
     fellowship.duplicate_ids = duplicate_ids;
 }
