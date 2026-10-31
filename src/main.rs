@@ -4,6 +4,7 @@ mod camera;
 mod combat;
 mod fellowship;
 mod character;
+mod interaction;
 
 use bevy::camera::{PerspectiveProjection, Projection};
 use bevy::core_pipeline::tonemapping::Tonemapping;
@@ -13,6 +14,8 @@ use bevy::render::view::Hdr;
 
 use benilla_assets::coords::wow_to_bevy;
 use benilla_world::ffx_glow::FfxGlow;
+use benilla_world::interact::{CreaturePickPart, PickBox, WorldObject};
+use benilla_world::model_render::ModelKind;
 use benilla_world::schedule::WorldLive;
 use benilla_world::terrain_stream::SPAWN_XY;
 use benilla_world::view::{
@@ -45,6 +48,7 @@ use fellowship::{
     LeaveFellowship,
 };
 use character::{CharacterBuild, CharacterClass, CharacterRace};
+use interaction::InteractionPlugin;
 
 fn main() {
     let is_headless = std::env::var_os("CI").is_some();
@@ -68,6 +72,7 @@ fn run_headless() {
         CameraPlugin,
         CombatPlugin,
         FellowshipPlugin,
+        InteractionPlugin,
     ));
 
     app.update();
@@ -113,6 +118,7 @@ fn run_game() {
         CameraPlugin,
         CombatPlugin,
         FellowshipPlugin,
+        InteractionPlugin,
     ));
 
     app.run();
@@ -387,6 +393,14 @@ fn setup_game(
         },
         Mesh3d(player_mesh),
         MeshMaterial3d(player_material),
+        PickBox,
+        CreaturePickPart,
+        WorldObject {
+            kind: ModelKind::Creature,
+            label: "Giocatore".into(),
+            id: 0,
+            detail: "Warrior".into(),
+        },
         Transform::from_translation(spawn_position),
     ));
 
@@ -414,6 +428,14 @@ fn setup_game(
             },
             Mesh3d(enemy_mesh.clone()),
             MeshMaterial3d(enemy_material.clone()),
+            PickBox,
+            CreaturePickPart,
+            WorldObject {
+                kind: ModelKind::Creature,
+                label: format!("Nemico {}", i + 1),
+                id: 0,
+                detail: String::new(),
+            },
             Transform::from_translation(*pos),
         ));
     }
