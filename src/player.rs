@@ -20,6 +20,9 @@ pub struct Health {
 #[derive(Component)]
 pub struct MovementSpeed(pub f32);
 
+#[derive(Component)]
+pub struct Velocity(pub Vec3);
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
@@ -33,9 +36,13 @@ fn player_movement_system(
     mouse_button: Res<ButtonInput<MouseButton>>,
     mut mouse_motion: EventReader<MouseMotion>,
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &MovementSpeed), With<Character>>,
+    mut query: Query<(&mut Transform, &MovementSpeed, &mut Velocity), With<Character>>,
 ) {
-    for (mut transform, speed) in &mut query {
+    let gravity = -25.0;
+    let jump_force = 9.0;
+    let floor_y = 1.0;
+
+    for (mut transform, speed, mut velocity) in &mut query {
         if mouse_button.pressed(MouseButton::Right) {
             let mut mouse_delta = 0.0;
             for event in mouse_motion.read() {
@@ -66,6 +73,7 @@ fn player_movement_system(
             strafe_move += 1.0;
         }
 
+        let mut move_direction = Vec3::ZERO;
         if forward_move != 0.0 || strafe_move != 0.0 {
             let forward = transform.forward().to_array();
             let right = transform.right().to_array();
@@ -73,14 +81,34 @@ fn player_movement_system(
             let forward_vec = Vec3::from_array(forward);
             let right_vec = Vec3::from_array(right);
             
-            let mut direction = (forward_vec * forward_move) + (right_vec * strafe_move);
-            direction.y = 0.0;
+            move_direction = (forward_vec * forward_move) + (right_vec * strafe_move);
+            move_direction.y = 0.0;
             
-            if direction != Vec3::ZERO {
-                direction = direction.normalize();
-                transform.translation += direction * speed.0 * time.delta_seconds();
-                info!("Player position: {:?}", transform.translation);
+            if move_direction != Vec3::ZERO {
+                move_direction = move_direction.normalize();
             }
+        }
+
+        let is_grounded = transform.translation.y <= floor_y;
+
+        if is_grounded {
+            velocity.0.y = 0.0;
+            transform.translation.y = floor_y;
+
+            if keyboard_input.just_pressed(KeyCode::Space) {
+                velocity.0.y = jump_force;
+            }
+        } else {
+            velocity.0.y += gravity * time.delta_seconds();
+        }
+
+        let horizontal_velocity = move_direction * speed.0;
+        transform.translation += horizontal_velocity * time.delta_seconds();
+        transform.translation.y += velocity.0.y * time.delta_seconds();
+
+        if transform.translation.y < floor_y {
+            transform.translation.y = floor_y;
+            velocity.0.y = 0.0;
         }
     }
 }
