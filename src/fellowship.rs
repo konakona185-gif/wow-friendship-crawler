@@ -1,3 +1,4 @@
+
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
@@ -39,12 +40,12 @@ impl Fellowship {
     }
 }
 
-#[derive(Event, Clone, Copy)]
+#[derive(Message, Clone, Copy)]
 pub struct JoinFellowship {
     pub player_id: PlayerId,
 }
 
-#[derive(Event, Clone, Copy)]
+#[derive(Message, Clone, Copy)]
 pub struct LeaveFellowship {
     pub player_id: PlayerId,
 }
@@ -54,8 +55,8 @@ pub struct FellowshipPlugin;
 impl Plugin for FellowshipPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Fellowship>()
-            .add_event::<JoinFellowship>()
-            .add_event::<LeaveFellowship>()
+            .add_message::<JoinFellowship>()
+            .add_message::<LeaveFellowship>()
             .add_systems(
                 Update,
                 (
@@ -122,40 +123,40 @@ fn register_new_members(
 }
 
 fn process_membership_requests(
-    mut join_events: EventReader<JoinFellowship>,
-    mut leave_events: EventReader<LeaveFellowship>,
+    mut join_messages: MessageReader<JoinFellowship>,
+    mut leave_messages: MessageReader<LeaveFellowship>,
     player_query: Query<
         (Entity, &PlayerId, &CharacterBuild),
         With<Character>,
     >,
     mut fellowship: ResMut<Fellowship>,
 ) {
-    for event in join_events.read() {
+    for message in join_messages.read() {
         let matching_players: Vec<(Entity, CharacterBuild)> = player_query
             .iter()
-            .filter(|(_, player_id, _)| **player_id == event.player_id)
+            .filter(|(_, player_id, _)| **player_id == message.player_id)
             .map(|(entity, _, build)| (entity, *build))
             .take(2)
             .collect();
 
         if matching_players.len() != 1 {
             if matching_players.len() > 1 {
-                fellowship.members.remove(&event.player_id);
-                fellowship.duplicate_ids.insert(event.player_id);
+                fellowship.members.remove(&message.player_id);
+                fellowship.duplicate_ids.insert(message.player_id);
             }
 
             warn!(
                 "Impossibile aggiungere PlayerId {:?}: personaggio inesistente o identificativo duplicato.",
-                event.player_id
+                message.player_id
             );
 
             continue;
         }
 
-        if fellowship.duplicate_ids.contains(&event.player_id) {
+        if fellowship.duplicate_ids.contains(&message.player_id) {
             warn!(
                 "Impossibile aggiungere PlayerId {:?}: identificativo in conflitto.",
-                event.player_id
+                message.player_id
             );
 
             continue;
@@ -166,25 +167,25 @@ fn process_membership_requests(
         if !build.is_valid() {
             warn!(
                 "Impossibile aggiungere PlayerId {:?}: configurazione razza-classe non valida.",
-                event.player_id
+                message.player_id
             );
 
             continue;
         }
 
-        fellowship.members.insert(event.player_id, entity);
+        fellowship.members.insert(message.player_id, entity);
 
         info!(
             "PlayerId {:?} aggiunto alla Fellowship.",
-            event.player_id
+            message.player_id
         );
     }
 
-    for event in leave_events.read() {
-        if fellowship.members.remove(&event.player_id).is_some() {
+    for message in leave_messages.read() {
+        if fellowship.members.remove(&message.player_id).is_some() {
             info!(
                 "PlayerId {:?} uscito dalla Fellowship.",
-                event.player_id
+                message.player_id
             );
         }
     }
