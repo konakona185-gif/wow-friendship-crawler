@@ -1,4 +1,6 @@
+
 use bevy::prelude::*;
+
 use crate::player::LocalPlayer;
 
 #[derive(Component)]
@@ -20,8 +22,8 @@ fn camera_follow_system(
     mut camera_query: Query<(&mut Transform, &ThirdPersonCamera), With<Camera>>,
     time: Res<Time>,
 ) {
-    if let Ok(player_transform) = player_query.get_single() {
-        if let Ok((mut camera_transform, camera)) = camera_query.get_single_mut() {
+    if let Ok(player_transform) = player_query.single() {
+        if let Ok((mut camera_transform, camera)) = camera_query.single_mut() {
             let forward = player_transform.forward();
 
             let target_position =
@@ -33,7 +35,7 @@ fn camera_follow_system(
 
             camera_transform.translation = camera_transform.translation.lerp(
                 target_position,
-                smoothness * time.delta_seconds()
+                smoothness * time.delta_secs(),
             );
 
             let look_at_target =
