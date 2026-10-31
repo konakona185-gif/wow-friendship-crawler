@@ -140,7 +140,7 @@ fn local_player_command_system(
 
 fn player_movement_system(
     time: Res<Time>,
-    world: WorldCollision,
+    world: Option<WorldCollision<'_, '_>>,
     world_assets: Option<Res<WorldAssets>>,
     world_progress: Option<Res<WorldLoadProgress>>,
     mut view_focus: Option<ResMut<ViewFocus>>,
@@ -172,6 +172,7 @@ fn player_movement_system(
     let has_world_assets = world_assets.is_some();
 
     let world_ready = has_world_assets
+        && world.is_some()
         && world_progress.as_deref().is_none_or(|progress| {
             progress.focus_resident && progress.presentable()
         });
@@ -208,7 +209,7 @@ fn player_movement_system(
 
         if !has_world_assets {
             transform.translation += horizontal_velocity * delta;
-        } else if world_ready {
+        } else if let Some(world) = world.as_ref().filter(|_| world_ready) {
             let mut grounded = false;
 
             if velocity.0.y <= 0.0 {
