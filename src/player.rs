@@ -1,11 +1,30 @@
+
+use std::time::Duration;
+
+use avian3d::prelude::{
+    Collider,
+    MoveAndSlideConfig,
+    MoveAndSlideHitResponse,
+};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 
-use benilla_assets::AdtTile;
+use benilla_assets::coords::bevy_to_wow;
+use benilla_assets::WorldAssets;
+use benilla_world::collision::WorldCollision;
+use benilla_world::schedule::WorldStage;
 use benilla_world::terrain_stream::{
-    terrain_height_under,
-    TerrainStreamer,
+    ViewFocus,
+    WorldLoadProgress,
 };
+use benilla_world::view::Viewer;
+
+const PLAYER_CAPSULE_RADIUS: f32 = 1.0 / 3.0;
+const PLAYER_CAPSULE_HEIGHT: f32 = 2.027_777_7;
+const PLAYER_SKIN_WIDTH: f32 = 0.02;
+const GROUND_NORMAL_THRESHOLD: f32 = 0.642_787_64;
+const GROUND_PROBE_LIFT: f32 = 0.1;
+const GROUND_PROBE_DISTANCE: f32 = 0.3;
 
 #[derive(Component)]
 pub struct Character;
@@ -64,7 +83,9 @@ impl Plugin for PlayerPlugin {
         )
         .add_systems(
             Update,
-            player_movement_system.in_set(CharacterInputSet::Process),
+            player_movement_system
+                .in_set(CharacterInputSet::Process)
+                .in_set(WorldStage::Input),
         );
     }
 }
@@ -119,8 +140,11 @@ fn local_player_command_system(
 
 fn player_movement_system(
     time: Res<Time>,
-    terrain_streamer: Option<Res<TerrainStreamer>>,
-    adt_tiles: Option<Res<Assets<AdtTile>>>,
+    world: WorldCollision,
+    world_assets: Option<Res<WorldAssets>>,
+    world_progress: Option<Res<WorldLoadProgress>>,
+    mut view_focus: Option<ResMut<ViewFocus>>,
+    mut viewer: Option<ResMut<Viewer>>,
     mut query: Query<
         (
             &mut Transform,
@@ -133,8 +157,24 @@ fn player_movement_system(
 ) {
     let gravity = -25.0;
     let jump_force = 9.0;
-    let floor_offset = 1.0;
     let delta = time.delta_secs();
+
+    if delta <= 0.0 {
+        return;
+    }
+
+    let duration = Duration::from_secs_f32(delta);
+    let capsule = Collider::capsule(
+        PLAYER_CAPSULE_RADIUS,
+        PLAYER_CAPSULE_HEIGHT - 2.0 * PLAYER_CAPSULE_RADIUS,
+    );
+
+    let has_world_assets = world_assets.is_some();
+
+    let world_ready = has_world_assets
+        && world_progress.as_deref().is_none_or(|progress| {
+            progress.focus_resident && progress.presentable()
+        });
 
     for (mut transform, speed, mut velocity, mut command) in &mut query {
         if command.look_delta != 0.0 {
@@ -152,61 +192,152 @@ fn player_movement_system(
         let mut move_direction = Vec3::ZERO;
 
         if movement_input != Vec2::ZERO {
-            let forward = transform.forward().to_array();
-            let right = transform.right().to_array();
-
-            let forward_vec = Vec3::from_array(forward);
-            let right_vec = Vec3::from_array(right);
+            let forward = transform.forward().as_vec3();
+            let right = transform.right().as_vec3();
 
             move_direction =
-                (forward_vec * movement_input.y)
-                + (right_vec * movement_input.x);
+                (forward * movement_input.y)
+                + (right * movement_input.x);
 
             move_direction.y = 0.0;
 
-            if move_direction != Vec3::ZERO {
-                move_direction = move_direction.normalize();
-            }
+            move_direction = move_direction.normalize_or_zero();
         }
 
         let horizontal_velocity = move_direction * speed.0;
-        transform.translation += horizontal_velocity * delta;
 
-        let (Some(streamer), Some(tiles)) =
-            (terrain_streamer.as_deref(), adt_tiles.as_deref())
-        else {
-            continue;
-        };
+        if !has_world_assets {
+            transform.translation += horizontal_velocity * delta;
+        } else if world_ready {
+            let mut grounded = false;
 
-        let Some(terrain_height) =
-            terrain_height_under(streamer, tiles, transform.translation)
-        else {
-            continue;
-        };
+            if velocity.0.y <= 0.0 {
+                if let Some(hit) = world.cast_mover(
+                    &capsule,
+                    transform.translation + Vec3::Y * GROUND_PROBE_LIFT,
+                    Vec3::NEG_Y * GROUND_PROBE_DISTANCE,
+                    PLAYER_SKIN_WIDTH,
+                ) {
+                    if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
+                        transform.translation.y +=
+                            GROUND_PROBE_LIFT - hit.distance;
+                        velocity.0.y = 0.0;
+                        grounded = true;
+                    }
+                }
+            }
 
-        let floor_y = terrain_height + floor_offset;
-
-        let is_grounded =
-            transform.translation.y <= floor_y + 0.05
-            && velocity.0.y <= 0.0;
-
-        if is_grounded {
-            transform.translation.y = floor_y;
-
-            if jump_requested {
+            if jump_requested && grounded {
                 velocity.0.y = jump_force;
+                grounded = false;
+            } else if !grounded {
+                velocity.0.y += gravity * delta;
             } else {
                 velocity.0.y = 0.0;
             }
-        } else {
-            velocity.0.y += gravity * delta;
+
+            let movement_velocity =
+                horizontal_velocity + Vec3::Y * velocity.0.y;
+
+            let start_position = transform.translation;
+            let end_position =
+                start_position + movement_velocity * delta;
+
+            let start_wow = bevy_to_wow(start_position);
+            let end_wow = bevy_to_wow(end_position);
+
+            let min = [
+                start_wow[0].min(end_wow[0]) - PLAYER_CAPSULE_RADIUS,
+                start_wow[1].min(end_wow[1]) - PLAYER_CAPSULE_RADIUS,
+            ];
+
+            let max = [
+                start_wow[0].max(end_wow[0]) + PLAYER_CAPSULE_RADIUS,
+                start_wow[1].max(end_wow[1]) + PLAYER_CAPSULE_RADIUS,
+            ];
+
+            if world.terrain_resident(min, max) {
+                let mut floor_contact = false;
+                let mut ceiling_contact = false;
+
+                let output = world.slide_mover(
+                    &capsule,
+                    start_position,
+                    movement_velocity,
+                    duration,
+                    &MoveAndSlideConfig::default(),
+                    |hit| {
+                        let normal = **hit.normal;
+                        let hit_velocity = *hit.velocity;
+
+                        if normal.y >= GROUND_NORMAL_THRESHOLD
+                            && hit_velocity.y <= 0.0
+                        {
+                            floor_contact = true;
+
+                            if grounded && normal.y > 0.0 {
+                                *hit.velocity = Vec3::new(
+                                    hit_velocity.x,
+                                    -(hit_velocity.x * normal.x
+                                        + hit_velocity.z * normal.z)
+                                        / normal.y,
+                                    hit_velocity.z,
+                                );
+                            }
+                        }
+
+                        if normal.y <= -GROUND_NORMAL_THRESHOLD
+                            && hit_velocity.y > 0.0
+                        {
+                            ceiling_contact = true;
+                        }
+
+                        MoveAndSlideHitResponse::Accept
+                    },
+                );
+
+                transform.translation = output.position;
+
+                if floor_contact {
+                    velocity.0.y = 0.0;
+                    grounded = true;
+                }
+
+                if ceiling_contact {
+                    velocity.0.y = 0.0;
+                }
+
+                if velocity.0.y <= 0.0 {
+                    if let Some(hit) = world.cast_mover(
+                        &capsule,
+                        transform.translation + Vec3::Y * GROUND_PROBE_LIFT,
+                        Vec3::NEG_Y * GROUND_PROBE_DISTANCE,
+                        PLAYER_SKIN_WIDTH,
+                    ) {
+                        if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
+                            transform.translation.y +=
+                                GROUND_PROBE_LIFT - hit.distance;
+                            velocity.0.y = 0.0;
+                        }
+                    }
+                }
+            }
         }
 
-        transform.translation.y += velocity.0.y * delta;
+        if let Some(focus) = view_focus.as_deref_mut() {
+            *focus = ViewFocus::body(
+                bevy_to_wow(transform.translation),
+                world_ready,
+            );
+        }
 
-        if transform.translation.y <= floor_y {
-            transform.translation.y = floor_y;
-            velocity.0.y = 0.0;
+        if let Some(viewer) = viewer.as_deref_mut() {
+            *viewer = Viewer {
+                at: Some(transform.translation),
+                planar_speed: horizontal_velocity.length(),
+                height: PLAYER_CAPSULE_HEIGHT,
+                ..Viewer::default()
+            };
         }
     }
 }
