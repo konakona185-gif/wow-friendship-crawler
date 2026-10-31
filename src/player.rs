@@ -7,6 +7,9 @@ pub struct Character;
 #[derive(Component)]
 pub struct LocalPlayer;
 
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct PlayerId(pub u64);
+
 #[derive(Component, Default)]
 pub struct CharacterCommand {
     pub movement: Vec2,
