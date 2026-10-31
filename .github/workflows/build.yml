@@ -1,69 +1,70 @@
+
 name: Compila, Testa ed Esporta Eseguibile
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-    - name: Rust Cache
-      uses: Swatinem/rust-cache@v2
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
 
-    - name: Compila per Windows
-      run: cargo build --release
+      - name: Compila per Windows
+        run: cargo build --release
 
-    - name: Esegui test unitari Windows
-      run: cargo test --release
+      - name: Esegui test unitari Windows
+        run: cargo test --release
 
-    - name: Esegui test headless Windows
-      run: cargo run --release
-      env:
-        CI: "true"
+      - name: Esegui test headless Windows
+        run: cargo run --release
+        env:
+          CI: "true"
 
-    - name: Carica Artifact Windows
-      uses: actions/upload-artifact@v4
-      with:
-        name: gioco-windows
-        path: target/release/*.exe
+      - name: Carica Artifact Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: gioco-windows
+          path: target/release/*.exe
 
   build-linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-    - name: Installa dipendenze grafiche/audio Linux per Bevy
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libasound2-dev libudev-dev libx11-dev libwayland-dev libpkgconf-dev pkg-config libxkbcommon-dev
+      - name: Installa dipendenze grafiche/audio Linux per Bevy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0 libwayland-dev libxkbcommon-dev
 
-    - name: Rust Cache
-      uses: Swatinem/rust-cache@v2
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
 
-    - name: Compila per Linux
-      run: cargo build --release
+      - name: Compila per Linux
+        run: cargo build --release
 
-    - name: Esegui test unitari Linux
-      run: cargo test --release
+      - name: Esegui test unitari Linux
+        run: cargo test --release
 
-    - name: Esegui test headless Linux
-      run: cargo run --release
-      env:
-        CI: "true"
+      - name: Esegui test headless Linux
+        run: cargo run --release
+        env:
+          CI: "true"
 
-    - name: Carica Artifact Linux
-      uses: actions/upload-artifact@v4
-      with:
-        name: gioco-linux
-        path: target/release/fellowship_wow_crawler
+      - name: Carica Artifact Linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: gioco-linux
+          path: target/release/fellowship_wow_crawler
