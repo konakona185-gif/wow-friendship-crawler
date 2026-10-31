@@ -81,7 +81,7 @@ pub struct Velocity(pub Vec3);
 
 #[derive(Component, Default)]
 pub struct GroundingState {
-    pub deep_support: bool,
+    pub steep_support: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -230,12 +230,12 @@ fn player_movement_system(
             transform.translation += horizontal_velocity * delta;
         } else if let Some(world) = world.as_ref().filter(|_| world_ready) {
             let mut grounded = false;
-            let mut deep_support = grounding_state
+            let mut steep_support = grounding_state
                 .as_deref()
-                .is_some_and(|state| state.deep_support);
+                .is_some_and(|state| state.steep_support);
 
             if velocity.0.y <= 0.0 {
-                let probe_distance = if deep_support {
+                let probe_distance = if steep_support {
                     STEP_UP_HEIGHT + GROUND_PROBE_DISTANCE
                 } else {
                     vertical_probe_distance(velocity.0.y)
@@ -247,27 +247,27 @@ fn player_movement_system(
                     Vec3::NEG_Y * probe_distance,
                     PLAYER_SKIN_WIDTH,
                 ) {
-                    if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD {
-                        if !deep_support {
+                    if hit.face_normal.y >= GROUND_NORMAL_THRESHOLD || steep_support {
+                        if !steep_support {
                             transform.translation.y +=
                                 GROUND_PROBE_LIFT - hit.distance;
                         }
                         velocity.0.y = 0.0;
                         grounded = true;
                     } else {
-                        deep_support = false;
+                        steep_support = false;
                     }
                 } else {
-                    deep_support = false;
+                    steep_support = false;
                 }
             } else {
-                deep_support = false;
+                steep_support = false;
             }
 
             if jump_requested && grounded {
                 velocity.0.y = JUMP_SPEED;
                 grounded = false;
-                deep_support = false;
+                steep_support = false;
             }
 
             let grounded_walk = grounded;
@@ -384,7 +384,7 @@ fn player_movement_system(
                     let cone_reach =
                         horizontal_distance * STEP_SLOPE_RATIO + STEP_SNAP_SLACK;
                     let snap_reach = cone_reach
-                        + if deep_support {
+                        + if steep_support {
                             STEP_UP_HEIGHT
                         } else if step.is_some_and(|step| step.ride_to.is_none()) {
                             step.map_or(0.0, |step| step.rise)
@@ -406,13 +406,13 @@ fn player_movement_system(
                                 descent_step(drop, horizontal_distance);
                             transform.translation.y -= descent;
                             velocity.0.y = 0.0;
-                            deep_support = support_continues;
+                            steep_support = support_continues;
                             walkable_support = true;
                         }
                     }
 
                     if !walkable_support && !rode {
-                        deep_support = false;
+                        steep_support = step.is_some_and(|step| step.ride_to.is_none());
                         let (end_velocity, average_velocity) = fall_step(0.0, delta);
                         velocity.0.y = end_velocity;
 
@@ -455,13 +455,13 @@ fn player_movement_system(
                     }
 
                     if rode {
-                        deep_support = false;
+                        steep_support = true;
                         if velocity.0.y > 0.0 {
                             velocity.0.y = 0.0;
                         }
                     }
                 } else {
-                    deep_support = false;
+                    steep_support = false;
                     let mut ceiling_contact = false;
 
                     let output = world.slide_mover(
@@ -514,7 +514,7 @@ fn player_movement_system(
             }
 
             if let Some(mut state) = grounding_state {
-                state.deep_support = deep_support;
+                state.steep_support = steep_support;
             }
         }
 
