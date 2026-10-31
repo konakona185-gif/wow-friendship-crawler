@@ -7,6 +7,8 @@ use benilla_world::schedule::WorldStage;
 use crate::player::LocalPlayer;
 
 const CAMERA_COLLISION_MARGIN: f32 = 0.05;
+const CAMERA_SMOOTHNESS: f32 = 10.0;
+const CAMERA_LOOK_HEIGHT: f32 = 1.0;
 
 #[derive(Component)]
 pub struct ThirdPersonCamera {
@@ -41,7 +43,8 @@ fn camera_follow_system(
                 + (Vec3::Y * camera.height);
 
             let look_at_target =
-                player_transform.translation + Vec3::new(0.0, 1.0, 0.0);
+                player_transform.translation
+                + Vec3::Y * CAMERA_LOOK_HEIGHT;
 
             let mut obstructed = false;
 
@@ -65,14 +68,16 @@ fn camera_follow_system(
                 }
             }
 
-            let smoothness = 10.0;
-
             if obstructed {
                 camera_transform.translation = target_position;
             } else {
+                let delta = time.delta_secs();
+                let interpolation = 1.0
+                    - (-CAMERA_SMOOTHNESS * delta).exp();
+
                 camera_transform.translation = camera_transform.translation.lerp(
                     target_position,
-                    smoothness * time.delta_secs(),
+                    interpolation,
                 );
             }
 
