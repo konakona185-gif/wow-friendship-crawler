@@ -20,7 +20,7 @@ use bevy_landmass::prelude::{
 use benilla_assets::coords::bevy_to_wow;
 use benilla_world::collision::WorldCollision;
 
-use crate::combat::{Enemy, EnemyAi};
+use crate::combat::{Enemy, EnemyAi, EnemyHomePosition};
 
 const ENEMY_CAPSULE_RADIUS: f32 = 1.0 / 3.0;
 const ENEMY_CAPSULE_HEIGHT: f32 = 2.027_777_7;
@@ -83,7 +83,7 @@ fn spawn_enemy_navigation_agents(
     mut commands: Commands,
     archipelago_query: Query<Entity, With<Archipelago3d>>,
     enemy_query: Query<
-        Entity,
+        (Entity, &Transform, Option<&EnemyHomePosition>),
         (With<Enemy>, Without<EnemyNavigationAgent>),
     >,
 ) {
@@ -91,8 +91,12 @@ fn spawn_enemy_navigation_agents(
         return;
     };
 
-    for enemy_entity in &enemy_query {
-        commands.entity(enemy_entity).insert((
+    for (enemy_entity, transform, home_position) in &enemy_query {
+        let initial_position = transform.translation;
+
+        let mut enemy_commands = commands.entity(enemy_entity);
+
+        enemy_commands.insert((
             Agent3dBundle {
                 agent: Default::default(),
                 settings: AgentSettings {
@@ -106,34 +110,67 @@ fn spawn_enemy_navigation_agents(
             EnemyVerticalMotion::default(),
             EnemyGroundingState::default(),
         ));
+
+        if home_position.is_none() {
+            enemy_commands.insert(EnemyHomePosition(initial_position));
+        }
+    }
+}
+
+fn enemy_navigation_target(
+    enemy_ai: &EnemyAi,
+    home_position: Option<&EnemyHomePosition>,
+) -> AgentTarget3d {
+    if enemy_ai.returning_home {
+        return home_position.map_or(
+            AgentTarget3d::None,
+            |home| AgentTarget3d::Point(home.0),
+        );
+    }
+
+    enemy_ai.target.map_or(
+        AgentTarget3d::None,
+        AgentTarget3d::Entity,
+    )
+}
+
+fn navigation_target_matches(
+    current: &AgentTarget3d,
+    desired: &AgentTarget3d,
+) -> bool {
+    match (current, desired) {
+        (AgentTarget3d::None, AgentTarget3d::None) => true,
+        (
+            AgentTarget3d::Entity(current),
+            AgentTarget3d::Entity(desired),
+        ) => current == desired,
+        (
+            AgentTarget3d::Point(current),
+            AgentTarget3d::Point(desired),
+        ) => current == desired,
+        _ => false,
     }
 }
 
 fn sync_enemy_navigation_targets(
-    enemy_query: Query<
-        (&EnemyAi, &mut AgentTarget3d),
+    mut enemy_query: Query<
+        (
+            &EnemyAi,
+            Option<&EnemyHomePosition>,
+            &mut AgentTarget3d,
+        ),
         (With<Enemy>, With<EnemyNavigationAgent>),
     >,
 ) {
-    for (enemy_ai, mut navigation_target) in enemy_query {
-        match enemy_ai.target {
-            Some(target_entity) => {
-                let already_targeted = matches!(
-                    &*navigation_target,
-                    AgentTarget3d::Entity(current)
-                        if *current == target_entity
-                );
+    for (enemy_ai, home_position, mut navigation_target) in &mut enemy_query {
+        let desired_target =
+            enemy_navigation_target(enemy_ai, home_position);
 
-                if !already_targeted {
-                    *navigation_target =
-                        AgentTarget3d::Entity(target_entity);
-                }
-            }
-            None => {
-                if !matches!(&*navigation_target, AgentTarget3d::None) {
-                    *navigation_target = AgentTarget3d::None;
-                }
-            }
+        if !navigation_target_matches(
+            &navigation_target,
+            &desired_target,
+        ) {
+            *navigation_target = desired_target;
         }
     }
 }
@@ -691,6 +728,107 @@ fn enemy_steep_contact_shear(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_enemy_ai(
+        target: Option<Entity>,
+        returning_home: bool,
+    ) -> EnemyAi {
+        EnemyAi {
+            target,
+            aggro_range: 20.0,
+            leash_range: 40.0,
+            returning_home,
+        }
+    }
+
+    #[test]
+    fn returning_enemy_targets_its_saved_home_position() {
+        let mut world = World::new();
+        let player = world.spawn_empty().id();
+
+        let home = EnemyHomePosition(Vec3::new(12.0, 3.0, -8.0));
+        let ai = test_enemy_ai(Some(player), true);
+
+        let target = enemy_navigation_target(&ai, Some(&home));
+
+        assert!(matches!(
+            target,
+            AgentTarget3d::Point(position) if position == home.0
+        ));
+    }
+
+    #[test]
+    fn returning_home_takes_priority_over_the_combat_target() {
+        let mut world = World::new();
+        let player = world.spawn_empty().id();
+
+        let home = EnemyHomePosition(Vec3::new(5.0, 0.0, 9.0));
+        let ai = test_enemy_ai(Some(player), true);
+
+        let target = enemy_navigation_target(&ai, Some(&home));
+
+        assert!(!matches!(
+            target,
+            AgentTarget3d::Entity(entity) if entity == player
+        ));
+    }
+
+    #[test]
+    fn active_combat_uses_the_player_entity_as_target() {
+        let mut world = World::new();
+        let player = world.spawn_empty().id();
+
+        let ai = test_enemy_ai(Some(player), false);
+        let target = enemy_navigation_target(&ai, None);
+
+        assert!(matches!(
+            target,
+            AgentTarget3d::Entity(entity) if entity == player
+        ));
+    }
+
+    #[test]
+    fn enemy_without_combat_target_has_no_navigation_target() {
+        let ai = test_enemy_ai(None, false);
+        let target = enemy_navigation_target(&ai, None);
+
+        assert!(matches!(target, AgentTarget3d::None));
+    }
+
+    #[test]
+    fn returning_enemy_without_saved_home_has_no_navigation_target() {
+        let ai = test_enemy_ai(None, true);
+        let target = enemy_navigation_target(&ai, None);
+
+        assert!(matches!(target, AgentTarget3d::None));
+    }
+
+    #[test]
+    fn navigation_target_comparison_detects_changes() {
+        let mut world = World::new();
+        let first = world.spawn_empty().id();
+        let second = world.spawn_empty().id();
+
+        assert!(navigation_target_matches(
+            &AgentTarget3d::Entity(first),
+            &AgentTarget3d::Entity(first),
+        ));
+
+        assert!(!navigation_target_matches(
+            &AgentTarget3d::Entity(first),
+            &AgentTarget3d::Entity(second),
+        ));
+
+        assert!(navigation_target_matches(
+            &AgentTarget3d::Point(Vec3::ZERO),
+            &AgentTarget3d::Point(Vec3::ZERO),
+        ));
+
+        assert!(!navigation_target_matches(
+            &AgentTarget3d::Point(Vec3::ZERO),
+            &AgentTarget3d::None,
+        ));
+    }
 
     #[test]
     fn falling_uses_a_shorter_ground_probe_than_standing() {
