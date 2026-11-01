@@ -243,3 +243,149 @@ fn target_indicator_system(
         *visibility = Visibility::Visible;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use benilla_world::interact::WorldObject;
+    use benilla_world::model_render::ModelKind;
+
+    fn setup_target_test_app() -> App {
+        let mut app = App::new();
+
+        app.add_message::<WorldObjectClicked>();
+        app.add_systems(
+            Update,
+            (target_tab_system, target_click_system).chain(),
+        );
+
+        app
+    }
+
+    fn test_world_object() -> WorldObject {
+        WorldObject {
+            kind: ModelKind::Creature,
+            label: "Test creature".to_string(),
+            id: 1,
+            detail: String::new(),
+        }
+    }
+
+    #[test]
+    fn tab_selects_the_nearest_enemy() {
+        let mut app = setup_target_test_app();
+
+        let player = app.world_mut().spawn((
+            Character,
+            Transform::from_translation(Vec3::ZERO),
+            Target { entity: None },
+            CharacterCommand {
+                select_target: true,
+                ..default()
+            },
+        )).id();
+
+        app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 8.0),
+        ));
+
+        let nearest_enemy = app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 3.0),
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Target>(player).unwrap().entity,
+            Some(nearest_enemy)
+        );
+
+        assert!(
+            !app.world()
+                .get::<CharacterCommand>(player)
+                .unwrap()
+                .select_target
+        );
+    }
+
+    #[test]
+    fn left_click_selects_the_exact_clicked_enemy() {
+        let mut app = setup_target_test_app();
+
+        let player = app.world_mut().spawn((
+            Character,
+            Transform::default(),
+            Target { entity: None },
+            CharacterCommand::default(),
+        )).id();
+
+        app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 2.0),
+        ));
+
+        let clicked_enemy = app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 12.0),
+        )).id();
+
+        app.world_mut().write_message(WorldObjectClicked {
+            button: MouseButton::Left,
+            entity: Some(clicked_enemy),
+            object: test_world_object(),
+            point: Vec3::ZERO,
+            distance: 12.0,
+        });
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Target>(player).unwrap().entity,
+            Some(clicked_enemy)
+        );
+    }
+
+    #[test]
+    fn right_click_and_clicking_non_enemies_do_not_change_target() {
+        let mut app = setup_target_test_app();
+
+        let player = app.world_mut().spawn((
+            Character,
+            Transform::default(),
+            Target { entity: None },
+            CharacterCommand::default(),
+        )).id();
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 2.0),
+        )).id();
+
+        let non_enemy = app.world_mut().spawn_empty().id();
+
+        app.world_mut().write_message(WorldObjectClicked {
+            button: MouseButton::Right,
+            entity: Some(enemy),
+            object: test_world_object(),
+            point: Vec3::ZERO,
+            distance: 2.0,
+        });
+
+        app.world_mut().write_message(WorldObjectClicked {
+            button: MouseButton::Left,
+            entity: Some(non_enemy),
+            object: test_world_object(),
+            point: Vec3::ZERO,
+            distance: 1.0,
+        });
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Target>(player).unwrap().entity,
+            None
+        );
+    }
+}
