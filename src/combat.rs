@@ -75,7 +75,10 @@ fn target_tab_system(
         (&Transform, &mut Target, &mut CharacterCommand),
         With<Character>,
     >,
-    enemy_query: Query<(Entity, &Transform), With<Enemy>>,
+    enemy_query: Query<
+        (Entity, &Transform, Option<&CombatStats>),
+        With<Enemy>,
+    >,
 ) {
     for (player_transform, mut player_target, mut command) in &mut player_query {
         if !std::mem::take(&mut command.select_target) {
@@ -84,9 +87,16 @@ fn target_tab_system(
 
         let mut enemies: Vec<(Entity, f32)> = enemy_query
             .iter()
-            .map(|(entity, transform)| {
-                let distance = player_transform.translation.distance(transform.translation);
-                (entity, distance)
+            .filter_map(|(entity, transform, stats)| {
+                if stats.is_some_and(|stats| stats.current_health <= 0.0) {
+                    return None;
+                }
+
+                let distance_squared = player_transform
+                    .translation
+                    .distance_squared(transform.translation);
+
+                Some((entity, distance_squared))
             })
             .collect();
 
@@ -114,7 +124,7 @@ fn target_tab_system(
 
 fn target_click_system(
     mut clicked: MessageReader<WorldObjectClicked>,
-    enemy_query: Query<(), With<Enemy>>,
+    enemy_query: Query<Option<&CombatStats>, With<Enemy>>,
     mut player_query: Query<&mut Target, With<Character>>,
 ) {
     for click in clicked.read() {
@@ -126,7 +136,11 @@ fn target_click_system(
             continue;
         };
 
-        if enemy_query.get(entity).is_err() {
+        let Ok(stats) = enemy_query.get(entity) else {
+            continue;
+        };
+
+        if stats.is_some_and(|stats| stats.current_health <= 0.0) {
             continue;
         }
 
@@ -152,6 +166,10 @@ fn player_cast_system(
             continue;
         }
 
+        if player_stats.current_health <= 0.0 {
+            continue;
+        }
+
         let Some(target_entity) = target.entity else {
             info!("Nessun target selezionato! Premi TAB per agganciare il nemico.");
             continue;
@@ -161,9 +179,14 @@ fn player_cast_system(
             continue;
         };
 
+        if enemy_stats.current_health <= 0.0 {
+            continue;
+        }
+
         match role {
             FellowshipRole::Tank => {
-                enemy_stats.current_health -= 15.0;
+                enemy_stats.current_health =
+                    (enemy_stats.current_health - 15.0).max(0.0);
                 player_stats.resource += 20.0;
 
                 info!(
@@ -176,7 +199,8 @@ fn player_cast_system(
             FellowshipRole::Dps => {
                 if player_stats.resource >= 30.0 {
                     player_stats.resource -= 30.0;
-                    enemy_stats.current_health -= 40.0;
+                    enemy_stats.current_health =
+                        (enemy_stats.current_health - 40.0).max(0.0);
 
                     info!(
                         "DPS scatta l'abilità! Danno pesante: 40. Vita Nemico: {}/{}. Energia residua: {}",
@@ -185,7 +209,8 @@ fn player_cast_system(
                         player_stats.resource
                     );
                 } else {
-                    enemy_stats.current_health -= 10.0;
+                    enemy_stats.current_health =
+                        (enemy_stats.current_health - 10.0).max(0.0);
                     player_stats.resource += 15.0;
 
                     info!(
@@ -199,7 +224,8 @@ fn player_cast_system(
             FellowshipRole::Healer => {
                 if player_stats.resource >= 20.0 {
                     player_stats.resource -= 20.0;
-                    enemy_stats.current_health -= 25.0;
+                    enemy_stats.current_health =
+                        (enemy_stats.current_health - 25.0).max(0.0);
 
                     info!(
                         "Healer lancia incantesimo! Danno: 25. Vita Nemico: {}/{}. Mana residuo: {}",
@@ -272,17 +298,24 @@ fn enemy_aggro_system(
             continue;
         }
 
-        let aggro_range = enemy_ai.aggro_range.max(0.0);
+        let aggro_range = if enemy_ai.aggro_range.is_finite() {
+            enemy_ai.aggro_range.max(0.0)
+        } else {
+            DEFAULT_ENEMY_AGGRO_RANGE
+        };
+
+        let aggro_range_squared = aggro_range * aggro_range;
 
         let new_target = player_query
             .iter()
             .filter(|(_, _, stats)| stats.current_health > 0.0)
             .filter_map(|(entity, player_transform, _)| {
-                let distance = enemy_transform
+                let distance_squared = enemy_transform
                     .translation
-                    .distance(player_transform.translation);
+                    .distance_squared(player_transform.translation);
 
-                (distance <= aggro_range).then_some((entity, distance))
+                (distance_squared <= aggro_range_squared)
+                    .then_some((entity, distance_squared))
             })
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|(entity, _)| entity);
@@ -426,6 +459,48 @@ mod tests {
     }
 
     #[test]
+    fn tab_does_not_select_defeated_enemies() {
+        let mut app = setup_target_test_app();
+
+        let player = app.world_mut().spawn((
+            Character,
+            Transform::default(),
+            Target { entity: None },
+            CharacterCommand {
+                select_target: true,
+                ..default()
+            },
+        )).id();
+
+        app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 1.0),
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        ));
+
+        let living_enemy = app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 5.0),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Target>(player).unwrap().entity,
+            Some(living_enemy)
+        );
+    }
+
+    #[test]
     fn tab_cycles_through_enemies_by_distance_and_wraps() {
         let mut app = setup_target_test_app();
 
@@ -536,6 +611,43 @@ mod tests {
         assert_eq!(
             app.world().get::<Target>(player).unwrap().entity,
             Some(clicked_enemy)
+        );
+    }
+
+    #[test]
+    fn clicking_a_defeated_enemy_does_not_change_target() {
+        let mut app = setup_target_test_app();
+
+        let player = app.world_mut().spawn((
+            Character,
+            Transform::default(),
+            Target { entity: None },
+            CharacterCommand::default(),
+        )).id();
+
+        let defeated_enemy = app.world_mut().spawn((
+            Enemy,
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            Transform::from_xyz(0.0, 0.0, 2.0),
+        )).id();
+
+        app.world_mut().write_message(WorldObjectClicked {
+            button: MouseButton::Left,
+            entity: Some(defeated_enemy),
+            object: test_world_object(),
+            point: Vec3::ZERO,
+            distance: 2.0,
+        });
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Target>(player).unwrap().entity,
+            None
         );
     }
 
@@ -680,6 +792,138 @@ mod tests {
         );
     }
 
+    #[test]
+    fn defeated_targets_cannot_receive_additional_player_casts() {
+        let mut app = App::new();
+        app.add_systems(Update, player_cast_system);
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let player = app.world_mut().spawn((
+            Character,
+            FellowshipRole::Dps,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 100.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<CombatStats>(enemy).unwrap().current_health,
+            0.0
+        );
+
+        assert_eq!(
+            app.world().get::<CombatStats>(player).unwrap().resource,
+            100.0
+        );
+    }
+
+    #[test]
+    fn defeated_players_cannot_cast_abilities() {
+        let mut app = App::new();
+        app.add_systems(Update, player_cast_system);
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let player = app.world_mut().spawn((
+            Character,
+            FellowshipRole::Tank,
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<CombatStats>(enemy).unwrap().current_health,
+            100.0
+        );
+
+        assert_eq!(
+            app.world().get::<CombatStats>(player).unwrap().resource,
+            0.0
+        );
+    }
+
+    #[test]
+    fn player_damage_never_reduces_enemy_health_below_zero() {
+        let mut app = App::new();
+        app.add_systems(Update, player_cast_system);
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            CombatStats {
+                current_health: 5.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let player = app.world_mut().spawn((
+            Character,
+            FellowshipRole::Tank,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<CombatStats>(enemy).unwrap().current_health,
+            0.0
+        );
+
+        assert_eq!(
+            app.world().get::<CombatStats>(player).unwrap().resource,
+            20.0
+        );
+    }
+
     fn setup_enemy_aggro_test_app() -> App {
         let mut app = App::new();
         app.add_systems(Update, enemy_aggro_system);
@@ -818,6 +1062,73 @@ mod tests {
         assert_eq!(
             app.world().get::<EnemyAi>(enemy).unwrap().target,
             Some(next_player)
+        );
+    }
+
+    #[test]
+    fn defeated_enemies_do_not_acquire_or_keep_targets() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi {
+                target: None,
+                aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
+            },
+            Transform::default(),
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 2.0),
+        );
+
+        app.world_mut()
+            .get_mut::<EnemyAi>(enemy)
+            .unwrap()
+            .target = Some(player);
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            None
+        );
+    }
+
+    #[test]
+    fn non_finite_aggro_range_uses_the_default_range() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi {
+                target: None,
+                aggro_range: f32::NAN,
+            },
+            Transform::default(),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 10.0),
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(player)
         );
     }
 }
