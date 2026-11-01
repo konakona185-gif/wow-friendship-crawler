@@ -18,6 +18,11 @@ bevy = { version = "0.18.1", default-features = false, features = [
 
 avian3d = "0.6"
 
+bevy_rerecast = { version = "0.4.0", default-features = false }
+avian_rerecast = "0.5.1"
+bevy_landmass = "0.11.0"
+landmass_rerecast = "0.2.0"
+
 benilla-assets = { git = "https://github.com/samwhosung/benilla", rev = "135ce8889217bf268d1dadbbabcba56df80f3108", default-features = false }
 benilla-formats = { git = "https://github.com/samwhosung/benilla", rev = "135ce8889217bf268d1dadbbabcba56df80f3108", default-features = false }
 benilla-world = { git = "https://github.com/samwhosung/benilla", rev = "135ce8889217bf268d1dadbbabcba56df80f3108", default-features = false }
