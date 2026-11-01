@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 
 use crate::interaction::{
@@ -17,6 +19,7 @@ const ENEMY_HOME_ARRIVAL_DISTANCE: f32 = 1.0;
 const DEFAULT_ENEMY_MELEE_RANGE: f32 = 2.5;
 const DEFAULT_ENEMY_ATTACK_DAMAGE: f32 = 5.0;
 const DEFAULT_ENEMY_ATTACK_INTERVAL: f32 = 2.0;
+const DEFAULT_TANK_THREAT_MULTIPLIER: f32 = 3.0;
 
 #[derive(Component)]
 pub struct Enemy;
@@ -42,6 +45,26 @@ impl Default for EnemyAi {
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct EnemyHomePosition(pub Vec3);
+
+#[derive(Component, Default)]
+pub struct EnemyThreat {
+    values: HashMap<Entity, f32>,
+}
+
+impl EnemyThreat {
+    fn add_threat(&mut self, player: Entity, amount: f32) {
+        if !amount.is_finite() || amount <= 0.0 {
+            return;
+        }
+
+        let value = self.values.entry(player).or_insert(0.0);
+        *value = (*value + amount).min(f32::MAX);
+    }
+
+    fn clear(&mut self) {
+        self.values.clear();
+    }
+}
 
 #[derive(Component)]
 struct EnemyAttackState {
@@ -171,15 +194,15 @@ fn target_click_system(
 
 fn player_cast_system(
     mut player_query: Query<
-        (&FellowshipRole, &mut CombatStats, &Target, &mut CharacterCommand),
+        (Entity, &FellowshipRole, &mut CombatStats, &Target, &mut CharacterCommand),
         With<Character>,
     >,
     mut enemy_query: Query<
-        (&mut CombatStats, Option<&EnemyAi>),
+        (&mut CombatStats, Option<&EnemyAi>, Option<&mut EnemyThreat>),
         (With<Enemy>, Without<Character>),
     >,
 ) {
-    for (role, mut player_stats, target, mut command) in &mut player_query {
+    for (player_entity, role, mut player_stats, target, mut command) in &mut player_query {
         if !std::mem::take(&mut command.ability_1) {
             continue;
         }
@@ -193,7 +216,9 @@ fn player_cast_system(
             continue;
         };
 
-        let Ok((mut enemy_stats, enemy_ai)) = enemy_query.get_mut(target_entity) else {
+        let Ok((mut enemy_stats, enemy_ai, enemy_threat)) =
+            enemy_query.get_mut(target_entity)
+        else {
             continue;
         };
 
@@ -203,60 +228,86 @@ fn player_cast_system(
             continue;
         }
 
-        match role {
+        let damage = match role {
             FellowshipRole::Tank => {
+                let damage = enemy_stats.current_health.min(15.0).max(0.0);
                 enemy_stats.current_health =
                     (enemy_stats.current_health - 15.0).max(0.0);
                 player_stats.resource += 20.0;
 
                 info!(
-                    "Tank colpisce! Danno: 15. Vita Nemico: {}/{}. Rabbia generata: {}",
+                    "Tank colpisce! Danno: {}. Vita Nemico: {}/{}. Rabbia generata: {}",
+                    damage,
                     enemy_stats.current_health,
                     enemy_stats.max_health,
                     player_stats.resource
                 );
+
+                damage
             }
             FellowshipRole::Dps => {
                 if player_stats.resource >= 30.0 {
                     player_stats.resource -= 30.0;
+                    let damage = enemy_stats.current_health.min(40.0).max(0.0);
                     enemy_stats.current_health =
                         (enemy_stats.current_health - 40.0).max(0.0);
 
                     info!(
-                        "DPS scatta l'abilità! Danno pesante: 40. Vita Nemico: {}/{}. Energia residua: {}",
+                        "DPS scatta l'abilità! Danno pesante: {}. Vita Nemico: {}/{}. Energia residua: {}",
+                        damage,
                         enemy_stats.current_health,
                         enemy_stats.max_health,
                         player_stats.resource
                     );
+
+                    damage
                 } else {
+                    let damage = enemy_stats.current_health.min(10.0).max(0.0);
                     enemy_stats.current_health =
                         (enemy_stats.current_health - 10.0).max(0.0);
                     player_stats.resource += 15.0;
 
                     info!(
-                        "DPS attacco base! Danno: 10. Vita Nemico: {}/{}. Energia rigenerata: {}",
+                        "DPS attacco base! Danno: {}. Vita Nemico: {}/{}. Energia rigenerata: {}",
+                        damage,
                         enemy_stats.current_health,
                         enemy_stats.max_health,
                         player_stats.resource
                     );
+
+                    damage
                 }
             }
             FellowshipRole::Healer => {
                 if player_stats.resource >= 20.0 {
                     player_stats.resource -= 20.0;
+                    let damage = enemy_stats.current_health.min(25.0).max(0.0);
                     enemy_stats.current_health =
                         (enemy_stats.current_health - 25.0).max(0.0);
 
                     info!(
-                        "Healer lancia incantesimo! Danno: 25. Vita Nemico: {}/{}. Mana residuo: {}",
+                        "Healer lancia incantesimo! Danno: {}. Vita Nemico: {}/{}. Mana residuo: {}",
+                        damage,
                         enemy_stats.current_health,
                         enemy_stats.max_health,
                         player_stats.resource
                     );
+
+                    damage
                 } else {
                     info!("Mana insufficiente per curare/attaccare!");
+                    0.0
                 }
             }
+        };
+
+        if let Some(mut threat) = enemy_threat {
+            let multiplier = match role {
+                FellowshipRole::Tank => DEFAULT_TANK_THREAT_MULTIPLIER,
+                FellowshipRole::Healer | FellowshipRole::Dps => 1.0,
+            };
+
+            threat.add_threat(player_entity, damage * multiplier);
         }
     }
 }
@@ -303,16 +354,27 @@ fn enemy_aggro_system(
             &mut CombatStats,
             &mut EnemyAi,
             Option<&EnemyHomePosition>,
+            Option<&mut EnemyThreat>,
         ),
         (With<Enemy>, Without<Character>),
     >,
 ) {
-    for (enemy_transform, mut enemy_stats, mut enemy_ai, home_position) in
-        &mut enemy_query
+    for (
+        enemy_transform,
+        mut enemy_stats,
+        mut enemy_ai,
+        home_position,
+        mut enemy_threat,
+    ) in &mut enemy_query
     {
         if enemy_stats.current_health <= 0.0 {
             enemy_ai.target = None;
             enemy_ai.returning_home = false;
+
+            if let Some(threat) = enemy_threat.as_deref_mut() {
+                threat.clear();
+            }
+
             continue;
         }
 
@@ -325,6 +387,10 @@ fn enemy_aggro_system(
                 ENEMY_HOME_ARRIVAL_DISTANCE * ENEMY_HOME_ARRIVAL_DISTANCE;
 
             if enemy_ai.returning_home {
+                if let Some(threat) = enemy_threat.as_deref_mut() {
+                    threat.clear();
+                }
+
                 if distance_from_home_squared > home_arrival_distance_squared {
                     enemy_ai.target = None;
                     continue;
@@ -348,6 +414,10 @@ fn enemy_aggro_system(
                     enemy_stats.current_health =
                         enemy_stats.max_health.max(0.0);
 
+                    if let Some(threat) = enemy_threat.as_deref_mut() {
+                        threat.clear();
+                    }
+
                     info!(
                         "Nemico fuori dal raggio di combattimento: ritorno alla posizione iniziale."
                     );
@@ -355,6 +425,38 @@ fn enemy_aggro_system(
                     continue;
                 }
             }
+        }
+
+        let highest_threat_target = if let Some(threat) = enemy_threat.as_deref_mut() {
+            threat.values.retain(|player_entity, value| {
+                value.is_finite()
+                    && *value > 0.0
+                    && player_query
+                        .get(*player_entity)
+                        .is_ok_and(|(_, _, stats)| stats.current_health > 0.0)
+            });
+
+            threat.values
+                .iter()
+                .filter_map(|(player_entity, value)| {
+                    let (_, player_transform, stats) =
+                        player_query.get(*player_entity).ok()?;
+
+                    (stats.current_health > 0.0)
+                        .then_some((*player_entity, *value, enemy_transform.translation.distance_squared(player_transform.translation)))
+                })
+                .max_by(|a, b| {
+                    a.1.total_cmp(&b.1)
+                        .then_with(|| b.2.total_cmp(&a.2))
+                })
+                .map(|(player_entity, _, _)| player_entity)
+        } else {
+            None
+        };
+
+        if let Some(target_entity) = highest_threat_target {
+            enemy_ai.target = Some(target_entity);
+            continue;
         }
 
         let current_target_is_alive = enemy_ai.target.is_some_and(|target_entity| {
@@ -398,9 +500,7 @@ fn enemy_aggro_system(
             );
         }
     }
-}
-
-fn enemy_attack_system(
+}fn enemy_attack_system(
     time: Res<Time>,
     mut commands: Commands,
     mut enemy_query: Query<
@@ -604,6 +704,7 @@ mod tests {
             Enemy,
             EnemyAi::default(),
             EnemyHomePosition(position),
+            EnemyThreat::default(),
             Transform::from_translation(position),
             CombatStats {
                 current_health: 100.0,
@@ -1313,6 +1414,130 @@ mod tests {
             app.world().get::<CombatStats>(player).unwrap().resource,
             20.0
         );
+    }
+
+    #[test]
+    fn tank_damage_generates_weighted_threat() {
+        let mut app = App::new();
+        app.add_systems(Update, player_cast_system);
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi::default(),
+            EnemyThreat::default(),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let player = app.world_mut().spawn((
+            Character,
+            FellowshipRole::Tank,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        )).id();
+
+        app.update();
+
+        let threat = app.world().get::<EnemyThreat>(enemy).unwrap();
+
+        assert_eq!(
+            threat.values.get(&player),
+            Some(&(15.0 * DEFAULT_TANK_THREAT_MULTIPLIER))
+        );
+    }
+
+    #[test]
+    fn enemy_prefers_the_player_with_the_highest_threat() {
+        let mut app = App::new();
+        app.add_systems(Update, enemy_aggro_system);
+
+        let current_target = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 2.0),
+        );
+
+        let highest_threat_player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 10.0),
+        );
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi {
+                target: Some(current_target),
+                ..EnemyAi::default()
+            },
+            EnemyHomePosition(Vec3::ZERO),
+            EnemyThreat {
+                values: std::collections::HashMap::from([
+                    (current_target, 20.0),
+                    (highest_threat_player, 60.0),
+                ]),
+            },
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            Transform::default(),
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(highest_threat_player)
+        );
+    }
+
+    #[test]
+    fn leashing_enemy_clears_its_threat_table() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(41.0, 0.0, 1.0),
+        );
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi {
+                target: Some(player),
+                ..EnemyAi::default()
+            },
+            EnemyHomePosition(Vec3::ZERO),
+            EnemyThreat {
+                values: std::collections::HashMap::from([(player, 45.0)]),
+            },
+            Transform::from_xyz(41.0, 0.0, 0.0),
+            CombatStats {
+                current_health: 25.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        app.update();
+
+        let ai = app.world().get::<EnemyAi>(enemy).unwrap();
+        let threat = app.world().get::<EnemyThreat>(enemy).unwrap();
+
+        assert!(ai.returning_home);
+        assert_eq!(ai.target, None);
+        assert!(threat.values.is_empty());
     }
 
     fn setup_enemy_aggro_test_app() -> App {
