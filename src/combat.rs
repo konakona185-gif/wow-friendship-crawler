@@ -218,7 +218,10 @@ fn enemy_death_system(
 fn target_indicator_system(
     target_query: Query<&Target, With<Character>>,
     enemy_query: Query<&Transform, With<Enemy>>,
-           mut indicator_query: Query<(&TargetIndicator, &mut Transform, &mut Visibility), Without<Enemy>>,
+    mut indicator_query: Query<
+        (&TargetIndicator, &mut Transform, &mut Visibility),
+        Without<Enemy>,
+    >,
 ) {
     for (indicator, mut indicator_transform, mut visibility) in &mut indicator_query {
         let selected = target_query
@@ -380,6 +383,105 @@ mod tests {
         });
 
         app.update();
+
+        assert_eq!(
+            app.world().get::<Target>(player).unwrap().entity,
+            None
+        );
+    }
+
+    #[test]
+    fn target_indicator_is_visible_only_for_the_selected_enemy() {
+        let mut app = App::new();
+        app.add_systems(Update, target_indicator_system);
+
+        let selected_position = Vec3::new(4.0, 2.0, -3.0);
+        let selected_enemy = app.world_mut().spawn((
+            Enemy,
+            Transform::from_translation(selected_position),
+        )).id();
+
+        let other_enemy = app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(8.0, 0.0, 1.0),
+        )).id();
+
+        app.world_mut().spawn((
+            Character,
+            Target {
+                entity: Some(selected_enemy),
+            },
+        ));
+
+        let selected_indicator = app.world_mut().spawn((
+            TargetIndicator {
+                enemy: selected_enemy,
+            },
+            Transform::default(),
+            Visibility::Hidden,
+        )).id();
+
+        let other_indicator = app.world_mut().spawn((
+            TargetIndicator {
+                enemy: other_enemy,
+            },
+            Transform::default(),
+            Visibility::Hidden,
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Visibility>(selected_indicator),
+            Some(&Visibility::Visible)
+        );
+
+        assert_eq!(
+            app.world().get::<Visibility>(other_indicator),
+            Some(&Visibility::Hidden)
+        );
+
+        let expected_position =
+            selected_position + Vec3::new(0.0, -0.47, 0.0);
+
+        let actual_position = app
+            .world()
+            .get::<Transform>(selected_indicator)
+            .unwrap()
+            .translation;
+
+        assert!((actual_position - expected_position).length() < 1.0e-6);
+    }
+
+    #[test]
+    fn defeating_an_enemy_removes_its_indicator_and_clears_target() {
+        let mut app = App::new();
+        app.add_systems(Update, enemy_death_system);
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let indicator = app.world_mut().spawn(TargetIndicator {
+            enemy,
+        }).id();
+
+        let player = app.world_mut().spawn((
+            Character,
+            Target {
+                entity: Some(enemy),
+            },
+        )).id();
+
+        app.update();
+
+        assert!(app.world().get_entity(enemy).is_err());
+        assert!(app.world().get_entity(indicator).is_err());
 
         assert_eq!(
             app.world().get::<Target>(player).unwrap().entity,
