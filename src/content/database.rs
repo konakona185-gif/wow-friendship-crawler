@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use super::{
     AbilityDefinition,
     ContentId,
+    ContentMetadata,
+    ContentPackManifest,
     ContentPackRegistry,
     EffectDefinition,
     TalentDefinition,
