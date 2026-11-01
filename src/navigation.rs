@@ -6,6 +6,7 @@ use bevy_landmass::prelude::{
     Archipelago3d,
     ArchipelagoOptions,
     ArchipelagoRef3d,
+    FromAgentRadius,
     Island,
     Landmass3dPlugin,
 };
@@ -61,7 +62,10 @@ fn exclude_non_walkable_colliders(
     mut commands: Commands,
     query: Query<
         (Entity, &CollisionLayers),
-        (With<Collider>, Added<CollisionLayers>),
+        (
+            With<Collider>,
+            Or<(Added<CollisionLayers>, Added<Collider>)>,
+        ),
     >,
 ) {
     for (entity, layers) in &query {
