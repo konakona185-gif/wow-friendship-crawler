@@ -356,9 +356,8 @@ mod tests {
         );
 
         let mut talent = valid_talent();
-        talent.ranks[0]
-            .effects
-            .push(talent.ranks[0].effects[0].clone());
+        let duplicated_effect = talent.ranks[0].effects[0].clone();
+        talent.ranks[0].effects.push(duplicated_effect);
 
         assert_eq!(
             talent.validate(),
