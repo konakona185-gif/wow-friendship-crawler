@@ -1,3 +1,4 @@
+mod input;
 mod movement_helpers;
 
 use std::time::Duration;
@@ -7,7 +8,6 @@ use avian3d::prelude::{
     MoveAndSlideConfig,
     MoveAndSlideHitResponse,
 };
-use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 
 use benilla_assets::coords::bevy_to_wow;
@@ -20,7 +20,7 @@ use benilla_world::terrain_stream::{
 };
 use benilla_world::view::Viewer;
 
-use movement_helpers::{
+use self::movement_helpers::{
     descent_step,
     fall_step,
     foot_cone_ride,
@@ -100,7 +100,7 @@ impl Plugin for PlayerPlugin {
         )
         .add_systems(
             Update,
-            local_player_command_system.in_set(CharacterInputSet::Collect),
+            input::local_player_command_system.in_set(CharacterInputSet::Collect),
         )
         .add_systems(
             Update,
@@ -108,54 +108,6 @@ impl Plugin for PlayerPlugin {
                 .in_set(CharacterInputSet::Process)
                 .in_set(WorldStage::Input),
         );
-    }
-}
-
-fn local_player_command_system(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mouse_button: Res<ButtonInput<MouseButton>>,
-    mouse_motion: Res<AccumulatedMouseMotion>,
-    mut query: Query<&mut CharacterCommand, With<LocalPlayer>>,
-) {
-    let mut forward_move = 0.0;
-    let mut strafe_move = 0.0;
-
-    if keyboard_input.pressed(KeyCode::KeyW)
-        || keyboard_input.pressed(KeyCode::ArrowUp)
-    {
-        forward_move += 1.0;
-    }
-
-    if keyboard_input.pressed(KeyCode::KeyS)
-        || keyboard_input.pressed(KeyCode::ArrowDown)
-    {
-        forward_move -= 1.0;
-    }
-
-    if keyboard_input.pressed(KeyCode::KeyA)
-        || keyboard_input.pressed(KeyCode::ArrowLeft)
-    {
-        strafe_move -= 1.0;
-    }
-
-    if keyboard_input.pressed(KeyCode::KeyD)
-        || keyboard_input.pressed(KeyCode::ArrowRight)
-    {
-        strafe_move += 1.0;
-    }
-
-    let mouse_delta = if mouse_button.pressed(MouseButton::Right) {
-        mouse_motion.delta.x
-    } else {
-        0.0
-    };
-
-    for mut command in &mut query {
-        command.movement = Vec2::new(strafe_move, forward_move);
-        command.jump = keyboard_input.just_pressed(KeyCode::Space);
-        command.look_delta = mouse_delta;
-        command.select_target = keyboard_input.just_pressed(KeyCode::Tab);
-        command.ability_1 = keyboard_input.just_pressed(KeyCode::Digit1);
     }
 }
 
