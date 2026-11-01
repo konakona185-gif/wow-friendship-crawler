@@ -1,4 +1,3 @@
-
 mod player;
 mod camera;
 mod combat;
@@ -371,38 +370,41 @@ fn setup_game(
         ..default()
     });
 
-    commands.spawn((
-        Character,
-        LocalPlayer,
-        PlayerId(1),
-        CharacterBuild::new(
-            CharacterRace::Human,
-            CharacterClass::Warrior,
-        )
-        .expect("Configurazione iniziale razza-classe non valida."),
-        CharacterCommand::default(),
-        FellowshipRole::Tank,
-        MovementSpeed(8.0),
-        Velocity(Vec3::ZERO),
-        GroundingState::default(),
-        Target { entity: None },
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-        Mesh3d(player_mesh),
-        MeshMaterial3d(player_material),
-        PickBox,
-        CreaturePickPart,
-        WorldObject {
-            kind: ModelKind::Creature,
-            label: "Giocatore".into(),
-            id: 0,
-            detail: "Warrior".into(),
-        },
-        Transform::from_translation(spawn_position),
-    ));
+    commands
+        .spawn((
+            Character,
+            LocalPlayer,
+            PlayerId(1),
+            CharacterBuild::new(
+                CharacterRace::Human,
+                CharacterClass::Warrior,
+            )
+            .expect("Configurazione iniziale razza-classe non valida."),
+            CharacterCommand::default(),
+            FellowshipRole::Tank,
+            MovementSpeed(8.0),
+            Velocity(Vec3::ZERO),
+            GroundingState::default(),
+            Target { entity: None },
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            Mesh3d(player_mesh),
+            MeshMaterial3d(player_material),
+        ))
+        .insert((
+            PickBox,
+            CreaturePickPart,
+            WorldObject {
+                kind: ModelKind::Creature,
+                label: "Giocatore".into(),
+                id: 0,
+                detail: "Warrior".into(),
+            },
+            Transform::from_translation(spawn_position),
+        ));
 
     let enemy_mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
     let enemy_material = materials.add(StandardMaterial {
