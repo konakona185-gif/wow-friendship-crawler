@@ -25,11 +25,21 @@ use crate::combat::{Enemy, EnemyAi};
 const ENEMY_CAPSULE_RADIUS: f32 = 1.0 / 3.0;
 const ENEMY_CAPSULE_HEIGHT: f32 = 2.027_777_7;
 const ENEMY_SKIN_WIDTH: f32 = 0.02;
+const ENEMY_GROUND_NORMAL_THRESHOLD: f32 = 0.642_788;
+const ENEMY_GROUND_PROBE_LIFT: f32 = 0.02;
+const ENEMY_GROUND_PROBE_DISTANCE: f32 = 0.18;
+const ENEMY_GRAVITY: f32 = -25.0;
+const ENEMY_TERMINAL_FALL_SPEED: f32 = 60.148_003;
 const ENEMY_MOVE_SPEED: f32 = 5.0;
 const ENEMY_MAX_SPEED: f32 = 7.0;
 
 #[derive(Component)]
 struct EnemyNavigationAgent;
+
+#[derive(Component, Default)]
+struct EnemyVerticalMotion {
+    velocity: f32,
+}
 
 pub struct EnemyNavigationPlugin;
 
@@ -74,6 +84,7 @@ fn spawn_enemy_navigation_agents(
                 archipelago_ref: ArchipelagoRef3d::new(archipelago),
             },
             EnemyNavigationAgent,
+            EnemyVerticalMotion::default(),
         ));
     }
 }
@@ -115,6 +126,7 @@ fn move_enemy_agents(
             &mut Transform,
             &mut Velocity3d,
             &AgentDesiredVelocity3d,
+            &mut EnemyVerticalMotion,
         ),
         (With<Enemy>, With<EnemyNavigationAgent>),
     >,
@@ -135,14 +147,41 @@ fn move_enemy_agents(
         ENEMY_CAPSULE_HEIGHT - 2.0 * ENEMY_CAPSULE_RADIUS,
     );
 
-    for (mut transform, mut actual_velocity, desired_velocity) in
-        &mut enemy_query
-    {
-        let movement_velocity = desired_velocity.velocity();
+    for (
+        mut transform,
+        mut actual_velocity,
+        desired_velocity,
+        mut vertical_motion,
+    ) in &mut enemy_query {
+        let start_position = transform.translation;
+        let mut grounded = false;
 
-        if movement_velocity.length_squared() <= 1.0e-6 {
-            actual_velocity.velocity = Vec3::ZERO;
-            continue;
+        if vertical_motion.velocity <= 0.0 {
+            if let Some(hit) = world.cast_mover(
+                &capsule,
+                start_position + Vec3::Y * ENEMY_GROUND_PROBE_LIFT,
+                Vec3::NEG_Y * ENEMY_GROUND_PROBE_DISTANCE,
+                ENEMY_SKIN_WIDTH,
+            ) {
+                if hit.face_normal.y >= ENEMY_GROUND_NORMAL_THRESHOLD {
+                    transform.translation.y +=
+                        ENEMY_GROUND_PROBE_LIFT - hit.distance;
+                    vertical_motion.velocity = 0.0;
+                    grounded = true;
+                }
+            }
+        }
+
+        let mut movement_velocity = desired_velocity.velocity();
+
+        if grounded {
+            vertical_motion.velocity = 0.0;
+        } else {
+            let (end_velocity, average_velocity) =
+                fall_step(vertical_motion.velocity, delta);
+
+            vertical_motion.velocity = end_velocity;
+            movement_velocity.y += average_velocity;
         }
 
         let start_position = transform.translation;
@@ -164,6 +203,12 @@ fn move_enemy_agents(
 
         if !world.terrain_resident(min, max) {
             actual_velocity.velocity = Vec3::ZERO;
+            vertical_motion.velocity = 0.0;
+            continue;
+        }
+
+        if movement_velocity.length_squared() <= 1.0e-6 {
+            actual_velocity.velocity = Vec3::ZERO;
             continue;
         }
 
@@ -178,7 +223,48 @@ fn move_enemy_agents(
 
         transform.translation = output.position;
 
+        if vertical_motion.velocity <= 0.0 {
+            if let Some(hit) = world.cast_mover(
+                &capsule,
+                transform.translation
+                    + Vec3::Y * ENEMY_GROUND_PROBE_LIFT,
+                Vec3::NEG_Y * ENEMY_GROUND_PROBE_DISTANCE,
+                ENEMY_SKIN_WIDTH,
+            ) {
+                if hit.face_normal.y >= ENEMY_GROUND_NORMAL_THRESHOLD {
+                    transform.translation.y +=
+                        ENEMY_GROUND_PROBE_LIFT - hit.distance;
+                    vertical_motion.velocity = 0.0;
+                }
+            }
+        }
+
         actual_velocity.velocity =
-            (output.position - start_position) / delta;
+            (transform.translation - start_position) / delta;
     }
+}
+
+fn fall_step(initial_velocity: f32, delta: f32) -> (f32, f32) {
+    let terminal_velocity = -ENEMY_TERMINAL_FALL_SPEED;
+    let unconstrained_end = initial_velocity + ENEMY_GRAVITY * delta;
+
+    if unconstrained_end >= terminal_velocity {
+        return (
+            unconstrained_end,
+            0.5 * (initial_velocity + unconstrained_end),
+        );
+    }
+
+    if initial_velocity <= terminal_velocity {
+        return (terminal_velocity, terminal_velocity);
+    }
+
+    let time_to_terminal =
+        (terminal_velocity - initial_velocity) / ENEMY_GRAVITY;
+
+    let displacement =
+        0.5 * (initial_velocity + terminal_velocity) * time_to_terminal
+        + terminal_velocity * (delta - time_to_terminal);
+
+    (terminal_velocity, displacement / delta)
 }
