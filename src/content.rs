@@ -1,5 +1,12 @@
+mod pack;
+
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::{Display, Formatter};
+
+pub use pack::{
+    ContentPackManifest,
+    ContentPackValidationError,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
