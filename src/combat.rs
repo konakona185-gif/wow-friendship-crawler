@@ -13,6 +13,8 @@ use crate::player::{
 };
 
 const DEFAULT_ENEMY_AGGRO_RANGE: f32 = 20.0;
+const DEFAULT_ENEMY_LEASH_RANGE: f32 = 40.0;
+const ENEMY_HOME_ARRIVAL_DISTANCE: f32 = 1.0;
 
 #[derive(Component)]
 pub struct Enemy;
@@ -21,6 +23,8 @@ pub struct Enemy;
 pub struct EnemyAi {
     pub target: Option<Entity>,
     pub aggro_range: f32,
+    pub leash_range: f32,
+    pub returning_home: bool,
 }
 
 impl Default for EnemyAi {
@@ -28,9 +32,14 @@ impl Default for EnemyAi {
         Self {
             target: None,
             aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
+            leash_range: DEFAULT_ENEMY_LEASH_RANGE,
+            returning_home: false,
         }
     }
 }
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct EnemyHomePosition(pub Vec3);
 
 #[derive(Component)]
 pub struct Target {
@@ -278,14 +287,63 @@ fn enemy_aggro_system(
         (With<Character>, Without<Enemy>),
     >,
     mut enemy_query: Query<
-        (&Transform, &CombatStats, &mut EnemyAi),
+        (
+            &Transform,
+            &mut CombatStats,
+            &mut EnemyAi,
+            Option<&EnemyHomePosition>,
+        ),
         (With<Enemy>, Without<Character>),
     >,
 ) {
-    for (enemy_transform, enemy_stats, mut enemy_ai) in &mut enemy_query {
+    for (enemy_transform, mut enemy_stats, mut enemy_ai, home_position) in
+        &mut enemy_query
+    {
         if enemy_stats.current_health <= 0.0 {
             enemy_ai.target = None;
+            enemy_ai.returning_home = false;
             continue;
+        }
+
+        if let Some(home_position) = home_position {
+            let distance_from_home_squared = enemy_transform
+                .translation
+                .distance_squared(home_position.0);
+
+            let home_arrival_distance_squared =
+                ENEMY_HOME_ARRIVAL_DISTANCE * ENEMY_HOME_ARRIVAL_DISTANCE;
+
+            if enemy_ai.returning_home {
+                if distance_from_home_squared > home_arrival_distance_squared {
+                    enemy_ai.target = None;
+                    continue;
+                }
+
+                enemy_ai.returning_home = false;
+
+                info!("Nemico tornato alla posizione iniziale.");
+            } else {
+                let leash_range = if enemy_ai.leash_range.is_finite() {
+                    enemy_ai.leash_range.max(0.0)
+                } else {
+                    DEFAULT_ENEMY_LEASH_RANGE
+                };
+
+                let leash_range_squared = leash_range * leash_range;
+
+                if distance_from_home_squared > leash_range_squared {
+                    enemy_ai.target = None;
+                    enemy_ai.returning_home = true;
+                    enemy_stats.current_health =
+                        enemy_stats.max_health.max(0.0);
+
+                    info!(
+                        "Nemico fuori dal raggio di combattimento: ritorno alla posizione iniziale."
+                    );
+
+                    continue;
+                }
+            }
         }
 
         let current_target_is_alive = enemy_ai.target.is_some_and(|target_entity| {
@@ -410,6 +468,7 @@ mod tests {
         world.spawn((
             Enemy,
             EnemyAi::default(),
+            EnemyHomePosition(position),
             Transform::from_translation(position),
             CombatStats {
                 current_health: 100.0,
@@ -1071,10 +1130,7 @@ mod tests {
 
         let enemy = app.world_mut().spawn((
             Enemy,
-            EnemyAi {
-                target: None,
-                aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
-            },
+            EnemyAi::default(),
             Transform::default(),
             CombatStats {
                 current_health: 0.0,
@@ -1099,6 +1155,8 @@ mod tests {
             app.world().get::<EnemyAi>(enemy).unwrap().target,
             None
         );
+
+        assert!(!app.world().get::<EnemyAi>(enemy).unwrap().returning_home);
     }
 
     #[test]
@@ -1110,6 +1168,8 @@ mod tests {
             EnemyAi {
                 target: None,
                 aggro_range: f32::NAN,
+                leash_range: DEFAULT_ENEMY_LEASH_RANGE,
+                returning_home: false,
             },
             Transform::default(),
             CombatStats {
@@ -1130,5 +1190,139 @@ mod tests {
             app.world().get::<EnemyAi>(enemy).unwrap().target,
             Some(player)
         );
+    }
+
+    #[test]
+    fn enemy_starts_returning_home_and_recovers_health_after_exceeding_leash() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi {
+                target: None,
+                aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
+                leash_range: DEFAULT_ENEMY_LEASH_RANGE,
+                returning_home: false,
+            },
+            EnemyHomePosition(Vec3::ZERO),
+            Transform::from_xyz(41.0, 0.0, 0.0),
+            CombatStats {
+                current_health: 25.0,
+                max_health: 100.0,
+                resource: 30.0,
+            },
+        )).id();
+
+        let player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(41.0, 0.0, 1.0),
+        );
+
+        app.world_mut()
+            .get_mut::<EnemyAi>(enemy)
+            .unwrap()
+            .target = Some(player);
+
+        app.update();
+
+        let ai = app.world().get::<EnemyAi>(enemy).unwrap();
+        let stats = app.world().get::<CombatStats>(enemy).unwrap();
+
+        assert_eq!(ai.target, None);
+        assert!(ai.returning_home);
+        assert_eq!(stats.current_health, stats.max_health);
+    }
+
+    #[test]
+    fn returning_enemy_does_not_reacquire_players() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi {
+                target: None,
+                aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
+                leash_range: DEFAULT_ENEMY_LEASH_RANGE,
+                returning_home: true,
+            },
+            EnemyHomePosition(Vec3::ZERO),
+            Transform::from_xyz(10.0, 0.0, 0.0),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(10.0, 0.0, 1.0),
+        );
+
+        app.update();
+
+        let ai = app.world().get::<EnemyAi>(enemy).unwrap();
+
+        assert_eq!(ai.target, None);
+        assert!(ai.returning_home);
+
+        assert_ne!(ai.target, Some(player));
+    }
+
+    #[test]
+    fn enemy_can_acquire_targets_again_after_returning_home() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi {
+                target: None,
+                aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
+                leash_range: DEFAULT_ENEMY_LEASH_RANGE,
+                returning_home: true,
+            },
+            EnemyHomePosition(Vec3::ZERO),
+            Transform::from_xyz(0.5, 0.0, 0.0),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 5.0),
+        );
+
+        app.update();
+
+        let ai = app.world().get::<EnemyAi>(enemy).unwrap();
+
+        assert!(!ai.returning_home);
+        assert_eq!(ai.target, Some(player));
+    }
+
+    #[test]
+    fn enemy_does_not_start_returning_at_the_exact_leash_distance() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi::default(),
+            EnemyHomePosition(Vec3::ZERO),
+            Transform::from_xyz(DEFAULT_ENEMY_LEASH_RANGE, 0.0, 0.0),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        app.update();
+
+        let ai = app.world().get::<EnemyAi>(enemy).unwrap();
+
+        assert!(!ai.returning_home);
     }
 }
