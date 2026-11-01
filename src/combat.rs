@@ -12,8 +12,25 @@ use crate::player::{
     FellowshipRole,
 };
 
+const DEFAULT_ENEMY_AGGRO_RANGE: f32 = 20.0;
+
 #[derive(Component)]
 pub struct Enemy;
+
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct EnemyAi {
+    pub target: Option<Entity>,
+    pub aggro_range: f32,
+}
+
+impl Default for EnemyAi {
+    fn default() -> Self {
+        Self {
+            target: None,
+            aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
+        }
+    }
+}
 
 #[derive(Component)]
 pub struct Target {
@@ -43,6 +60,7 @@ impl Plugin for CombatPlugin {
                 target_click_system,
                 player_cast_system,
                 enemy_death_system,
+                enemy_aggro_system,
                 target_indicator_system,
             )
                 .chain()
@@ -228,6 +246,58 @@ fn enemy_death_system(
     }
 }
 
+fn enemy_aggro_system(
+    player_query: Query<
+        (Entity, &Transform, &CombatStats),
+        (With<Character>, Without<Enemy>),
+    >,
+    mut enemy_query: Query<
+        (&Transform, &CombatStats, &mut EnemyAi),
+        (With<Enemy>, Without<Character>),
+    >,
+) {
+    for (enemy_transform, enemy_stats, mut enemy_ai) in &mut enemy_query {
+        if enemy_stats.current_health <= 0.0 {
+            enemy_ai.target = None;
+            continue;
+        }
+
+        let current_target_is_alive = enemy_ai.target.is_some_and(|target_entity| {
+            player_query
+                .get(target_entity)
+                .is_ok_and(|(_, _, stats)| stats.current_health > 0.0)
+        });
+
+        if current_target_is_alive {
+            continue;
+        }
+
+        let aggro_range = enemy_ai.aggro_range.max(0.0);
+
+        let new_target = player_query
+            .iter()
+            .filter(|(_, _, stats)| stats.current_health > 0.0)
+            .filter_map(|(entity, player_transform, _)| {
+                let distance = enemy_transform
+                    .translation
+                    .distance(player_transform.translation);
+
+                (distance <= aggro_range).then_some((entity, distance))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(entity, _)| entity);
+
+        enemy_ai.target = new_target;
+
+        if let Some(target_entity) = new_target {
+            info!(
+                "Nemico ha acquisito il giocatore {:?} come bersaglio.",
+                target_entity
+            );
+        }
+    }
+}
+
 fn target_indicator_system(
     target_query: Query<&Target, With<Character>>,
     enemy_query: Query<&Transform, With<Enemy>>,
@@ -283,6 +353,37 @@ mod tests {
             id: 1,
             detail: String::new(),
         }
+    }
+
+    fn spawn_living_player(
+        world: &mut World,
+        position: Vec3,
+    ) -> Entity {
+        world.spawn((
+            Character,
+            Transform::from_translation(position),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id()
+    }
+
+    fn spawn_enemy_ai(
+        world: &mut World,
+        position: Vec3,
+    ) -> Entity {
+        world.spawn((
+            Enemy,
+            EnemyAi::default(),
+            Transform::from_translation(position),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id()
     }
 
     #[test]
@@ -379,11 +480,13 @@ mod tests {
     fn tab_clears_target_when_no_enemies_exist() {
         let mut app = setup_target_test_app();
 
+        let stale_target = app.world_mut().spawn_empty().id();
+
         let player = app.world_mut().spawn((
             Character,
             Transform::default(),
             Target {
-                entity: Some(Entity::from_bits(12345)),
+                entity: Some(stale_target),
             },
             CharacterCommand {
                 select_target: true,
@@ -574,6 +677,147 @@ mod tests {
         assert_eq!(
             app.world().get::<Target>(player).unwrap().entity,
             None
+        );
+    }
+
+    fn setup_enemy_aggro_test_app() -> App {
+        let mut app = App::new();
+        app.add_systems(Update, enemy_aggro_system);
+        app
+    }
+
+    #[test]
+    fn enemy_acquires_the_nearest_living_player_in_range() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = spawn_enemy_ai(app.world_mut(), Vec3::ZERO);
+
+        let farther_player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 15.0),
+        );
+
+        let nearest_player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 8.0),
+        );
+
+        let dead_player = app.world_mut().spawn((
+            Character,
+            Transform::from_xyz(0.0, 0.0, 2.0),
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(nearest_player)
+        );
+
+        assert_ne!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(farther_player)
+        );
+
+        assert_ne!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(dead_player)
+        );
+    }
+
+    #[test]
+    fn enemy_does_not_acquire_a_player_outside_aggro_range() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = spawn_enemy_ai(app.world_mut(), Vec3::ZERO);
+
+        spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, DEFAULT_ENEMY_AGGRO_RANGE + 1.0),
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            None
+        );
+    }
+
+    #[test]
+    fn enemy_keeps_its_current_target_while_that_player_is_alive() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = spawn_enemy_ai(app.world_mut(), Vec3::ZERO);
+
+        let first_player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 12.0),
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(first_player)
+        );
+
+        let closer_player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 2.0),
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(first_player)
+        );
+
+        assert_ne!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(closer_player)
+        );
+    }
+
+    #[test]
+    fn enemy_reacquires_a_new_player_when_its_target_dies() {
+        let mut app = setup_enemy_aggro_test_app();
+
+        let enemy = spawn_enemy_ai(app.world_mut(), Vec3::ZERO);
+
+        let first_player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 8.0),
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(first_player)
+        );
+
+        app.world_mut()
+            .get_mut::<CombatStats>(first_player)
+            .unwrap()
+            .current_health = 0.0;
+
+        let next_player = spawn_living_player(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 12.0),
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            Some(next_player)
         );
     }
 }
