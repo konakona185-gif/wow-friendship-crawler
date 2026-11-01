@@ -19,6 +19,7 @@ pub(super) const ENEMY_OVERHANG_EPS: f32 = -1.0e-4;
 pub(super) const ENEMY_GRAVITY: f32 = -25.0;
 pub(super) const ENEMY_TERMINAL_FALL_SPEED: f32 = 60.148_003;
 
+#[derive(Clone, Copy)]
 pub(super) struct EnemyStepUp {
     pub(super) rise: f32,
     pub(super) ride_to: Option<f32>,
