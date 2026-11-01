@@ -20,6 +20,9 @@ use crate::player::CharacterInputSet;
 
 const POINTER_DRAG_THRESHOLD: f32 = 5.0;
 
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WorldInteractionSet;
+
 #[derive(Resource, Default)]
 pub struct WorldHover {
     pub hit: Option<HoveredWorldObject>,
@@ -58,7 +61,8 @@ impl Plugin for InteractionPlugin {
                 Update,
                 world_pointer_system
                     .after(CharacterInputSet::Process)
-                    .after(CameraPoseSet),
+                    .after(CameraPoseSet)
+                    .in_set(WorldInteractionSet),
             );
     }
 }
