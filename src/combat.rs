@@ -187,6 +187,7 @@ fn player_cast_system(
 fn enemy_death_system(
     mut commands: Commands,
     enemy_query: Query<(Entity, &CombatStats), With<Enemy>>,
+    indicator_query: Query<(Entity, &TargetIndicator)>,
     mut player_target_query: Query<&mut Target, With<Character>>,
 ) {
     for (enemy_entity, stats) in &enemy_query {
@@ -197,6 +198,12 @@ fn enemy_death_system(
             );
 
             commands.entity(enemy_entity).despawn();
+
+            for (indicator_entity, indicator) in &indicator_query {
+                if indicator.enemy == enemy_entity {
+                    commands.entity(indicator_entity).despawn();
+                }
+            }
 
             for mut player_target in &mut player_target_query {
                 if player_target.entity == Some(enemy_entity) {
