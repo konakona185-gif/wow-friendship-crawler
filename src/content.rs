@@ -1,8 +1,14 @@
+mod metadata;
 mod pack;
 mod registry;
 
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::{Display, Formatter};
+
+pub use metadata::{
+    ContentMetadata,
+    ContentMetadataError,
+};
 
 pub use pack::{
     ContentPackManifest,
