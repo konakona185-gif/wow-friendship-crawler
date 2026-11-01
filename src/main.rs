@@ -1,3 +1,4 @@
+
 mod player;
 mod camera;
 mod combat;
@@ -39,7 +40,13 @@ use player::{
 };
 
 use camera::{ThirdPersonCamera, CameraPlugin};
-use combat::{Target, Enemy, CombatStats, CombatPlugin};
+use combat::{
+    Target,
+    Enemy,
+    CombatStats,
+    CombatPlugin,
+    TargetIndicator,
+};
 use fellowship::{
     Fellowship,
     FellowshipPlugin,
@@ -412,6 +419,13 @@ fn setup_game(
         ..default()
     });
 
+    let target_indicator_mesh = meshes.add(Torus::new(0.64, 0.68));
+    let target_indicator_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(1.0, 0.12, 0.04),
+        unlit: true,
+        ..default()
+    });
+
     let enemy_positions = [
         spawn_position + Vec3::new(5.0, -0.5, -5.0),
         spawn_position + Vec3::new(-6.0, -0.5, -8.0),
@@ -421,7 +435,7 @@ fn setup_game(
     for (i, pos) in enemy_positions.iter().enumerate() {
         let health = 50.0 + (i as f32 * 20.0);
 
-        commands.spawn((
+        let enemy_entity = commands.spawn((
             Enemy,
             CombatStats {
                 current_health: health,
@@ -439,6 +453,18 @@ fn setup_game(
                 detail: String::new(),
             },
             Transform::from_translation(*pos),
+        )).id();
+
+        commands.spawn((
+            Mesh3d(target_indicator_mesh.clone()),
+            MeshMaterial3d(target_indicator_material.clone()),
+            TargetIndicator {
+                enemy: enemy_entity,
+            },
+            Transform::from_translation(
+                *pos + Vec3::new(0.0, -0.49, 0.0),
+            ),
+            Visibility::Hidden,
         ));
     }
 
