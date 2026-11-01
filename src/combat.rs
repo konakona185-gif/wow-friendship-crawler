@@ -1,6 +1,10 @@
 
 use bevy::prelude::*;
 
+use crate::interaction::{
+    WorldInteractionSet,
+    WorldObjectClicked,
+};
 use crate::player::{
     Character,
     CharacterCommand,
@@ -31,11 +35,13 @@ impl Plugin for CombatPlugin {
             Update,
             (
                 target_tab_system,
+                target_click_system,
                 player_cast_system,
                 enemy_death_system,
             )
                 .chain()
-                .after(CharacterInputSet::Collect),
+                .after(CharacterInputSet::Collect)
+                .after(WorldInteractionSet),
         );
     }
 }
@@ -65,6 +71,31 @@ fn target_tab_system(
         if let Some((enemy_entity, _)) = nearest {
             player_target.entity = Some(enemy_entity);
             info!("Target selezionato: {:?}", enemy_entity);
+        }
+    }
+}
+
+fn target_click_system(
+    mut clicked: MessageReader<WorldObjectClicked>,
+    enemy_query: Query<(), With<Enemy>>,
+    mut player_query: Query<&mut Target, With<Character>>,
+) {
+    for click in clicked.read() {
+        if click.button != MouseButton::Left {
+            continue;
+        }
+
+        let Some(entity) = click.entity else {
+            continue;
+        };
+
+        if enemy_query.get(entity).is_err() {
+            continue;
+        }
+
+        for mut target in &mut player_query {
+            target.entity = Some(entity);
+            info!("Target selezionato tramite click: {:?}", entity);
         }
     }
 }
