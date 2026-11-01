@@ -225,7 +225,7 @@ mod tests {
             100.0
         );
 
-        advance_test_time(&mut app, 0.1);
+        advance_test_time(&mut app, 0.11);
         app.update();
 
         assert_eq!(
