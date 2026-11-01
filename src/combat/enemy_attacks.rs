@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::*;
 
 #[derive(Component)]
-struct EnemyAttackState {
+pub(super) struct EnemyAttackState {
     target: Entity,
     cooldown: Timer,
 }
