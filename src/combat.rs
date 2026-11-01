@@ -64,20 +64,33 @@ fn target_tab_system(
             continue;
         }
 
-        let nearest = enemy_query
+        let mut enemies: Vec<(Entity, f32)> = enemy_query
             .iter()
             .map(|(entity, transform)| {
-                let dist = player_transform.translation.distance(transform.translation);
-                (entity, dist)
+                let distance = player_transform.translation.distance(transform.translation);
+                (entity, distance)
             })
-            .min_by(|a, b| {
-                a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)
-            });
+            .collect();
 
-        if let Some((enemy_entity, _)) = nearest {
-            player_target.entity = Some(enemy_entity);
-            info!("Target selezionato: {:?}", enemy_entity);
+        enemies.sort_by(|a, b| a.1.total_cmp(&b.1));
+
+        if enemies.is_empty() {
+            player_target.entity = None;
+            continue;
         }
+
+        let next_index = player_target
+            .entity
+            .and_then(|current| {
+                enemies.iter().position(|(entity, _)| *entity == current)
+            })
+            .map_or(0, |index| (index + 1) % enemies.len());
+
+        let enemy_entity = enemies[next_index].0;
+
+        player_target.entity = Some(enemy_entity);
+
+        info!("Target selezionato: {:?}", enemy_entity);
     }
 }
 
@@ -308,6 +321,81 @@ mod tests {
                 .get::<CharacterCommand>(player)
                 .unwrap()
                 .select_target
+        );
+    }
+
+    #[test]
+    fn tab_cycles_through_enemies_by_distance_and_wraps() {
+        let mut app = setup_target_test_app();
+
+        let player = app.world_mut().spawn((
+            Character,
+            Transform::default(),
+            Target { entity: None },
+            CharacterCommand {
+                select_target: true,
+                ..default()
+            },
+        )).id();
+
+        let nearest = app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 3.0),
+        )).id();
+
+        let middle = app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 8.0),
+        )).id();
+
+        let furthest = app.world_mut().spawn((
+            Enemy,
+            Transform::from_xyz(0.0, 0.0, 13.0),
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Target>(player).unwrap().entity,
+            Some(nearest)
+        );
+
+        for expected in [middle, furthest, nearest] {
+            app.world_mut()
+                .get_mut::<CharacterCommand>(player)
+                .unwrap()
+                .select_target = true;
+
+            app.update();
+
+            assert_eq!(
+                app.world().get::<Target>(player).unwrap().entity,
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn tab_clears_target_when_no_enemies_exist() {
+        let mut app = setup_target_test_app();
+
+        let player = app.world_mut().spawn((
+            Character,
+            Transform::default(),
+            Target {
+                entity: Some(Entity::from_bits(12345)),
+            },
+            CharacterCommand {
+                select_target: true,
+                ..default()
+            },
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Target>(player).unwrap().entity,
+            None
         );
     }
 
