@@ -43,6 +43,7 @@ use camera::{ThirdPersonCamera, CameraPlugin};
 use combat::{
     Target,
     Enemy,
+    EnemyAi,
     CombatStats,
     CombatPlugin,
     TargetIndicator,
@@ -177,6 +178,9 @@ fn run_headless_tests(app: &mut App) {
         let mut enemy_query = world.query_filtered::<Entity, With<Enemy>>();
         let enemy_count = enemy_query.iter(world).count();
 
+        let mut enemy_ai_query = world.query_filtered::<&EnemyAi, With<Enemy>>();
+        let enemy_ai_states: Vec<EnemyAi> = enemy_ai_query.iter(world).copied().collect();
+
         assert_eq!(
             player_count,
             1,
@@ -221,6 +225,17 @@ fn run_headless_tests(app: &mut App) {
             "Il test headless deve creare tre nemici."
         );
 
+        assert_eq!(
+            enemy_ai_states.len(),
+            enemy_count,
+            "Tutti i nemici devono avere il componente EnemyAi."
+        );
+
+        assert!(
+            enemy_ai_states.iter().all(|ai| ai.target.is_some()),
+            "Tutti i nemici vicini devono aver acquisito un bersaglio."
+        );
+
         let fellowship = world.resource::<Fellowship>();
 
         assert_eq!(
@@ -241,6 +256,7 @@ fn run_headless_tests(app: &mut App) {
     }
 
     println!("Test iniziale della Fellowship superato.");
+    println!("Test di acquisizione dei bersagli nemici superato.");
 
     app.world_mut().write_message(LeaveFellowship {
         player_id: PlayerId(1),
@@ -296,7 +312,7 @@ fn run_headless_tests(app: &mut App) {
     println!("Test di rientro nella Fellowship superato.");
 
     println!(
-        "Test headless completato: personaggio, razza, classe, Fellowship e tre nemici verificati."
+        "Test headless completato: personaggio, razza, classe, Fellowship, tre nemici e acquisizione dei bersagli verificati."
     );
 }
 
@@ -336,6 +352,7 @@ fn setup_headless_game(mut commands: Commands) {
 
         commands.spawn((
             Enemy,
+            EnemyAi::default(),
             CombatStats {
                 current_health: health,
                 max_health: health,
@@ -437,6 +454,7 @@ fn setup_game(
 
         let enemy_entity = commands.spawn((
             Enemy,
+            EnemyAi::default(),
             CombatStats {
                 current_health: health,
                 max_health: health,
