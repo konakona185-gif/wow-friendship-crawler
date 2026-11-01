@@ -238,7 +238,7 @@ fn target_indicator_system(
         };
 
         indicator_transform.translation =
-            enemy_transform.translation + Vec3::new(0.0, -0.49, 0.0);
+            enemy_transform.translation + Vec3::new(0.0, -0.47, 0.0);
 
         *visibility = Visibility::Visible;
     }
