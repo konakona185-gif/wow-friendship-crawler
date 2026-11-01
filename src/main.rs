@@ -6,6 +6,7 @@ mod fellowship;
 mod character;
 mod interaction;
 mod navigation;
+mod enemy_navigation;
 
 use bevy::camera::{PerspectiveProjection, Projection};
 use bevy::core_pipeline::tonemapping::Tonemapping;
@@ -58,6 +59,7 @@ use fellowship::{
 use character::{CharacterBuild, CharacterClass, CharacterRace};
 use interaction::InteractionPlugin;
 use navigation::NavigationPlugin;
+use enemy_navigation::EnemyNavigationPlugin;
 
 fn main() {
     let is_headless = std::env::var_os("CI").is_some();
@@ -113,6 +115,7 @@ fn run_game() {
     app.add_plugins(benilla_world::thread_qos::ThreadQosPlugin);
     app.add_plugins(WorldPlugins);
     app.add_plugins(NavigationPlugin);
+    app.add_plugins(EnemyNavigationPlugin);
 
     app.insert_resource(WorldLive(true));
 
