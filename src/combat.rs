@@ -1,4 +1,3 @@
-
 use bevy::prelude::*;
 
 use crate::interaction::{
@@ -166,7 +165,7 @@ fn player_cast_system(
         With<Character>,
     >,
     mut enemy_query: Query<
-        &mut CombatStats,
+        (&mut CombatStats, Option<&EnemyAi>),
         (With<Enemy>, Without<Character>),
     >,
 ) {
@@ -184,11 +183,13 @@ fn player_cast_system(
             continue;
         };
 
-        let Ok(mut enemy_stats) = enemy_query.get_mut(target_entity) else {
+        let Ok((mut enemy_stats, enemy_ai)) = enemy_query.get_mut(target_entity) else {
             continue;
         };
 
-        if enemy_stats.current_health <= 0.0 {
+        if enemy_stats.current_health <= 0.0
+            || enemy_ai.is_some_and(|ai| ai.returning_home)
+        {
             continue;
         }
 
@@ -887,6 +888,58 @@ mod tests {
         assert_eq!(
             app.world().get::<CombatStats>(enemy).unwrap().current_health,
             0.0
+        );
+
+        assert_eq!(
+            app.world().get::<CombatStats>(player).unwrap().resource,
+            100.0
+        );
+    }
+
+    #[test]
+    fn returning_enemies_are_immune_to_player_abilities() {
+        let mut app = App::new();
+        app.add_systems(Update, player_cast_system);
+
+        let enemy = app.world_mut().spawn((
+            Enemy,
+            EnemyAi {
+                target: None,
+                aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
+                leash_range: DEFAULT_ENEMY_LEASH_RANGE,
+                returning_home: true,
+            },
+            EnemyHomePosition(Vec3::ZERO),
+            Transform::from_xyz(41.0, 0.0, 0.0),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        )).id();
+
+        let player = app.world_mut().spawn((
+            Character,
+            FellowshipRole::Dps,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 100.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        )).id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<CombatStats>(enemy).unwrap().current_health,
+            100.0
         );
 
         assert_eq!(
