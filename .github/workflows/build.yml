@@ -1,3 +1,4 @@
+
 name: Compila, Testa ed Esporta Eseguibile
 
 on:
@@ -5,8 +6,11 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
-  schedule:
-    - cron: "13 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-windows:
