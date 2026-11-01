@@ -215,14 +215,18 @@ fn database_rejects_talent_tree_mismatches() {
     let talent_id = ContentId::new("classic:talent.test").unwrap();
 
     database
-        .register_talent_tree(talent_tree(Vec::new()))
+        .register_talent_tree(talent_tree(vec![talent_id.clone()]))
         .unwrap();
 
+    let mut mismatched_talent = talent(
+        "classic:talent.test",
+        Vec::new(),
+    );
+    mismatched_talent.tree =
+        ContentId::new("classic:tree.fury").unwrap();
+
     database
-        .register_talent(talent(
-            "classic:talent.test",
-            Vec::new(),
-        ))
+        .register_talent(mismatched_talent)
         .unwrap();
 
     assert_eq!(
