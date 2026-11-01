@@ -26,12 +26,12 @@ use super::movement_helpers::*;
 pub(super) struct EnemyNavigationAgent;
 
 #[derive(Component, Default)]
-struct EnemyVerticalMotion {
+pub(super) struct EnemyVerticalMotion {
     velocity: f32,
 }
 
 #[derive(Component, Default)]
-struct EnemyGroundingState {
+pub(super) struct EnemyGroundingState {
     steep_support: bool,
 }
 
