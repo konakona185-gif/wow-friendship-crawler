@@ -1,4 +1,3 @@
-
 name: Compila, Testa ed Esporta Eseguibile
 
 on:
@@ -6,6 +5,8 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  schedule:
+    - cron: "13 4 * * *"
 
 jobs:
   build-windows:
