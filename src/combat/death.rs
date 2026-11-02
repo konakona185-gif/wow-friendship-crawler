@@ -4,12 +4,17 @@ use super::*;
 
 pub(super) fn enemy_death_system(
     mut commands: Commands,
-    enemy_query: Query<(Entity, &CombatStats), With<Enemy>>,
+    enemy_query: Query<(Entity, &CombatStats, Option<&HealthPool>), With<Enemy>>,
     indicator_query: Query<(Entity, &TargetIndicator)>,
     mut player_target_query: Query<&mut Target, With<Character>>,
 ) {
-    for (enemy_entity, stats) in &enemy_query {
-        if stats.current_health <= 0.0 {
+    for (enemy_entity, stats, health_pool) in &enemy_query {
+        let current_health = health_pool.map_or(
+            stats.current_health,
+            |pool| pool.current(),
+        );
+
+        if current_health <= 0.0 {
             info!(
                 "Nemico {:?} sconfitto. Rimozione dal mondo ECS.",
                 enemy_entity
