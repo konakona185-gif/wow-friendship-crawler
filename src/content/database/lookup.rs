@@ -1,5 +1,6 @@
 use super::{
     AbilityDefinition,
+    CombatAttributeDefinition,
     ContentDatabase,
     ContentDatabaseError,
     ContentId,
@@ -21,6 +22,13 @@ impl ContentDatabase {
         id: &ContentId,
     ) -> Option<&DamageSchoolDefinition> {
         self.damage_schools.get(id)
+    }
+
+    pub fn combat_attribute(
+        &self,
+        id: &ContentId,
+    ) -> Option<&CombatAttributeDefinition> {
+        self.combat_attributes.get(id)
     }
 
     pub fn ability(&self, id: &ContentId) -> Option<&AbilityDefinition> {
@@ -50,6 +58,10 @@ impl ContentDatabase {
         self.damage_schools.len()
     }
 
+    pub fn combat_attribute_count(&self) -> usize {
+        self.combat_attributes.len()
+    }
+
     pub fn ability_count(&self) -> usize {
         self.abilities.len()
     }
@@ -65,6 +77,7 @@ impl ContentDatabase {
     pub fn content_count(&self) -> usize {
         self.effect_count()
             + self.damage_school_count()
+            + self.combat_attribute_count()
             + self.ability_count()
             + self.talent_tree_count()
             + self.talent_count()
