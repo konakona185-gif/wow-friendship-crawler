@@ -342,6 +342,7 @@ fn enemy_starts_returning_home_and_recovers_health_after_exceeding_leash() {
             max_health: 100.0,
             resource: 30.0,
         },
+        HealthPool::new(25.0, 100.0).unwrap(),
     )).id();
 
     let player = spawn_living_player(
@@ -358,10 +359,12 @@ fn enemy_starts_returning_home_and_recovers_health_after_exceeding_leash() {
 
     let ai = app.world().get::<EnemyAi>(enemy).unwrap();
     let stats = app.world().get::<CombatStats>(enemy).unwrap();
+    let health_pool = app.world().get::<HealthPool>(enemy).unwrap();
 
     assert_eq!(ai.target, None);
     assert!(ai.returning_home);
     assert_eq!(stats.current_health, stats.max_health);
+    assert_eq!(health_pool.current(), health_pool.maximum());
 }
 
 #[test]
