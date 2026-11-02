@@ -105,6 +105,83 @@ fn tab_does_not_select_defeated_enemies() {
 }
 
 #[test]
+fn tab_uses_health_pool_to_exclude_defeated_enemies() {
+    let mut app = setup_target_test_app();
+
+    let player = app.world_mut().spawn((
+        Character,
+        Transform::default(),
+        Target { entity: None },
+        CharacterCommand {
+            select_target: true,
+            ..default()
+        },
+    )).id();
+
+    app.world_mut().spawn((
+        Enemy,
+        Transform::from_xyz(0.0, 0.0, 1.0),
+        CombatStats {
+            current_health: 100.0,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+        HealthPool::new(0.0, 100.0).unwrap(),
+    ));
+
+    let living_enemy = app.world_mut().spawn((
+        Enemy,
+        Transform::from_xyz(0.0, 0.0, 5.0),
+        CombatStats {
+            current_health: 100.0,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+        HealthPool::new(50.0, 100.0).unwrap(),
+    )).id();
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<Target>(player).unwrap().entity,
+        Some(living_enemy)
+    );
+}
+
+#[test]
+fn tab_selects_enemy_with_living_health_pool_when_combat_stats_are_zero() {
+    let mut app = setup_target_test_app();
+
+    let player = app.world_mut().spawn((
+        Character,
+        Transform::default(),
+        Target { entity: None },
+        CharacterCommand {
+            select_target: true,
+            ..default()
+        },
+    )).id();
+
+    let living_enemy = app.world_mut().spawn((
+        Enemy,
+        Transform::from_xyz(0.0, 0.0, 3.0),
+        CombatStats {
+            current_health: 0.0,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+        HealthPool::new(50.0, 100.0).unwrap(),
+    )).id();
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<Target>(player).unwrap().entity,
+        Some(living_enemy)
+    );
+}
+
+#[test]
 fn tab_cycles_through_enemies_by_distance_and_wraps() {
     let mut app = setup_target_test_app();
 
@@ -252,6 +329,82 @@ fn clicking_a_defeated_enemy_does_not_change_target() {
     assert_eq!(
         app.world().get::<Target>(player).unwrap().entity,
         None
+    );
+}
+
+#[test]
+fn clicking_an_enemy_with_zero_health_pool_does_not_change_target() {
+    let mut app = setup_target_test_app();
+
+    let player = app.world_mut().spawn((
+        Character,
+        Transform::default(),
+        Target { entity: None },
+        CharacterCommand::default(),
+    )).id();
+
+    let defeated_enemy = app.world_mut().spawn((
+        Enemy,
+        CombatStats {
+            current_health: 100.0,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+        HealthPool::new(0.0, 100.0).unwrap(),
+        Transform::from_xyz(0.0, 0.0, 2.0),
+    )).id();
+
+    app.world_mut().write_message(WorldObjectClicked {
+        button: MouseButton::Left,
+        entity: Some(defeated_enemy),
+        object: test_world_object(),
+        point: Vec3::ZERO,
+        distance: 2.0,
+    });
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<Target>(player).unwrap().entity,
+        None
+    );
+}
+
+#[test]
+fn clicking_an_enemy_with_living_health_pool_selects_it_when_combat_stats_are_zero() {
+    let mut app = setup_target_test_app();
+
+    let player = app.world_mut().spawn((
+        Character,
+        Transform::default(),
+        Target { entity: None },
+        CharacterCommand::default(),
+    )).id();
+
+    let living_enemy = app.world_mut().spawn((
+        Enemy,
+        CombatStats {
+            current_health: 0.0,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+        HealthPool::new(50.0, 100.0).unwrap(),
+        Transform::from_xyz(0.0, 0.0, 2.0),
+    )).id();
+
+    app.world_mut().write_message(WorldObjectClicked {
+        button: MouseButton::Left,
+        entity: Some(living_enemy),
+        object: test_world_object(),
+        point: Vec3::ZERO,
+        distance: 2.0,
+    });
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<Target>(player).unwrap().entity,
+        Some(living_enemy)
     );
 }
 
