@@ -21,7 +21,7 @@ pub(super) fn enemy_attack_system(
         With<Enemy>,
     >,
     mut player_query: Query<
-        (&Transform, &mut CombatStats),
+        (&Transform, &mut CombatStats, Option<&mut HealthPool>),
         (With<Character>, Without<Enemy>),
     >,
 ) {
@@ -47,7 +47,7 @@ pub(super) fn enemy_attack_system(
             continue;
         };
 
-        let Ok((player_transform, mut player_stats)) =
+        let Ok((player_transform, mut player_stats, health_pool)) =
             player_query.get_mut(target_entity)
         else {
             continue;
@@ -90,9 +90,23 @@ pub(super) fn enemy_attack_system(
         state.cooldown.tick(time.delta());
 
         if state.cooldown.just_finished() {
-            player_stats.current_health =
-                (player_stats.current_health - DEFAULT_ENEMY_ATTACK_DAMAGE)
-                    .max(0.0);
+            if let Some(mut health_pool) = health_pool {
+                match health_pool.apply_damage(DEFAULT_ENEMY_ATTACK_DAMAGE) {
+                    Ok(_) => {
+                        player_stats.current_health = health_pool.current();
+                    }
+                    Err(error) => {
+                        warn!(
+                            "Impossibile applicare il danno alla HealthPool del giocatore: {error}"
+                        );
+                        continue;
+                    }
+                }
+            } else {
+                player_stats.current_health =
+                    (player_stats.current_health - DEFAULT_ENEMY_ATTACK_DAMAGE)
+                        .max(0.0);
+            }
 
             info!(
                 "Nemico {:?} attacca il giocatore {:?}. Danno: {}. Vita giocatore: {}/{}",
