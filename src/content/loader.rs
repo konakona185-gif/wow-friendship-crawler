@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 
 use super::{
     AbilityDefinition,
+    CombatAttributeDefinition,
     ContentDatabase,
     ContentDatabaseError,
     ContentId,
@@ -19,6 +20,8 @@ pub struct ContentPackData {
     pub manifest: ContentPackManifest,
     #[serde(default)]
     pub damage_schools: Vec<DamageSchoolDefinition>,
+    #[serde(default)]
+    pub combat_attributes: Vec<CombatAttributeDefinition>,
     #[serde(default)]
     pub effects: Vec<EffectDefinition>,
     #[serde(default)]
@@ -63,6 +66,17 @@ impl ContentPackLoader {
 
             staged_database
                 .register_damage_school(school)
+                .map_err(ContentPackLoaderError::Database)?;
+        }
+
+        for attribute in pack.combat_attributes {
+            validate_content_pack(
+                &attribute.metadata,
+                &expected_pack,
+            )?;
+
+            staged_database
+                .register_combat_attribute(attribute)
                 .map_err(ContentPackLoaderError::Database)?;
         }
 
@@ -185,6 +199,7 @@ impl std::error::Error for ContentPackLoaderError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::content::CombatAttributeValueKind;
 
     fn empty_pack() -> ContentPackData {
         ContentPackData {
@@ -196,6 +211,7 @@ mod tests {
                 dependencies: Vec::new(),
             },
             damage_schools: Vec::new(),
+            combat_attributes: Vec::new(),
             effects: Vec::new(),
             abilities: Vec::new(),
             talent_trees: Vec::new(),
@@ -217,10 +233,25 @@ mod tests {
         }
     }
 
+    fn armor_attribute() -> CombatAttributeDefinition {
+        CombatAttributeDefinition {
+            metadata: ContentMetadata {
+                id: ContentId::new("classic:stat.armor").unwrap(),
+                pack_id: ContentId::new("pack:classic").unwrap(),
+                name: "Armor".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+            value_kind: CombatAttributeValueKind::Flat,
+        }
+    }
+
     #[test]
     fn pack_data_supports_ron_serialization() {
         let mut original = empty_pack();
         original.damage_schools.push(physical_damage_school());
+        original.combat_attributes.push(armor_attribute());
 
         let serialized = ron::to_string(&original).unwrap();
         let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
@@ -259,6 +290,25 @@ mod tests {
 
         assert_eq!(database.damage_school_count(), 1);
         assert!(database.damage_school(&school_id).is_some());
+    }
+
+    #[test]
+    fn loader_registers_combat_attributes() {
+        let mut database = ContentDatabase::new();
+        let mut pack = empty_pack();
+        let attribute = armor_attribute();
+        let attribute_id = attribute.metadata.id.clone();
+
+        pack.combat_attributes.push(attribute);
+
+        ContentPackLoader::load(
+            &mut database,
+            pack,
+        )
+        .unwrap();
+
+        assert_eq!(database.combat_attribute_count(), 1);
+        assert!(database.combat_attribute(&attribute_id).is_some());
     }
 
     #[test]
