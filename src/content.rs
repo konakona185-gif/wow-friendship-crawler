@@ -1,5 +1,6 @@
 mod ability;
 mod database;
+mod damage_school;
 mod effect;
 mod id;
 mod loader;
@@ -20,6 +21,12 @@ pub use ability::{
 pub use database::{
     ContentDatabase,
     ContentDatabaseError,
+};
+
+pub use damage_school::{
+    DamageSchoolDefinition,
+    DamageSchoolMitigation,
+    DamageSchoolValidationError,
 };
 
 pub use effect::{
