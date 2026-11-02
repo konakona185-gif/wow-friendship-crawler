@@ -48,6 +48,7 @@ use combat::{
     EnemyAi,
     CombatStats,
     CombatLevel,
+    CombatAttributes,
     CombatPlugin,
     TargetIndicator,
 };
@@ -197,6 +198,10 @@ fn run_headless_tests(app: &mut App) {
             .map(|level| level.value())
             .collect();
 
+        let mut attributes_query =
+            world.query_filtered::<&CombatAttributes, With<CombatStats>>();
+        let combatant_attributes_count = attributes_query.iter(world).count();
+
         assert_eq!(
             player_count,
             1,
@@ -265,6 +270,12 @@ fn run_headless_tests(app: &mut App) {
             "Tutti i combattenti iniziali devono essere al livello 60."
         );
 
+        assert_eq!(
+            combatant_attributes_count,
+            player_count + enemy_count,
+            "Tutti i combattenti devono avere CombatAttributes."
+        );
+
         let fellowship = world.resource::<Fellowship>();
 
         assert_eq!(
@@ -287,6 +298,7 @@ fn run_headless_tests(app: &mut App) {
     println!("Test iniziale della Fellowship superato.");
     println!("Test di acquisizione dei bersagli nemici superato.");
     println!("Test dei livelli iniziali dei combattenti superato.");
+    println!("Test degli attributi di combattimento superato.");
 
     app.world_mut().write_message(LeaveFellowship {
         player_id: PlayerId(1),
@@ -342,7 +354,7 @@ fn run_headless_tests(app: &mut App) {
     println!("Test di rientro nella Fellowship superato.");
 
     println!(
-        "Test headless completato: personaggio, razza, classe, livelli, Fellowship, tre nemici e acquisizione dei bersagli verificati."
+        "Test headless completato: personaggio, razza, classe, livelli, attributi, Fellowship, tre nemici e acquisizione dei bersagli verificati."
     );
 }
 
@@ -369,6 +381,7 @@ fn setup_headless_game(mut commands: Commands) {
         },
         CombatLevel::new(STARTING_COMBAT_LEVEL)
             .expect("Livello iniziale del giocatore non valido."),
+        CombatAttributes::default(),
         Transform::from_xyz(0.0, 1.0, 0.0),
         GlobalTransform::default(),
     ));
@@ -392,6 +405,7 @@ fn setup_headless_game(mut commands: Commands) {
             },
             CombatLevel::new(STARTING_COMBAT_LEVEL)
                 .expect("Livello iniziale del nemico non valido."),
+            CombatAttributes::default(),
             Transform::from_translation(*pos),
             GlobalTransform::default(),
         ));
@@ -451,6 +465,7 @@ fn setup_game(
             },
             CombatLevel::new(STARTING_COMBAT_LEVEL)
                 .expect("Livello iniziale del giocatore non valido."),
+            CombatAttributes::default(),
             Mesh3d(player_mesh),
             MeshMaterial3d(player_material),
         ))
@@ -498,6 +513,7 @@ fn setup_game(
             },
             CombatLevel::new(STARTING_COMBAT_LEVEL)
                 .expect("Livello iniziale del nemico non valido."),
+            CombatAttributes::default(),
             Mesh3d(enemy_mesh.clone()),
             MeshMaterial3d(enemy_material.clone()),
             PickBox,
