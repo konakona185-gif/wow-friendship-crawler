@@ -2,6 +2,7 @@ use super::{ContentDatabase, ContentId, TalentDefinition};
 use super::super::{
     AbilityValidationError,
     ContentPackRegistryError,
+    DamageSchoolValidationError,
     EffectValidationError,
     TalentValidationError,
 };
@@ -189,6 +190,7 @@ fn visit_talent(
 pub enum ContentDatabaseError {
     InvalidPackRegistry(ContentPackRegistryError),
     InvalidEffect(EffectValidationError),
+    InvalidDamageSchool(DamageSchoolValidationError),
     InvalidAbility(AbilityValidationError),
     InvalidTalentTree(TalentValidationError),
     InvalidTalent(TalentValidationError),
@@ -219,6 +221,9 @@ impl Display for ContentDatabaseError {
             }
             Self::InvalidEffect(error) => {
                 write!(formatter, "Effetto non valido: {error}")
+            }
+            Self::InvalidDamageSchool(error) => {
+                write!(formatter, "Scuola di danno non valida: {error}")
             }
             Self::InvalidAbility(error) => {
                 write!(formatter, "Abilità non valida: {error}")
