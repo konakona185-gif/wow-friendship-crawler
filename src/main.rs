@@ -47,6 +47,7 @@ use combat::{
     Enemy,
     EnemyAi,
     CombatStats,
+    CombatLevel,
     CombatPlugin,
     TargetIndicator,
 };
@@ -60,6 +61,8 @@ use character::{CharacterBuild, CharacterClass, CharacterRace};
 use interaction::InteractionPlugin;
 use navigation::NavigationPlugin;
 use enemy_navigation::EnemyNavigationPlugin;
+
+const STARTING_COMBAT_LEVEL: u32 = 60;
 
 fn main() {
     let is_headless = std::env::var_os("CI").is_some();
@@ -187,6 +190,13 @@ fn run_headless_tests(app: &mut App) {
         let mut enemy_ai_query = world.query_filtered::<&EnemyAi, With<Enemy>>();
         let enemy_ai_states: Vec<EnemyAi> = enemy_ai_query.iter(world).copied().collect();
 
+        let mut combat_level_query =
+            world.query_filtered::<&CombatLevel, With<CombatStats>>();
+        let combatant_levels: Vec<u32> = combat_level_query
+            .iter(world)
+            .map(|level| level.value())
+            .collect();
+
         assert_eq!(
             player_count,
             1,
@@ -242,6 +252,19 @@ fn run_headless_tests(app: &mut App) {
             "Tutti i nemici vicini devono aver acquisito un bersaglio."
         );
 
+        assert_eq!(
+            combatant_levels.len(),
+            player_count + enemy_count,
+            "Tutti i combattenti devono avere CombatLevel."
+        );
+
+        assert!(
+            combatant_levels
+                .iter()
+                .all(|level| *level == STARTING_COMBAT_LEVEL),
+            "Tutti i combattenti iniziali devono essere al livello 60."
+        );
+
         let fellowship = world.resource::<Fellowship>();
 
         assert_eq!(
@@ -263,6 +286,7 @@ fn run_headless_tests(app: &mut App) {
 
     println!("Test iniziale della Fellowship superato.");
     println!("Test di acquisizione dei bersagli nemici superato.");
+    println!("Test dei livelli iniziali dei combattenti superato.");
 
     app.world_mut().write_message(LeaveFellowship {
         player_id: PlayerId(1),
@@ -318,7 +342,7 @@ fn run_headless_tests(app: &mut App) {
     println!("Test di rientro nella Fellowship superato.");
 
     println!(
-        "Test headless completato: personaggio, razza, classe, Fellowship, tre nemici e acquisizione dei bersagli verificati."
+        "Test headless completato: personaggio, razza, classe, livelli, Fellowship, tre nemici e acquisizione dei bersagli verificati."
     );
 }
 
@@ -343,6 +367,8 @@ fn setup_headless_game(mut commands: Commands) {
             max_health: 100.0,
             resource: 0.0,
         },
+        CombatLevel::new(STARTING_COMBAT_LEVEL)
+            .expect("Livello iniziale del giocatore non valido."),
         Transform::from_xyz(0.0, 1.0, 0.0),
         GlobalTransform::default(),
     ));
@@ -364,6 +390,8 @@ fn setup_headless_game(mut commands: Commands) {
                 max_health: health,
                 resource: 0.0,
             },
+            CombatLevel::new(STARTING_COMBAT_LEVEL)
+                .expect("Livello iniziale del nemico non valido."),
             Transform::from_translation(*pos),
             GlobalTransform::default(),
         ));
@@ -421,6 +449,8 @@ fn setup_game(
                 max_health: 100.0,
                 resource: 0.0,
             },
+            CombatLevel::new(STARTING_COMBAT_LEVEL)
+                .expect("Livello iniziale del giocatore non valido."),
             Mesh3d(player_mesh),
             MeshMaterial3d(player_material),
         ))
@@ -466,6 +496,8 @@ fn setup_game(
                 max_health: health,
                 resource: 0.0,
             },
+            CombatLevel::new(STARTING_COMBAT_LEVEL)
+                .expect("Livello iniziale del nemico non valido."),
             Mesh3d(enemy_mesh.clone()),
             MeshMaterial3d(enemy_material.clone()),
             PickBox,
