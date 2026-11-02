@@ -14,6 +14,7 @@ pub(super) fn enemy_aggro_system(
             &mut EnemyAi,
             Option<&EnemyHomePosition>,
             Option<&mut EnemyThreat>,
+            Option<&mut HealthPool>,
         ),
         (With<Enemy>, Without<Character>),
     >,
@@ -24,6 +25,7 @@ pub(super) fn enemy_aggro_system(
         mut enemy_ai,
         home_position,
         mut enemy_threat,
+        health_pool,
     ) in &mut enemy_query
     {
         if enemy_stats.current_health <= 0.0 {
@@ -70,8 +72,17 @@ pub(super) fn enemy_aggro_system(
                 if distance_from_home_squared > leash_range_squared {
                     enemy_ai.target = None;
                     enemy_ai.returning_home = true;
-                    enemy_stats.current_health =
-                        enemy_stats.max_health.max(0.0);
+
+                    let restored_health = enemy_stats.max_health.max(0.0);
+                    enemy_stats.current_health = restored_health;
+
+                    if let Some(mut health_pool) = health_pool {
+                        if let Err(error) = health_pool.set_current(restored_health) {
+                            warn!(
+                                "Impossibile ripristinare la HealthPool del nemico: {error}"
+                            );
+                        }
+                    }
 
                     if let Some(threat) = enemy_threat.as_deref_mut() {
                         threat.clear();
