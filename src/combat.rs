@@ -15,6 +15,7 @@ mod death;
 mod enemy_ai;
 mod enemy_attacks;
 mod events;
+mod health;
 mod healing;
 mod player_attacks;
 mod resources;
@@ -34,6 +35,10 @@ pub use events::{
     CombatEventContext,
     CombatEventContextError,
     CombatEventOutcome,
+};
+pub use health::{
+    HealthPool,
+    HealthPoolError,
 };
 pub use healing::{
     HealingRequest,
