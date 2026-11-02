@@ -8,6 +8,7 @@ use super::super::{
     EffectKind,
     EffectMagnitude,
     EffectValidationError,
+    ResourceValidationError,
     TalentValidationError,
 };
 use std::collections::{HashMap, HashSet};
@@ -58,9 +59,18 @@ impl ContentDatabase {
 
                     self.validate_effect_magnitude_references(id, amount)?;
                 }
+                EffectKind::GainResource { resource, amount }
+                | EffectKind::SpendResource { resource, amount } => {
+                    if !self.resources.contains_key(resource) {
+                        return Err(ContentDatabaseError::MissingReference {
+                            owner: id.clone(),
+                            reference: resource.clone(),
+                        });
+                    }
+
+                    self.validate_effect_magnitude_references(id, amount)?;
+                }
                 EffectKind::Heal { amount }
-                | EffectKind::GainResource { amount, .. }
-                | EffectKind::SpendResource { amount, .. }
                 | EffectKind::ModifyThreat { amount } => {
                     self.validate_effect_magnitude_references(id, amount)?;
                 }
@@ -92,6 +102,15 @@ impl ContentDatabase {
         &self,
     ) -> Result<(), ContentDatabaseError> {
         for (id, ability) in &self.abilities {
+            for cost in &ability.costs {
+                if !self.resources.contains_key(&cost.resource) {
+                    return Err(ContentDatabaseError::MissingReference {
+                        owner: id.clone(),
+                        reference: cost.resource.clone(),
+                    });
+                }
+            }
+
             for effect in &ability.effects {
                 if !self.effects.contains_key(effect) {
                     return Err(ContentDatabaseError::MissingReference {
@@ -260,6 +279,7 @@ pub enum ContentDatabaseError {
     InvalidEffect(EffectValidationError),
     InvalidDamageSchool(DamageSchoolValidationError),
     InvalidCombatAttribute(CombatAttributeValidationError),
+    InvalidResource(ResourceValidationError),
     InvalidAbility(AbilityValidationError),
     InvalidTalentTree(TalentValidationError),
     InvalidTalent(TalentValidationError),
@@ -296,6 +316,9 @@ impl Display for ContentDatabaseError {
             }
             Self::InvalidCombatAttribute(error) => {
                 write!(formatter, "Attributo di combattimento non valido: {error}")
+            }
+            Self::InvalidResource(error) => {
+                write!(formatter, "Risorsa non valida: {error}")
             }
             Self::InvalidAbility(error) => {
                 write!(formatter, "Abilità non valida: {error}")
