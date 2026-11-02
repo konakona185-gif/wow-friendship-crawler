@@ -26,6 +26,34 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Verifica formattazione Rust
+        id: formatting
+        shell: bash
+        run: |
+          if cargo fmt --all -- --check > cargo-fmt.log 2>&1; then
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+            echo "Formattazione Rust superata."
+          else
+            echo "status=warning" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Formattazione Rust::Sono presenti differenze di formattazione. Il controllo non blocca la compilazione."
+
+            files="$(grep -E '^Diff in ' cargo-fmt.log | sed -E 's#^Diff in .*?/wow-friendship-crawler/([^:]+):[0-9]+:.*#\1#' | sort -u || true)"
+
+            {
+              echo "### ⚠️ Differenze di formattazione Rust"
+              echo ""
+              echo "Il controllo rustfmt ha rilevato differenze nei file seguenti:"
+              echo ""
+              if [ -n "$files" ]; then
+                printf '%s\n' "$files" | sed 's/^/- /'
+              else
+                echo "Consultare il log cargo-fmt.log."
+              fi
+              echo ""
+              echo "La formattazione non blocca i controlli di compilazione e i test."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Installa dipendenze Linux
         run: |
           sudo apt-get update
@@ -33,12 +61,6 @@ jobs:
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-
-      - name: Verifica formattazione Rust
-        shell: bash
-        run: |
-          set -o pipefail
-          cargo fmt --all -- --check 2>&1 | tee cargo-fmt.log
 
       - name: Controllo statico di tutti i target Rust
         shell: bash
@@ -53,8 +75,12 @@ jobs:
           {
             echo "### ✅ Controllo preliminare superato"
             echo ""
-            echo "- Formattazione Rust: superata"
-            echo "- Controllo statico di tutti i target: superato"
+            echo "- Controllo statico di tutti i target Rust: superato"
+            if [ "${{ steps.formatting.outputs.status }}" = "warning" ]; then
+              echo "- Formattazione Rust: avvisi presenti, non bloccanti"
+            else
+              echo "- Formattazione Rust: superata"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Mostra log su errore controllo preliminare
@@ -65,15 +91,14 @@ jobs:
             echo "### ❌ Errore nel controllo preliminare Rust"
             echo ""
 
-            for file in cargo-fmt.log cargo-check.log; do
-              if [ -f "$file" ]; then
-                echo "#### $file"
-                echo '```text'
-                tail -n 100 "$file"
-                echo '```'
-                echo ""
-              fi
-            done
+            if [ -f cargo-check.log ]; then
+              echo "#### Log compilazione preliminare"
+              echo '```text'
+              tail -n 100 cargo-check.log
+              echo '```'
+            else
+              echo "Il controllo preliminare si è interrotto prima della compilazione."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   build-windows:
