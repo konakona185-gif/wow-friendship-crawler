@@ -14,6 +14,7 @@ mod damage;
 mod death;
 mod enemy_ai;
 mod enemy_attacks;
+mod healing;
 mod player_attacks;
 mod stats;
 mod target_indicator;
@@ -26,6 +27,12 @@ pub use damage::{
     DamageRequestError,
     DamageResolution,
     DamageResolutionError,
+};
+pub use healing::{
+    HealingRequest,
+    HealingRequestError,
+    HealingResolution,
+    HealingResolutionError,
 };
 pub use stats::{
     CombatAttributeError,
