@@ -48,6 +48,7 @@ pub use healing::{
 };
 pub use resources::{
     CombatResources,
+    ResourceApplicationError,
     ResourceOperation,
     ResourcePool,
     ResourcePoolError,
