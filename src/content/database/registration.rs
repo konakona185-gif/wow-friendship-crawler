@@ -1,5 +1,6 @@
 use super::{
     AbilityDefinition,
+    CombatAttributeDefinition,
     ContentDatabase,
     ContentDatabaseError,
     ContentId,
@@ -49,6 +50,22 @@ impl ContentDatabase {
 
         let id = school.metadata.id.clone();
         self.damage_schools.insert(id, school);
+
+        Ok(())
+    }
+
+    pub fn register_combat_attribute(
+        &mut self,
+        attribute: CombatAttributeDefinition,
+    ) -> Result<(), ContentDatabaseError> {
+        attribute
+            .validate()
+            .map_err(ContentDatabaseError::InvalidCombatAttribute)?;
+
+        self.validate_new_content(&attribute.metadata)?;
+
+        let id = attribute.metadata.id.clone();
+        self.combat_attributes.insert(id, attribute);
 
         Ok(())
     }
@@ -114,6 +131,7 @@ impl ContentDatabase {
 
         if self.effects.contains_key(id)
             || self.damage_schools.contains_key(id)
+            || self.combat_attributes.contains_key(id)
             || self.abilities.contains_key(id)
             || self.talent_trees.contains_key(id)
             || self.talents.contains_key(id)
