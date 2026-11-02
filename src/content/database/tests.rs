@@ -16,6 +16,7 @@ use crate::content::{
     EffectDefinition,
     EffectKind,
     EffectMagnitude,
+    EffectScaling,
     EffectTarget,
     EffectTrigger,
     TalentDefinition,
@@ -259,6 +260,87 @@ fn database_rejects_damage_effects_with_unknown_schools() {
             reference: ContentId::new("classic:school.physical").unwrap(),
         })
     );
+}
+
+#[test]
+fn database_rejects_damage_schools_with_unknown_resistance_attributes() {
+    let mut database = database_with_classic_pack();
+    let mut school = physical_damage_school();
+    let unknown_stat = ContentId::new("classic:stat.fire_resistance").unwrap();
+
+    school.mitigation = DamageSchoolMitigation::Resistance {
+        stat: unknown_stat.clone(),
+    };
+
+    database.register_damage_school(school).unwrap();
+
+    assert_eq!(
+        database.validate(),
+        Err(ContentDatabaseError::MissingReference {
+            owner: ContentId::new("classic:school.physical").unwrap(),
+            reference: unknown_stat,
+        })
+    );
+}
+
+#[test]
+fn database_rejects_effects_with_unknown_scaling_attributes() {
+    let mut database = database_with_classic_pack();
+    let unknown_stat = ContentId::new("classic:stat.spell_power").unwrap();
+    let mut effect = damage_effect();
+
+    effect.kind = EffectKind::Heal {
+        amount: EffectMagnitude {
+            base: 100.0,
+            scaling: vec![
+                EffectScaling {
+                    stat: unknown_stat.clone(),
+                    coefficient: 1.0,
+                },
+            ],
+        },
+    };
+
+    database.register_effect(effect).unwrap();
+
+    assert_eq!(
+        database.validate(),
+        Err(ContentDatabaseError::MissingReference {
+            owner: ContentId::new("classic:effect.strike").unwrap(),
+            reference: unknown_stat,
+        })
+    );
+}
+
+#[test]
+fn database_accepts_registered_combat_attribute_references() {
+    let mut database = database_with_classic_pack();
+    let attribute = combat_attribute();
+    let attribute_id = attribute.metadata.id.clone();
+    let mut school = physical_damage_school();
+
+    school.mitigation = DamageSchoolMitigation::Resistance {
+        stat: attribute_id.clone(),
+    };
+
+    let mut effect = damage_effect();
+    effect.kind = EffectKind::Heal {
+        amount: EffectMagnitude {
+            base: 100.0,
+            scaling: vec![
+                EffectScaling {
+                    stat: attribute_id,
+                    coefficient: 1.0,
+                },
+            ],
+        },
+    };
+
+    database.register_combat_attribute(attribute).unwrap();
+    database.register_damage_school(school).unwrap();
+    database.register_effect(effect).unwrap();
+
+    assert!(database.validate().is_ok());
 }
 
 #[test]
