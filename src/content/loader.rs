@@ -11,6 +11,7 @@ use super::{
     ContentPackManifest,
     DamageSchoolDefinition,
     EffectDefinition,
+    ResourceDefinition,
     TalentDefinition,
     TalentTreeDefinition,
 };
@@ -22,6 +23,8 @@ pub struct ContentPackData {
     pub damage_schools: Vec<DamageSchoolDefinition>,
     #[serde(default)]
     pub combat_attributes: Vec<CombatAttributeDefinition>,
+    #[serde(default)]
+    pub resources: Vec<ResourceDefinition>,
     #[serde(default)]
     pub effects: Vec<EffectDefinition>,
     #[serde(default)]
@@ -77,6 +80,17 @@ impl ContentPackLoader {
 
             staged_database
                 .register_combat_attribute(attribute)
+                .map_err(ContentPackLoaderError::Database)?;
+        }
+
+        for resource in pack.resources {
+            validate_content_pack(
+                &resource.metadata,
+                &expected_pack,
+            )?;
+
+            staged_database
+                .register_resource(resource)
                 .map_err(ContentPackLoaderError::Database)?;
         }
 
@@ -212,6 +226,7 @@ mod tests {
             },
             damage_schools: Vec::new(),
             combat_attributes: Vec::new(),
+            resources: Vec::new(),
             effects: Vec::new(),
             abilities: Vec::new(),
             talent_trees: Vec::new(),
@@ -247,11 +262,25 @@ mod tests {
         }
     }
 
+    fn mana_resource() -> ResourceDefinition {
+        ResourceDefinition {
+            metadata: ContentMetadata {
+                id: ContentId::new("classic:resource.mana").unwrap(),
+                pack_id: ContentId::new("pack:classic").unwrap(),
+                name: "Mana".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+        }
+    }
+
     #[test]
     fn pack_data_supports_ron_serialization() {
         let mut original = empty_pack();
         original.damage_schools.push(physical_damage_school());
         original.combat_attributes.push(armor_attribute());
+        original.resources.push(mana_resource());
 
         let serialized = ron::to_string(&original).unwrap();
         let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
@@ -309,6 +338,25 @@ mod tests {
 
         assert_eq!(database.combat_attribute_count(), 1);
         assert!(database.combat_attribute(&attribute_id).is_some());
+    }
+
+    #[test]
+    fn loader_registers_resources() {
+        let mut database = ContentDatabase::new();
+        let mut pack = empty_pack();
+        let resource = mana_resource();
+        let resource_id = resource.metadata.id.clone();
+
+        pack.resources.push(resource);
+
+        ContentPackLoader::load(
+            &mut database,
+            pack,
+        )
+        .unwrap();
+
+        assert_eq!(database.resource_count(), 1);
+        assert!(database.resource(&resource_id).is_some());
     }
 
     #[test]
