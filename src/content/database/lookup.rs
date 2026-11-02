@@ -5,6 +5,7 @@ use super::{
     ContentId,
     ContentPackManifest,
     ContentPackRegistry,
+    DamageSchoolDefinition,
     EffectDefinition,
     TalentDefinition,
     TalentTreeDefinition,
@@ -13,6 +14,13 @@ use super::{
 impl ContentDatabase {
     pub fn effect(&self, id: &ContentId) -> Option<&EffectDefinition> {
         self.effects.get(id)
+    }
+
+    pub fn damage_school(
+        &self,
+        id: &ContentId,
+    ) -> Option<&DamageSchoolDefinition> {
+        self.damage_schools.get(id)
     }
 
     pub fn ability(&self, id: &ContentId) -> Option<&AbilityDefinition> {
@@ -38,6 +46,10 @@ impl ContentDatabase {
         self.effects.len()
     }
 
+    pub fn damage_school_count(&self) -> usize {
+        self.damage_schools.len()
+    }
+
     pub fn ability_count(&self) -> usize {
         self.abilities.len()
     }
@@ -52,6 +64,7 @@ impl ContentDatabase {
 
     pub fn content_count(&self) -> usize {
         self.effect_count()
+            + self.damage_school_count()
             + self.ability_count()
             + self.talent_tree_count()
             + self.talent_count()
