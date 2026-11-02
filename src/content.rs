@@ -8,6 +8,7 @@ mod loader;
 mod metadata;
 mod pack;
 mod registry;
+mod resource;
 mod talent;
 
 pub use ability::{
@@ -70,6 +71,11 @@ pub use pack::{
 pub use registry::{
     ContentPackRegistry,
     ContentPackRegistryError,
+};
+
+pub use resource::{
+    ResourceDefinition,
+    ResourceValidationError,
 };
 
 pub use talent::{
