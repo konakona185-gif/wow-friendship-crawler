@@ -1,6 +1,7 @@
 use super::{ContentDatabase, ContentId, TalentDefinition};
 use super::super::{
     AbilityValidationError,
+    CombatAttributeValidationError,
     ContentPackRegistryError,
     DamageSchoolValidationError,
     EffectKind,
@@ -210,6 +211,7 @@ pub enum ContentDatabaseError {
     InvalidPackRegistry(ContentPackRegistryError),
     InvalidEffect(EffectValidationError),
     InvalidDamageSchool(DamageSchoolValidationError),
+    InvalidCombatAttribute(CombatAttributeValidationError),
     InvalidAbility(AbilityValidationError),
     InvalidTalentTree(TalentValidationError),
     InvalidTalent(TalentValidationError),
@@ -243,6 +245,9 @@ impl Display for ContentDatabaseError {
             }
             Self::InvalidDamageSchool(error) => {
                 write!(formatter, "Scuola di danno non valida: {error}")
+            }
+            Self::InvalidCombatAttribute(error) => {
+                write!(formatter, "Attributo di combattimento non valido: {error}")
             }
             Self::InvalidAbility(error) => {
                 write!(formatter, "Abilità non valida: {error}")
