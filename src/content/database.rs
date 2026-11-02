@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use super::{
     AbilityDefinition,
+    CombatAttributeDefinition,
     ContentId,
     ContentMetadata,
     ContentPackManifest,
@@ -26,6 +27,7 @@ pub struct ContentDatabase {
     packs: ContentPackRegistry,
     effects: HashMap<ContentId, EffectDefinition>,
     damage_schools: HashMap<ContentId, DamageSchoolDefinition>,
+    combat_attributes: HashMap<ContentId, CombatAttributeDefinition>,
     abilities: HashMap<ContentId, AbilityDefinition>,
     talent_trees: HashMap<ContentId, TalentTreeDefinition>,
     talents: HashMap<ContentId, TalentDefinition>,
