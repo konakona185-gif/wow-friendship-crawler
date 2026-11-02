@@ -1,5 +1,4 @@
-
-name: Compila, Testa ed Esporta Eseguibile
+name: Controllo, Compila, Testa ed Esporta Eseguibile
 
 on:
   push:
@@ -12,9 +11,76 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  check-project:
+    name: Controllo preliminare Rust
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Scarica repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Installa dipendenze Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0 libwayland-dev libxkbcommon-dev
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verifica formattazione Rust
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo fmt --all -- --check 2>&1 | tee cargo-fmt.log
+
+      - name: Controllo statico di tutti i target Rust
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo check --all-targets 2>&1 | tee cargo-check.log
+
+      - name: Riepilogo controllo preliminare superato
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "### ✅ Controllo preliminare superato"
+            echo ""
+            echo "- Formattazione Rust: superata"
+            echo "- Controllo statico di tutti i target: superato"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Mostra log su errore controllo preliminare
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "### ❌ Errore nel controllo preliminare Rust"
+            echo ""
+
+            for file in cargo-fmt.log cargo-check.log; do
+              if [ -f "$file" ]; then
+                echo "#### $file"
+                echo '```text'
+                tail -n 100 "$file"
+                echo '```'
+                echo ""
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build-windows:
+    name: Compilazione e test Windows
+    needs: check-project
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +108,10 @@ jobs:
           path: target/release/*.exe
 
   build-linux:
+    name: Compilazione e test Linux
+    needs: check-project
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
