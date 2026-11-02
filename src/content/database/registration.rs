@@ -8,6 +8,7 @@ use super::{
     ContentPackManifest,
     DamageSchoolDefinition,
     EffectDefinition,
+    ResourceDefinition,
     TalentDefinition,
     TalentTreeDefinition,
 };
@@ -66,6 +67,22 @@ impl ContentDatabase {
 
         let id = attribute.metadata.id.clone();
         self.combat_attributes.insert(id, attribute);
+
+        Ok(())
+    }
+
+    pub fn register_resource(
+        &mut self,
+        resource: ResourceDefinition,
+    ) -> Result<(), ContentDatabaseError> {
+        resource
+            .validate()
+            .map_err(ContentDatabaseError::InvalidResource)?;
+
+        self.validate_new_content(&resource.metadata)?;
+
+        let id = resource.metadata.id.clone();
+        self.resources.insert(id, resource);
 
         Ok(())
     }
@@ -132,6 +149,7 @@ impl ContentDatabase {
         if self.effects.contains_key(id)
             || self.damage_schools.contains_key(id)
             || self.combat_attributes.contains_key(id)
+            || self.resources.contains_key(id)
             || self.abilities.contains_key(id)
             || self.talent_trees.contains_key(id)
             || self.talents.contains_key(id)
