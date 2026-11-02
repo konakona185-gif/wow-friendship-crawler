@@ -19,6 +19,9 @@ use crate::content::{
     EffectScaling,
     EffectTarget,
     EffectTrigger,
+    ResourceCost,
+    ResourceDefinition,
+    ResourceValidationError,
     TalentDefinition,
     TalentPosition,
     TalentPrerequisite,
@@ -64,6 +67,12 @@ fn combat_attribute() -> CombatAttributeDefinition {
     }
 }
 
+fn resource() -> ResourceDefinition {
+    ResourceDefinition {
+        metadata: metadata("classic:resource.mana", "Mana"),
+    }
+}
+
 fn damage_effect() -> EffectDefinition {
     EffectDefinition {
         metadata: metadata("classic:effect.strike", "Strike"),
@@ -75,6 +84,29 @@ fn damage_effect() -> EffectDefinition {
                 scaling: Vec::new(),
             },
             school: ContentId::new("classic:school.physical").unwrap(),
+        },
+    }
+}
+
+fn resource_effect(
+    id: &str,
+    resource_id: &str,
+    gain: bool,
+) -> EffectDefinition {
+    let resource = ContentId::new(resource_id).unwrap();
+    let amount = EffectMagnitude {
+        base: 10.0,
+        scaling: Vec::new(),
+    };
+
+    EffectDefinition {
+        metadata: metadata(id, id),
+        trigger: EffectTrigger::OnCast,
+        target: EffectTarget::Caster,
+        kind: if gain {
+            EffectKind::GainResource { resource, amount }
+        } else {
+            EffectKind::SpendResource { resource, amount }
         },
     }
 }
@@ -183,6 +215,19 @@ fn database_registers_and_retrieves_combat_attributes() {
 }
 
 #[test]
+fn database_registers_and_retrieves_resources() {
+    let mut database = database_with_classic_pack();
+    let resource = resource();
+    let id = resource.metadata.id.clone();
+
+    database.register_resource(resource).unwrap();
+
+    assert_eq!(database.resource_count(), 1);
+    assert_eq!(database.content_count(), 1);
+    assert!(database.resource(&id).is_some());
+}
+
+#[test]
 fn database_rejects_invalid_combat_attributes() {
     let mut database = database_with_classic_pack();
     let mut attribute = combat_attribute();
@@ -198,6 +243,24 @@ fn database_rejects_invalid_combat_attributes() {
     );
 
     assert_eq!(database.combat_attribute_count(), 0);
+}
+
+#[test]
+fn database_rejects_invalid_resources() {
+    let mut database = database_with_classic_pack();
+    let mut resource = resource();
+    resource.metadata.name.clear();
+
+    assert_eq!(
+        database.register_resource(resource),
+        Err(ContentDatabaseError::InvalidResource(
+            ResourceValidationError::InvalidMetadata(
+                ContentMetadataError::EmptyName
+            )
+        ))
+    );
+
+    assert_eq!(database.resource_count(), 0);
 }
 
 #[test]
@@ -217,6 +280,25 @@ fn database_rejects_duplicate_combat_attribute_ids() {
     );
 
     assert_eq!(database.combat_attribute_count(), 0);
+}
+
+#[test]
+fn database_rejects_duplicate_resource_ids() {
+    let mut database = database_with_classic_pack();
+    let mut resource = resource();
+    resource.metadata.id =
+        ContentId::new("classic:effect.strike").unwrap();
+
+    database.register_effect(damage_effect()).unwrap();
+
+    assert_eq!(
+        database.register_resource(resource),
+        Err(ContentDatabaseError::DuplicateContent(
+            ContentId::new("classic:effect.strike").unwrap()
+        ))
+    );
+
+    assert_eq!(database.resource_count(), 0);
 }
 
 #[test]
@@ -313,6 +395,60 @@ fn database_rejects_effects_with_unknown_scaling_attributes() {
 }
 
 #[test]
+fn database_rejects_effects_with_unknown_resources() {
+    let unknown_resource =
+        ContentId::new("classic:resource.energy").unwrap();
+
+    for gain in [true, false] {
+        let mut database = database_with_classic_pack();
+        let effect = resource_effect(
+            "classic:effect.resource",
+            unknown_resource.as_str(),
+            gain,
+        );
+
+        database.register_effect(effect).unwrap();
+
+        assert_eq!(
+            database.validate(),
+            Err(ContentDatabaseError::MissingReference {
+                owner: ContentId::new("classic:effect.resource").unwrap(),
+                reference: unknown_resource.clone(),
+            })
+        );
+    }
+}
+
+#[test]
+fn database_rejects_abilities_with_unknown_resource_costs() {
+    let mut database = database_with_classic_pack();
+    let unknown_resource =
+        ContentId::new("classic:resource.energy").unwrap();
+
+    database
+        .register_effect(damage_effect())
+        .unwrap();
+
+    let mut ability = ability();
+    ability.costs = vec![
+        ResourceCost {
+            resource: unknown_resource.clone(),
+            amount: 10.0,
+        },
+    ];
+
+    database.register_ability(ability).unwrap();
+
+    assert_eq!(
+        database.validate(),
+        Err(ContentDatabaseError::MissingReference {
+            owner: ContentId::new("classic:ability.strike").unwrap(),
+            reference: unknown_resource,
+        })
+    );
+}
+
+#[test]
 fn database_accepts_registered_combat_attribute_references() {
     let mut database = database_with_classic_pack();
     let attribute = combat_attribute();
@@ -341,6 +477,46 @@ fn database_accepts_registered_combat_attribute_references() {
     database.register_effect(effect).unwrap();
 
     assert!(database.validate().is_ok());
+}
+
+#[test]
+fn database_accepts_registered_resource_references() {
+    let mut database = database_with_classic_pack();
+    let resource = resource();
+    let resource_id = resource.metadata.id.clone();
+
+    let gain_effect = resource_effect(
+        "classic:effect.gain_mana",
+        resource_id.as_str(),
+        true,
+    );
+    let spend_effect = resource_effect(
+        "classic:effect.spend_mana",
+        resource_id.as_str(),
+        false,
+    );
+
+    let gain_effect_id = gain_effect.metadata.id.clone();
+    let spend_effect_id = spend_effect.metadata.id.clone();
+
+    database.register_resource(resource).unwrap();
+    database.register_effect(gain_effect).unwrap();
+    database.register_effect(spend_effect).unwrap();
+
+    let mut ability = ability();
+    ability.effects = vec![gain_effect_id, spend_effect_id];
+    ability.costs = vec![
+        ResourceCost {
+            resource: resource_id,
+            amount: 10.0,
+        },
+    ];
+
+    database.register_ability(ability).unwrap();
+
+    assert!(database.validate().is_ok());
+    assert_eq!(database.resource_count(), 1);
+    assert_eq!(database.content_count(), 4);
 }
 
 #[test]
