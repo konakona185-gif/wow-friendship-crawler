@@ -39,6 +39,75 @@ impl std::fmt::Display for DamageRequestError {
 
 impl std::error::Error for DamageRequestError {}
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DamageMitigationResult {
+    pub incoming_amount: f32,
+    pub mitigated_amount: f32,
+}
+
+impl DamageMitigationResult {
+    pub fn new(
+        incoming_amount: f32,
+        mitigated_amount: f32,
+    ) -> Result<Self, DamageMitigationError> {
+        let result = Self {
+            incoming_amount,
+            mitigated_amount,
+        };
+
+        result.validate()?;
+
+        Ok(result)
+    }
+
+    pub fn validate(&self) -> Result<(), DamageMitigationError> {
+        if !self.incoming_amount.is_finite() || self.incoming_amount < 0.0 {
+            return Err(DamageMitigationError::InvalidIncomingAmount);
+        }
+
+        if !self.mitigated_amount.is_finite() || self.mitigated_amount < 0.0 {
+            return Err(DamageMitigationError::InvalidMitigatedAmount);
+        }
+
+        if self.mitigated_amount > self.incoming_amount {
+            return Err(DamageMitigationError::MitigationExceedsIncomingAmount);
+        }
+
+        Ok(())
+    }
+
+    pub fn remaining_amount(&self) -> f32 {
+        self.incoming_amount - self.mitigated_amount
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DamageMitigationError {
+    InvalidIncomingAmount,
+    InvalidMitigatedAmount,
+    MitigationExceedsIncomingAmount,
+}
+
+impl std::fmt::Display for DamageMitigationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = match self {
+            Self::InvalidIncomingAmount => {
+                "Il danno in ingresso deve essere finito e non negativo"
+            }
+            Self::InvalidMitigatedAmount => {
+                "Il danno mitigato deve essere finito e non negativo"
+            }
+            Self::MitigationExceedsIncomingAmount => {
+                "Il danno mitigato non può superare quello in ingresso"
+            }
+        };
+
+        formatter.write_str(message)
+    }
+}
+
+impl std::error::Error for DamageMitigationError {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,5 +145,54 @@ mod tests {
         request.base_amount = 0.0;
 
         assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn mitigation_result_supports_partial_mitigation() {
+        let result = DamageMitigationResult::new(100.0, 25.0).unwrap();
+
+        assert_eq!(result.remaining_amount(), 75.0);
+    }
+
+    #[test]
+    fn mitigation_result_supports_zero_mitigation() {
+        let result = DamageMitigationResult::new(100.0, 0.0).unwrap();
+
+        assert_eq!(result.remaining_amount(), 100.0);
+    }
+
+    #[test]
+    fn mitigation_result_supports_full_mitigation() {
+        let result = DamageMitigationResult::new(100.0, 100.0).unwrap();
+
+        assert_eq!(result.remaining_amount(), 0.0);
+    }
+
+    #[test]
+    fn mitigation_result_rejects_invalid_incoming_amounts() {
+        for amount in [-1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert_eq!(
+                DamageMitigationResult::new(amount, 0.0),
+                Err(DamageMitigationError::InvalidIncomingAmount)
+            );
+        }
+    }
+
+    #[test]
+    fn mitigation_result_rejects_invalid_mitigated_amounts() {
+        for amount in [-1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert_eq!(
+                DamageMitigationResult::new(100.0, amount),
+                Err(DamageMitigationError::InvalidMitigatedAmount)
+            );
+        }
+    }
+
+    #[test]
+    fn mitigation_result_rejects_mitigation_above_incoming_damage() {
+        assert_eq!(
+            DamageMitigationResult::new(50.0, 75.0),
+            Err(DamageMitigationError::MitigationExceedsIncomingAmount)
+        );
     }
 }
