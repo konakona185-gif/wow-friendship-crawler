@@ -16,6 +16,7 @@ use super::{
     ContentPackRegistry,
     DamageSchoolDefinition,
     EffectDefinition,
+    ResourceDefinition,
     TalentDefinition,
     TalentTreeDefinition,
 };
@@ -28,6 +29,7 @@ pub struct ContentDatabase {
     effects: HashMap<ContentId, EffectDefinition>,
     damage_schools: HashMap<ContentId, DamageSchoolDefinition>,
     combat_attributes: HashMap<ContentId, CombatAttributeDefinition>,
+    resources: HashMap<ContentId, ResourceDefinition>,
     abilities: HashMap<ContentId, AbilityDefinition>,
     talent_trees: HashMap<ContentId, TalentTreeDefinition>,
     talents: HashMap<ContentId, TalentDefinition>,
