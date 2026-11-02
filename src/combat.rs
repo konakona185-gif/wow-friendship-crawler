@@ -62,6 +62,8 @@ pub use resources::{
 pub use stats::{
     CombatAttributeError,
     CombatAttributes,
+    CombatLevel,
+    CombatLevelError,
     CombatStats,
 };
 
