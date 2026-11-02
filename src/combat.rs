@@ -16,6 +16,7 @@ mod enemy_ai;
 mod enemy_attacks;
 mod healing;
 mod player_attacks;
+mod resources;
 mod stats;
 mod target_indicator;
 mod target_selection;
@@ -33,6 +34,16 @@ pub use healing::{
     HealingRequestError,
     HealingResolution,
     HealingResolutionError,
+};
+pub use resources::{
+    CombatResources,
+    ResourceOperation,
+    ResourcePool,
+    ResourcePoolError,
+    ResourceRequest,
+    ResourceRequestError,
+    ResourceResolution,
+    ResourceResolutionError,
 };
 pub use stats::{
     CombatAttributeError,
