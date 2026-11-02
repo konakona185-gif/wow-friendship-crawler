@@ -2,6 +2,8 @@ use bevy::prelude::Entity;
 
 use crate::content::ContentId;
 
+use super::CombatLevel;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct DamageRequest {
     pub source: Option<Entity>,
@@ -112,7 +114,6 @@ impl std::error::Error for DamageMitigationError {}
 pub enum ArmorMitigationError {
     InvalidIncomingAmount,
     InvalidArmor,
-    InvalidAttackerLevel,
 }
 
 impl std::fmt::Display for ArmorMitigationError {
@@ -123,9 +124,6 @@ impl std::fmt::Display for ArmorMitigationError {
             }
             Self::InvalidArmor => {
                 "L'armatura deve essere un valore finito"
-            }
-            Self::InvalidAttackerLevel => {
-                "Il livello dell'attaccante deve essere maggiore di zero"
             }
         };
 
@@ -138,7 +136,7 @@ impl std::error::Error for ArmorMitigationError {}
 pub fn calculate_armor_mitigation(
     incoming_damage: f32,
     armor: f32,
-    attacker_level: u32,
+    attacker_level: &CombatLevel,
 ) -> Result<DamageMitigationResult, ArmorMitigationError> {
     if !incoming_damage.is_finite() || incoming_damage < 0.0 {
         return Err(ArmorMitigationError::InvalidIncomingAmount);
@@ -148,10 +146,6 @@ pub fn calculate_armor_mitigation(
         return Err(ArmorMitigationError::InvalidArmor);
     }
 
-    if attacker_level == 0 {
-        return Err(ArmorMitigationError::InvalidAttackerLevel);
-    }
-
     if incoming_damage == 0.0 {
         return Ok(DamageMitigationResult {
             incoming_amount: 0.0,
@@ -159,13 +153,14 @@ pub fn calculate_armor_mitigation(
         });
     }
 
-    let effective_armor = armor.max(0.0);
-    let level_constant = 85.0 * attacker_level as f32 + 400.0;
+    let effective_armor = armor.max(0.0) as f64;
+    let level_constant = 85.0 * attacker_level.value() as f64 + 400.0;
+
     let mitigation_fraction =
         (effective_armor / (effective_armor + level_constant))
             .clamp(0.0, 0.75);
 
-    let mitigated_amount = incoming_damage * mitigation_fraction;
+    let mitigated_amount = incoming_damage * mitigation_fraction as f32;
 
     DamageMitigationResult::new(
         incoming_damage,
@@ -256,6 +251,10 @@ mod tests {
         }
     }
 
+    fn combat_level(value: u32) -> CombatLevel {
+        CombatLevel::new(value).unwrap()
+    }
+
     #[test]
     fn valid_damage_request_passes_validation() {
         assert!(valid_request().validate().is_ok());
@@ -333,7 +332,8 @@ mod tests {
 
     #[test]
     fn armor_mitigation_returns_full_damage_without_armor() {
-        let result = calculate_armor_mitigation(100.0, 0.0, 60).unwrap();
+        let result =
+            calculate_armor_mitigation(100.0, 0.0, &combat_level(60)).unwrap();
 
         assert_eq!(result.mitigated_amount, 0.0);
         assert_eq!(result.remaining_amount(), 100.0);
@@ -341,7 +341,8 @@ mod tests {
 
     #[test]
     fn armor_mitigation_calculates_fifty_percent_at_level_sixty() {
-        let result = calculate_armor_mitigation(100.0, 5500.0, 60).unwrap();
+        let result =
+            calculate_armor_mitigation(100.0, 5500.0, &combat_level(60)).unwrap();
 
         assert_eq!(result.mitigated_amount, 50.0);
         assert_eq!(result.remaining_amount(), 50.0);
@@ -349,7 +350,8 @@ mod tests {
 
     #[test]
     fn armor_mitigation_respects_seventy_five_percent_cap() {
-        let result = calculate_armor_mitigation(1000.0, 50000.0, 60).unwrap();
+        let result =
+            calculate_armor_mitigation(1000.0, 50000.0, &combat_level(60)).unwrap();
 
         assert_eq!(result.mitigated_amount, 750.0);
         assert_eq!(result.remaining_amount(), 250.0);
@@ -357,7 +359,8 @@ mod tests {
 
     #[test]
     fn armor_mitigation_clamps_negative_armor_to_zero() {
-        let result = calculate_armor_mitigation(100.0, -500.0, 60).unwrap();
+        let result =
+            calculate_armor_mitigation(100.0, -500.0, &combat_level(60)).unwrap();
 
         assert_eq!(result.mitigated_amount, 0.0);
         assert_eq!(result.remaining_amount(), 100.0);
@@ -365,7 +368,8 @@ mod tests {
 
     #[test]
     fn armor_mitigation_preserves_zero_damage() {
-        let result = calculate_armor_mitigation(0.0, 5000.0, 60).unwrap();
+        let result =
+            calculate_armor_mitigation(0.0, 5000.0, &combat_level(60)).unwrap();
 
         assert_eq!(result.mitigated_amount, 0.0);
         assert_eq!(result.remaining_amount(), 0.0);
@@ -374,28 +378,33 @@ mod tests {
     #[test]
     fn armor_mitigation_scales_with_attacker_level() {
         let level_sixty =
-            calculate_armor_mitigation(100.0, 5500.0, 60).unwrap();
+            calculate_armor_mitigation(100.0, 5500.0, &combat_level(60)).unwrap();
+
         let level_seventy =
-            calculate_armor_mitigation(100.0, 5500.0, 70).unwrap();
+            calculate_armor_mitigation(100.0, 5500.0, &combat_level(70)).unwrap();
 
         assert!(level_sixty.mitigated_amount > level_seventy.mitigated_amount);
     }
 
     #[test]
+    fn armor_mitigation_handles_extreme_finite_armor() {
+        let result =
+            calculate_armor_mitigation(1000.0, f32::MAX, &combat_level(60)).unwrap();
+
+        assert_eq!(result.mitigated_amount, 750.0);
+        assert_eq!(result.remaining_amount(), 250.0);
+    }
+
+    #[test]
     fn armor_mitigation_rejects_invalid_inputs() {
         assert_eq!(
-            calculate_armor_mitigation(f32::NAN, 1000.0, 60),
+            calculate_armor_mitigation(f32::NAN, 1000.0, &combat_level(60)),
             Err(ArmorMitigationError::InvalidIncomingAmount)
         );
 
         assert_eq!(
-            calculate_armor_mitigation(100.0, f32::INFINITY, 60),
+            calculate_armor_mitigation(100.0, f32::INFINITY, &combat_level(60)),
             Err(ArmorMitigationError::InvalidArmor)
-        );
-
-        assert_eq!(
-            calculate_armor_mitigation(100.0, 1000.0, 0),
-            Err(ArmorMitigationError::InvalidAttackerLevel)
         );
     }
 
