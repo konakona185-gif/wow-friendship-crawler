@@ -49,6 +49,7 @@ use combat::{
     CombatStats,
     CombatLevel,
     CombatAttributes,
+    HealthPool,
     CombatPlugin,
     TargetIndicator,
 };
@@ -202,6 +203,21 @@ fn run_headless_tests(app: &mut App) {
             world.query_filtered::<&CombatAttributes, With<CombatStats>>();
         let combatant_attributes_count = attributes_query.iter(world).count();
 
+        let mut health_pool_query =
+            world.query::<(&CombatStats, &HealthPool)>();
+        let combatant_health_values: Vec<(f32, f32, f32, f32)> =
+            health_pool_query
+                .iter(world)
+                .map(|(stats, health_pool)| {
+                    (
+                        stats.current_health,
+                        stats.max_health,
+                        health_pool.current(),
+                        health_pool.maximum(),
+                    )
+                })
+                .collect();
+
         assert_eq!(
             player_count,
             1,
@@ -276,6 +292,21 @@ fn run_headless_tests(app: &mut App) {
             "Tutti i combattenti devono avere CombatAttributes."
         );
 
+        assert_eq!(
+            combatant_health_values.len(),
+            player_count + enemy_count,
+            "Tutti i combattenti devono avere HealthPool."
+        );
+
+        assert!(
+            combatant_health_values.iter().all(
+                |(stats_current, stats_max, pool_current, pool_max)| {
+                    stats_current == pool_current && stats_max == pool_max
+                }
+            ),
+            "CombatStats e HealthPool devono iniziare con valori sincronizzati."
+        );
+
         let fellowship = world.resource::<Fellowship>();
 
         assert_eq!(
@@ -299,6 +330,7 @@ fn run_headless_tests(app: &mut App) {
     println!("Test di acquisizione dei bersagli nemici superato.");
     println!("Test dei livelli iniziali dei combattenti superato.");
     println!("Test degli attributi di combattimento superato.");
+    println!("Test delle HealthPool iniziali superato.");
 
     app.world_mut().write_message(LeaveFellowship {
         player_id: PlayerId(1),
@@ -354,7 +386,7 @@ fn run_headless_tests(app: &mut App) {
     println!("Test di rientro nella Fellowship superato.");
 
     println!(
-        "Test headless completato: personaggio, razza, classe, livelli, attributi, Fellowship, tre nemici e acquisizione dei bersagli verificati."
+        "Test headless completato: personaggio, razza, classe, livelli, attributi, HealthPool, Fellowship, tre nemici e acquisizione dei bersagli verificati."
     );
 }
 
@@ -379,6 +411,8 @@ fn setup_headless_game(mut commands: Commands) {
             max_health: 100.0,
             resource: 0.0,
         },
+        HealthPool::new(100.0, 100.0)
+            .expect("HealthPool iniziale del giocatore non valida."),
         CombatLevel::new(STARTING_COMBAT_LEVEL)
             .expect("Livello iniziale del giocatore non valido."),
         CombatAttributes::default(),
@@ -403,6 +437,8 @@ fn setup_headless_game(mut commands: Commands) {
                 max_health: health,
                 resource: 0.0,
             },
+            HealthPool::new(health, health)
+                .expect("HealthPool iniziale del nemico non valida."),
             CombatLevel::new(STARTING_COMBAT_LEVEL)
                 .expect("Livello iniziale del nemico non valido."),
             CombatAttributes::default(),
@@ -463,6 +499,8 @@ fn setup_game(
                 max_health: 100.0,
                 resource: 0.0,
             },
+            HealthPool::new(100.0, 100.0)
+                .expect("HealthPool iniziale del giocatore non valida."),
             CombatLevel::new(STARTING_COMBAT_LEVEL)
                 .expect("Livello iniziale del giocatore non valido."),
             CombatAttributes::default(),
@@ -511,6 +549,8 @@ fn setup_game(
                 max_health: health,
                 resource: 0.0,
             },
+            HealthPool::new(health, health)
+                .expect("HealthPool iniziale del nemico non valida."),
             CombatLevel::new(STARTING_COMBAT_LEVEL)
                 .expect("Livello iniziale del nemico non valido."),
             CombatAttributes::default(),
