@@ -10,7 +10,7 @@ pub(super) fn target_tab_system(
         With<Character>,
     >,
     enemy_query: Query<
-        (Entity, &Transform, Option<&CombatStats>),
+        (Entity, &Transform, Option<&CombatStats>, Option<&HealthPool>),
         With<Enemy>,
     >,
 ) {
@@ -21,8 +21,12 @@ pub(super) fn target_tab_system(
 
         let mut enemies: Vec<(Entity, f32)> = enemy_query
             .iter()
-            .filter_map(|(entity, transform, stats)| {
-                if stats.is_some_and(|stats| stats.current_health <= 0.0) {
+            .filter_map(|(entity, transform, stats, health_pool)| {
+                let current_health = health_pool
+                    .map(|pool| pool.current())
+                    .or_else(|| stats.map(|stats| stats.current_health));
+
+                if current_health.is_some_and(|health| health <= 0.0) {
                     return None;
                 }
 
@@ -58,7 +62,10 @@ pub(super) fn target_tab_system(
 
 pub(super) fn target_click_system(
     mut clicked: MessageReader<WorldObjectClicked>,
-    enemy_query: Query<Option<&CombatStats>, With<Enemy>>,
+    enemy_query: Query<
+        (Option<&CombatStats>, Option<&HealthPool>),
+        With<Enemy>,
+    >,
     mut player_query: Query<&mut Target, With<Character>>,
 ) {
     for click in clicked.read() {
@@ -70,11 +77,15 @@ pub(super) fn target_click_system(
             continue;
         };
 
-        let Ok(stats) = enemy_query.get(entity) else {
+        let Ok((stats, health_pool)) = enemy_query.get(entity) else {
             continue;
         };
 
-        if stats.is_some_and(|stats| stats.current_health <= 0.0) {
+        let current_health = health_pool
+            .map(|pool| pool.current())
+            .or_else(|| stats.map(|stats| stats.current_health));
+
+        if current_health.is_some_and(|health| health <= 0.0) {
             continue;
         }
 
