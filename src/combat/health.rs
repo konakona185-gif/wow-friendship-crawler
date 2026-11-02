@@ -1,7 +1,12 @@
 use bevy::prelude::Component;
 use std::fmt::{Display, Formatter};
 
+use crate::content::{ContentId, DamageSchoolDefinition};
+
 use super::{
+    CombatAttributes,
+    CombatLevel,
+    DamageRequest,
     DamageResolution,
     DamageResolutionError,
     HealingResolution,
@@ -114,6 +119,26 @@ impl HealthPool {
         self.apply_damage(resolution.final_amount())
     }
 
+    pub fn apply_damage_from_school_mitigation(
+        &mut self,
+        request: DamageRequest,
+        school: &DamageSchoolDefinition,
+        armor_attribute: &ContentId,
+        target_attributes: &CombatAttributes,
+        attacker_level: &CombatLevel,
+    ) -> Result<f32, HealthPoolError> {
+        let resolution = DamageResolution::from_school_mitigation(
+            request,
+            school,
+            armor_attribute,
+            target_attributes,
+            attacker_level,
+        )
+        .map_err(HealthPoolError::InvalidDamageResolution)?;
+
+        self.apply_damage_resolution(&resolution)
+    }
+
     pub fn apply_healing_resolution(
         &mut self,
         resolution: &HealingResolution,
@@ -191,15 +216,22 @@ impl std::error::Error for HealthPoolError {}
 mod tests {
     use super::*;
     use crate::combat::{
+        CombatAttributes,
+        CombatLevel,
         DamageMitigationError,
         DamageMitigationResult,
         DamageRequest,
+        DamageSchoolMitigationError,
+        DamageResolutionError,
         HealingRequest,
     };
-    use crate::content::ContentId;
+    use crate::content::{
+        ContentMetadata,
+        DamageSchoolMitigation,
+    };
 
-    fn valid_damage_resolution() -> DamageResolution {
-        let request = DamageRequest {
+    fn valid_damage_request() -> DamageRequest {
+        DamageRequest {
             source: None,
             target: bevy::prelude::Entity::from_bits(1),
             base_amount: 100.0,
@@ -207,10 +239,51 @@ mod tests {
                 "classic_1_12_1:school.physical",
             )
             .unwrap(),
-        };
+        }
+    }
 
+    fn valid_damage_school(
+        mitigation: DamageSchoolMitigation,
+    ) -> DamageSchoolDefinition {
+        DamageSchoolDefinition {
+            metadata: ContentMetadata {
+                id: ContentId::new(
+                    "classic_1_12_1:school.physical",
+                )
+                .unwrap(),
+                pack_id: ContentId::new(
+                    "pack:classic_1_12_1",
+                )
+                .unwrap(),
+                name: "Physical".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+            mitigation,
+        }
+    }
+
+    fn armor_id() -> ContentId {
+        ContentId::new(
+            "classic_1_12_1:stat.armor",
+        )
+        .unwrap()
+    }
+
+    fn combat_attributes_with_armor(armor: f32) -> CombatAttributes {
+        let mut attributes = CombatAttributes::default();
+        attributes.set(armor_id(), armor).unwrap();
+        attributes
+    }
+
+    fn valid_combat_level() -> CombatLevel {
+        CombatLevel::new(60).unwrap()
+    }
+
+    fn valid_damage_resolution() -> DamageResolution {
         DamageResolution::new(
-            request,
+            valid_damage_request(),
             DamageMitigationResult::new(100.0, 25.0).unwrap(),
         )
         .unwrap()
@@ -407,6 +480,71 @@ mod tests {
             Err(HealthPoolError::InvalidDamageResolution(
                 DamageResolutionError::InvalidMitigation(
                     DamageMitigationError::MitigationExceedsIncomingAmount
+                )
+            ))
+        );
+
+        assert_eq!(pool.current(), 100.0);
+    }
+
+    #[test]
+    fn health_pool_applies_armor_mitigated_damage() {
+        let mut pool = HealthPool::new(100.0, 100.0).unwrap();
+
+        let effective = pool
+            .apply_damage_from_school_mitigation(
+                valid_damage_request(),
+                &valid_damage_school(DamageSchoolMitigation::Armor),
+                &armor_id(),
+                &combat_attributes_with_armor(5500.0),
+                &valid_combat_level(),
+            )
+            .unwrap();
+
+        assert_eq!(effective, 50.0);
+        assert_eq!(pool.current(), 50.0);
+    }
+
+    #[test]
+    fn health_pool_applies_unmitigated_school_damage() {
+        let mut pool = HealthPool::new(100.0, 100.0).unwrap();
+
+        let effective = pool
+            .apply_damage_from_school_mitigation(
+                valid_damage_request(),
+                &valid_damage_school(DamageSchoolMitigation::Unmitigated),
+                &armor_id(),
+                &combat_attributes_with_armor(5500.0),
+                &valid_combat_level(),
+            )
+            .unwrap();
+
+        assert_eq!(effective, 100.0);
+        assert_eq!(pool.current(), 0.0);
+    }
+
+    #[test]
+    fn health_pool_rejects_unimplemented_resistance_without_mutation() {
+        let mut pool = HealthPool::new(100.0, 100.0).unwrap();
+
+        let result = pool.apply_damage_from_school_mitigation(
+            valid_damage_request(),
+            &valid_damage_school(DamageSchoolMitigation::Resistance {
+                stat: ContentId::new(
+                    "classic_1_12_1:stat.fire_resistance",
+                )
+                .unwrap(),
+            }),
+            &armor_id(),
+            &CombatAttributes::default(),
+            &valid_combat_level(),
+        );
+
+        assert_eq!(
+            result,
+            Err(HealthPoolError::InvalidDamageResolution(
+                DamageResolutionError::MitigationCalculation(
+                    DamageSchoolMitigationError::ResistanceMitigationNotImplemented
                 )
             ))
         );
