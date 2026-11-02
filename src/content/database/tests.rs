@@ -4,8 +4,12 @@ use crate::content::{
     AbilityDefinition,
     AbilityRange,
     AbilityTargeting,
+    CombatAttributeDefinition,
+    CombatAttributeValueKind,
+    CombatAttributeValidationError,
     ContentId,
     ContentMetadata,
+    ContentMetadataError,
     ContentPackManifest,
     DamageSchoolDefinition,
     DamageSchoolMitigation,
@@ -49,6 +53,13 @@ fn physical_damage_school() -> DamageSchoolDefinition {
     DamageSchoolDefinition {
         metadata: metadata("classic:school.physical", "Physical"),
         mitigation: DamageSchoolMitigation::Armor,
+    }
+}
+
+fn combat_attribute() -> CombatAttributeDefinition {
+    CombatAttributeDefinition {
+        metadata: metadata("classic:stat.armor", "Armor"),
+        value_kind: CombatAttributeValueKind::Flat,
     }
 }
 
@@ -155,6 +166,56 @@ fn database_registers_and_retrieves_damage_schools() {
     assert_eq!(database.damage_school_count(), 1);
     assert_eq!(database.content_count(), 1);
     assert!(database.damage_school(&id).is_some());
+}
+
+#[test]
+fn database_registers_and_retrieves_combat_attributes() {
+    let mut database = database_with_classic_pack();
+    let attribute = combat_attribute();
+    let id = attribute.metadata.id.clone();
+
+    database.register_combat_attribute(attribute).unwrap();
+
+    assert_eq!(database.combat_attribute_count(), 1);
+    assert_eq!(database.content_count(), 1);
+    assert!(database.combat_attribute(&id).is_some());
+}
+
+#[test]
+fn database_rejects_invalid_combat_attributes() {
+    let mut database = database_with_classic_pack();
+    let mut attribute = combat_attribute();
+    attribute.metadata.name.clear();
+
+    assert_eq!(
+        database.register_combat_attribute(attribute),
+        Err(ContentDatabaseError::InvalidCombatAttribute(
+            CombatAttributeValidationError::InvalidMetadata(
+                ContentMetadataError::EmptyName
+            )
+        ))
+    );
+
+    assert_eq!(database.combat_attribute_count(), 0);
+}
+
+#[test]
+fn database_rejects_duplicate_combat_attribute_ids() {
+    let mut database = database_with_classic_pack();
+    let mut attribute = combat_attribute();
+    attribute.metadata.id =
+        ContentId::new("classic:effect.strike").unwrap();
+
+    database.register_effect(damage_effect()).unwrap();
+
+    assert_eq!(
+        database.register_combat_attribute(attribute),
+        Err(ContentDatabaseError::DuplicateContent(
+            ContentId::new("classic:effect.strike").unwrap()
+        ))
+    );
+
+    assert_eq!(database.combat_attribute_count(), 0);
 }
 
 #[test]
