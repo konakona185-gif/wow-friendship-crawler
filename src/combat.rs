@@ -10,6 +10,7 @@ use crate::player::{
     FellowshipRole,
 };
 
+mod damage;
 mod death;
 mod enemy_ai;
 mod enemy_attacks;
@@ -18,6 +19,10 @@ mod stats;
 mod target_indicator;
 mod target_selection;
 
+pub use damage::{
+    DamageRequest,
+    DamageRequestError,
+};
 pub use stats::CombatStats;
 
 const DEFAULT_ENEMY_AGGRO_RANGE: f32 = 20.0;
