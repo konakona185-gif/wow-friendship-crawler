@@ -41,6 +41,24 @@ fn spawn_living_player(
     )).id()
 }
 
+fn spawn_living_player_with_health_pool(
+    world: &mut World,
+    position: Vec3,
+    health: f32,
+    maximum: f32,
+) -> Entity {
+    world.spawn((
+        Character,
+        Transform::from_translation(position),
+        CombatStats {
+            current_health: health,
+            max_health: maximum,
+            resource: 0.0,
+        },
+        HealthPool::new(health, maximum).unwrap(),
+    )).id()
+}
+
 #[test]
 fn enemy_attacks_a_living_player_after_the_melee_cooldown() {
     let mut app = setup_enemy_attack_test_app();
@@ -73,6 +91,75 @@ fn enemy_attacks_a_living_player_after_the_melee_cooldown() {
         app.world().get::<CombatStats>(player).unwrap().current_health,
         100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
     );
+}
+
+#[test]
+fn enemy_attack_uses_health_pool_when_present() {
+    let mut app = setup_enemy_attack_test_app();
+
+    let player = spawn_living_player_with_health_pool(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 1.0),
+        100.0,
+        100.0,
+    );
+
+    app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(player),
+            ..EnemyAi::default()
+        },
+        test_enemy_attack_state(player),
+        Transform::default(),
+    ));
+
+    advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
+    app.update();
+
+    let health_pool = app.world().get::<HealthPool>(player).unwrap();
+    let combat_stats = app.world().get::<CombatStats>(player).unwrap();
+
+    assert_eq!(
+        health_pool.current(),
+        100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
+    );
+
+    assert_eq!(
+        combat_stats.current_health,
+        health_pool.current()
+    );
+}
+
+#[test]
+fn enemy_attack_caps_damage_at_remaining_health_pool() {
+    let mut app = setup_enemy_attack_test_app();
+
+    let player = spawn_living_player_with_health_pool(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 1.0),
+        3.0,
+        100.0,
+    );
+
+    app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(player),
+            ..EnemyAi::default()
+        },
+        test_enemy_attack_state(player),
+        Transform::default(),
+    ));
+
+    advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
+    app.update();
+
+    let health_pool = app.world().get::<HealthPool>(player).unwrap();
+    let combat_stats = app.world().get::<CombatStats>(player).unwrap();
+
+    assert_eq!(health_pool.current(), 0.0);
+    assert_eq!(combat_stats.current_health, 0.0);
 }
 
 #[test]
