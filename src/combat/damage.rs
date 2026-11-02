@@ -108,6 +108,72 @@ impl std::fmt::Display for DamageMitigationError {
 
 impl std::error::Error for DamageMitigationError {}
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArmorMitigationError {
+    InvalidIncomingAmount,
+    InvalidArmor,
+    InvalidAttackerLevel,
+}
+
+impl std::fmt::Display for ArmorMitigationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = match self {
+            Self::InvalidIncomingAmount => {
+                "Il danno in ingresso deve essere finito e non negativo"
+            }
+            Self::InvalidArmor => {
+                "L'armatura deve essere un valore finito"
+            }
+            Self::InvalidAttackerLevel => {
+                "Il livello dell'attaccante deve essere maggiore di zero"
+            }
+        };
+
+        formatter.write_str(message)
+    }
+}
+
+impl std::error::Error for ArmorMitigationError {}
+
+pub fn calculate_armor_mitigation(
+    incoming_damage: f32,
+    armor: f32,
+    attacker_level: u32,
+) -> Result<DamageMitigationResult, ArmorMitigationError> {
+    if !incoming_damage.is_finite() || incoming_damage < 0.0 {
+        return Err(ArmorMitigationError::InvalidIncomingAmount);
+    }
+
+    if !armor.is_finite() {
+        return Err(ArmorMitigationError::InvalidArmor);
+    }
+
+    if attacker_level == 0 {
+        return Err(ArmorMitigationError::InvalidAttackerLevel);
+    }
+
+    if incoming_damage == 0.0 {
+        return Ok(DamageMitigationResult {
+            incoming_amount: 0.0,
+            mitigated_amount: 0.0,
+        });
+    }
+
+    let effective_armor = armor.max(0.0);
+    let level_constant = 85.0 * attacker_level as f32 + 400.0;
+    let mitigation_fraction =
+        (effective_armor / (effective_armor + level_constant))
+            .clamp(0.0, 0.75);
+
+    let mitigated_amount = incoming_damage * mitigation_fraction;
+
+    DamageMitigationResult::new(
+        incoming_damage,
+        mitigated_amount,
+    )
+    .map_err(|_| ArmorMitigationError::InvalidIncomingAmount)
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct DamageResolution {
     pub request: DamageRequest,
@@ -262,6 +328,74 @@ mod tests {
         assert_eq!(
             DamageMitigationResult::new(50.0, 75.0),
             Err(DamageMitigationError::MitigationExceedsIncomingAmount)
+        );
+    }
+
+    #[test]
+    fn armor_mitigation_returns_full_damage_without_armor() {
+        let result = calculate_armor_mitigation(100.0, 0.0, 60).unwrap();
+
+        assert_eq!(result.mitigated_amount, 0.0);
+        assert_eq!(result.remaining_amount(), 100.0);
+    }
+
+    #[test]
+    fn armor_mitigation_calculates_fifty_percent_at_level_sixty() {
+        let result = calculate_armor_mitigation(100.0, 5500.0, 60).unwrap();
+
+        assert_eq!(result.mitigated_amount, 50.0);
+        assert_eq!(result.remaining_amount(), 50.0);
+    }
+
+    #[test]
+    fn armor_mitigation_respects_seventy_five_percent_cap() {
+        let result = calculate_armor_mitigation(1000.0, 50000.0, 60).unwrap();
+
+        assert_eq!(result.mitigated_amount, 750.0);
+        assert_eq!(result.remaining_amount(), 250.0);
+    }
+
+    #[test]
+    fn armor_mitigation_clamps_negative_armor_to_zero() {
+        let result = calculate_armor_mitigation(100.0, -500.0, 60).unwrap();
+
+        assert_eq!(result.mitigated_amount, 0.0);
+        assert_eq!(result.remaining_amount(), 100.0);
+    }
+
+    #[test]
+    fn armor_mitigation_preserves_zero_damage() {
+        let result = calculate_armor_mitigation(0.0, 5000.0, 60).unwrap();
+
+        assert_eq!(result.mitigated_amount, 0.0);
+        assert_eq!(result.remaining_amount(), 0.0);
+    }
+
+    #[test]
+    fn armor_mitigation_scales_with_attacker_level() {
+        let level_sixty =
+            calculate_armor_mitigation(100.0, 5500.0, 60).unwrap();
+        let level_seventy =
+            calculate_armor_mitigation(100.0, 5500.0, 70).unwrap();
+
+        assert!(level_sixty.mitigated_amount > level_seventy.mitigated_amount);
+    }
+
+    #[test]
+    fn armor_mitigation_rejects_invalid_inputs() {
+        assert_eq!(
+            calculate_armor_mitigation(f32::NAN, 1000.0, 60),
+            Err(ArmorMitigationError::InvalidIncomingAmount)
+        );
+
+        assert_eq!(
+            calculate_armor_mitigation(100.0, f32::INFINITY, 60),
+            Err(ArmorMitigationError::InvalidArmor)
+        );
+
+        assert_eq!(
+            calculate_armor_mitigation(100.0, 1000.0, 0),
+            Err(ArmorMitigationError::InvalidAttackerLevel)
         );
     }
 
