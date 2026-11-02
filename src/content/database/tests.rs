@@ -7,6 +7,8 @@ use crate::content::{
     ContentId,
     ContentMetadata,
     ContentPackManifest,
+    DamageSchoolDefinition,
+    DamageSchoolMitigation,
     EffectDefinition,
     EffectKind,
     EffectMagnitude,
@@ -40,6 +42,13 @@ fn metadata(id: &str, name: &str) -> ContentMetadata {
         description: String::new(),
         icon: None,
         tags: Vec::new(),
+    }
+}
+
+fn physical_damage_school() -> DamageSchoolDefinition {
+    DamageSchoolDefinition {
+        metadata: metadata("classic:school.physical", "Physical"),
+        mitigation: DamageSchoolMitigation::Armor,
     }
 }
 
@@ -136,6 +145,19 @@ fn database_registers_and_retrieves_content() {
 }
 
 #[test]
+fn database_registers_and_retrieves_damage_schools() {
+    let mut database = database_with_classic_pack();
+    let school = physical_damage_school();
+    let id = school.metadata.id.clone();
+
+    database.register_damage_school(school).unwrap();
+
+    assert_eq!(database.damage_school_count(), 1);
+    assert_eq!(database.content_count(), 1);
+    assert!(database.damage_school(&id).is_some());
+}
+
+#[test]
 fn database_rejects_content_from_unknown_packs() {
     let mut database = ContentDatabase::new();
 
@@ -165,6 +187,20 @@ fn database_rejects_duplicate_ids_across_content_types() {
 }
 
 #[test]
+fn database_rejects_damage_effects_with_unknown_schools() {
+    let mut database = database_with_classic_pack();
+    database.register_effect(damage_effect()).unwrap();
+
+    assert_eq!(
+        database.validate(),
+        Err(ContentDatabaseError::MissingReference {
+            owner: ContentId::new("classic:effect.strike").unwrap(),
+            reference: ContentId::new("classic:school.physical").unwrap(),
+        })
+    );
+}
+
+#[test]
 fn database_validates_ability_effect_references() {
     let mut database = database_with_classic_pack();
     database.register_ability(ability()).unwrap();
@@ -177,6 +213,9 @@ fn database_validates_ability_effect_references() {
         })
     );
 
+    database
+        .register_damage_school(physical_damage_school())
+        .unwrap();
     database.register_effect(damage_effect()).unwrap();
 
     assert!(database.validate().is_ok());
@@ -186,6 +225,9 @@ fn database_validates_ability_effect_references() {
 fn database_validates_complete_talent_definitions() {
     let mut database = database_with_classic_pack();
 
+    database
+        .register_damage_school(physical_damage_school())
+        .unwrap();
     database.register_effect(damage_effect()).unwrap();
     database.register_ability(ability()).unwrap();
 
@@ -242,6 +284,9 @@ fn database_rejects_talent_tree_mismatches() {
 fn database_rejects_talent_prerequisite_cycles() {
     let mut database = database_with_classic_pack();
 
+    database
+        .register_damage_school(physical_damage_school())
+        .unwrap();
     database.register_effect(damage_effect()).unwrap();
     database.register_ability(ability()).unwrap();
 
