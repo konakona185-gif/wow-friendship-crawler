@@ -23,7 +23,11 @@ pub use damage::{
     DamageRequest,
     DamageRequestError,
 };
-pub use stats::CombatStats;
+pub use stats::{
+    CombatAttributeError,
+    CombatAttributes,
+    CombatStats,
+};
 
 const DEFAULT_ENEMY_AGGRO_RANGE: f32 = 20.0;
 const DEFAULT_ENEMY_LEASH_RANGE: f32 = 40.0;
