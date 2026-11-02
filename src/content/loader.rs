@@ -214,6 +214,18 @@ impl std::error::Error for ContentPackLoaderError {
 mod tests {
     use super::*;
     use crate::content::CombatAttributeValueKind;
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct LegacyContentPackData {
+        manifest: ContentPackManifest,
+        damage_schools: Vec<DamageSchoolDefinition>,
+        combat_attributes: Vec<CombatAttributeDefinition>,
+        effects: Vec<EffectDefinition>,
+        abilities: Vec<AbilityDefinition>,
+        talent_trees: Vec<TalentTreeDefinition>,
+        talents: Vec<TalentDefinition>,
+    }
 
     fn empty_pack() -> ContentPackData {
         ContentPackData {
@@ -286,6 +298,26 @@ mod tests {
         let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
 
         assert_eq!(original, restored);
+    }
+
+    #[test]
+    fn pack_data_loads_legacy_ron_without_resources() {
+        let pack = empty_pack();
+
+        let legacy = LegacyContentPackData {
+            manifest: pack.manifest,
+            damage_schools: pack.damage_schools,
+            combat_attributes: pack.combat_attributes,
+            effects: pack.effects,
+            abilities: pack.abilities,
+            talent_trees: pack.talent_trees,
+            talents: pack.talents,
+        };
+
+        let serialized = ron::to_string(&legacy).unwrap();
+        let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
+
+        assert!(restored.resources.is_empty());
     }
 
     #[test]
