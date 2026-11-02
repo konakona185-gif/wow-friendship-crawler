@@ -426,6 +426,10 @@ fn database_rejects_abilities_with_unknown_resource_costs() {
         ContentId::new("classic:resource.energy").unwrap();
 
     database
+        .register_damage_school(physical_damage_school())
+        .unwrap();
+
+    database
         .register_effect(damage_effect())
         .unwrap();
 
