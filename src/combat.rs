@@ -26,6 +26,7 @@ mod target_selection;
 pub use damage::{
     calculate_armor_mitigation,
     calculate_armor_mitigation_from_attributes,
+    calculate_damage_mitigation,
     ArmorMitigationError,
     DamageMitigationError,
     DamageMitigationResult,
@@ -33,6 +34,7 @@ pub use damage::{
     DamageRequestError,
     DamageResolution,
     DamageResolutionError,
+    DamageSchoolMitigationError,
 };
 pub use events::{
     CombatEventContext,
