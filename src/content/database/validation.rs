@@ -3,6 +3,7 @@ use super::super::{
     AbilityValidationError,
     ContentPackRegistryError,
     DamageSchoolValidationError,
+    EffectKind,
     EffectValidationError,
     TalentValidationError,
 };
@@ -13,9 +14,27 @@ impl ContentDatabase {
     pub fn validate(&self) -> Result<(), ContentDatabaseError> {
         self.pack_load_order()?;
 
+        self.validate_effect_references()?;
         self.validate_ability_references()?;
         self.validate_talent_references()?;
         self.validate_talent_prerequisite_cycles()?;
+
+        Ok(())
+    }
+
+    fn validate_effect_references(
+        &self,
+    ) -> Result<(), ContentDatabaseError> {
+        for (id, effect) in &self.effects {
+            if let EffectKind::Damage { school, .. } = &effect.kind {
+                if !self.damage_schools.contains_key(school) {
+                    return Err(ContentDatabaseError::MissingReference {
+                        owner: id.clone(),
+                        reference: school.clone(),
+                    });
+                }
+            }
+        }
 
         Ok(())
     }
