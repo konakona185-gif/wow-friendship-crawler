@@ -2,9 +2,16 @@ use bevy::prelude::*;
 
 use super::*;
 
+fn player_is_alive(
+    stats: &CombatStats,
+    health_pool: Option<&HealthPool>,
+) -> bool {
+    health_pool.map_or(stats.current_health, |pool| pool.current()) > 0.0
+}
+
 pub(super) fn enemy_aggro_system(
     player_query: Query<
-        (Entity, &Transform, &CombatStats),
+        (Entity, &Transform, &CombatStats, Option<&HealthPool>),
         (With<Character>, Without<Enemy>),
     >,
     mut enemy_query: Query<
@@ -28,6 +35,11 @@ pub(super) fn enemy_aggro_system(
         health_pool,
     ) in &mut enemy_query
     {
+        if let Some(pool) = health_pool.as_deref() {
+            enemy_stats.current_health = pool.current();
+            enemy_stats.max_health = pool.maximum();
+        }
+
         if enemy_stats.current_health <= 0.0 {
             enemy_ai.target = None;
             enemy_ai.returning_home = false;
@@ -103,16 +115,18 @@ pub(super) fn enemy_aggro_system(
                     && *value > 0.0
                     && player_query
                         .get(*player_entity)
-                        .is_ok_and(|(_, _, stats)| stats.current_health > 0.0)
+                        .is_ok_and(|(_, _, stats, health_pool)| {
+                            player_is_alive(stats, health_pool)
+                        })
             });
 
             threat.values
                 .iter()
                 .filter_map(|(player_entity, value)| {
-                    let (_, player_transform, stats) =
+                    let (_, player_transform, stats, health_pool) =
                         player_query.get(*player_entity).ok()?;
 
-                    (stats.current_health > 0.0)
+                    player_is_alive(stats, health_pool)
                         .then_some((
                             *player_entity,
                             *value,
@@ -138,7 +152,9 @@ pub(super) fn enemy_aggro_system(
         let current_target_is_alive = enemy_ai.target.is_some_and(|target_entity| {
             player_query
                 .get(target_entity)
-                .is_ok_and(|(_, _, stats)| stats.current_health > 0.0)
+                .is_ok_and(|(_, _, stats, health_pool)| {
+                    player_is_alive(stats, health_pool)
+                })
         });
 
         if current_target_is_alive {
@@ -155,8 +171,10 @@ pub(super) fn enemy_aggro_system(
 
         let new_target = player_query
             .iter()
-            .filter(|(_, _, stats)| stats.current_health > 0.0)
-            .filter_map(|(entity, player_transform, _)| {
+            .filter(|(_, _, stats, health_pool)| {
+                player_is_alive(stats, *health_pool)
+            })
+            .filter_map(|(entity, player_transform, _, _)| {
                 let distance_squared = enemy_transform
                     .translation
                     .distance_squared(player_transform.translation);
