@@ -8,6 +8,7 @@ use super::{
     ContentPackRegistry,
     DamageSchoolDefinition,
     EffectDefinition,
+    ResourceDefinition,
     TalentDefinition,
     TalentTreeDefinition,
 };
@@ -29,6 +30,10 @@ impl ContentDatabase {
         id: &ContentId,
     ) -> Option<&CombatAttributeDefinition> {
         self.combat_attributes.get(id)
+    }
+
+    pub fn resource(&self, id: &ContentId) -> Option<&ResourceDefinition> {
+        self.resources.get(id)
     }
 
     pub fn ability(&self, id: &ContentId) -> Option<&AbilityDefinition> {
@@ -62,6 +67,10 @@ impl ContentDatabase {
         self.combat_attributes.len()
     }
 
+    pub fn resource_count(&self) -> usize {
+        self.resources.len()
+    }
+
     pub fn ability_count(&self) -> usize {
         self.abilities.len()
     }
@@ -78,6 +87,7 @@ impl ContentDatabase {
         self.effect_count()
             + self.damage_school_count()
             + self.combat_attribute_count()
+            + self.resource_count()
             + self.ability_count()
             + self.talent_tree_count()
             + self.talent_count()
