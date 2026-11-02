@@ -14,6 +14,7 @@ mod damage;
 mod death;
 mod enemy_ai;
 mod enemy_attacks;
+mod events;
 mod healing;
 mod player_attacks;
 mod resources;
@@ -28,6 +29,11 @@ pub use damage::{
     DamageRequestError,
     DamageResolution,
     DamageResolutionError,
+};
+pub use events::{
+    CombatEventContext,
+    CombatEventContextError,
+    CombatEventOutcome,
 };
 pub use healing::{
     HealingRequest,
