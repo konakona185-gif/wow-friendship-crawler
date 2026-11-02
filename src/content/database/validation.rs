@@ -3,8 +3,10 @@ use super::super::{
     AbilityValidationError,
     CombatAttributeValidationError,
     ContentPackRegistryError,
+    DamageSchoolMitigation,
     DamageSchoolValidationError,
     EffectKind,
+    EffectMagnitude,
     EffectValidationError,
     TalentValidationError,
 };
@@ -15,6 +17,7 @@ impl ContentDatabase {
     pub fn validate(&self) -> Result<(), ContentDatabaseError> {
         self.pack_load_order()?;
 
+        self.validate_damage_school_references()?;
         self.validate_effect_references()?;
         self.validate_ability_references()?;
         self.validate_talent_references()?;
@@ -23,17 +26,62 @@ impl ContentDatabase {
         Ok(())
     }
 
+    fn validate_damage_school_references(
+        &self,
+    ) -> Result<(), ContentDatabaseError> {
+        for (id, school) in &self.damage_schools {
+            if let DamageSchoolMitigation::Resistance { stat } = &school.mitigation {
+                if !self.combat_attributes.contains_key(stat) {
+                    return Err(ContentDatabaseError::MissingReference {
+                        owner: id.clone(),
+                        reference: stat.clone(),
+                    });
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn validate_effect_references(
         &self,
     ) -> Result<(), ContentDatabaseError> {
         for (id, effect) in &self.effects {
-            if let EffectKind::Damage { school, .. } = &effect.kind {
-                if !self.damage_schools.contains_key(school) {
-                    return Err(ContentDatabaseError::MissingReference {
-                        owner: id.clone(),
-                        reference: school.clone(),
-                    });
+            match &effect.kind {
+                EffectKind::Damage { amount, school } => {
+                    if !self.damage_schools.contains_key(school) {
+                        return Err(ContentDatabaseError::MissingReference {
+                            owner: id.clone(),
+                            reference: school.clone(),
+                        });
+                    }
+
+                    self.validate_effect_magnitude_references(id, amount)?;
                 }
+                EffectKind::Heal { amount }
+                | EffectKind::GainResource { amount, .. }
+                | EffectKind::SpendResource { amount, .. }
+                | EffectKind::ModifyThreat { amount } => {
+                    self.validate_effect_magnitude_references(id, amount)?;
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    fn validate_effect_magnitude_references(
+        &self,
+        owner: &ContentId,
+        magnitude: &EffectMagnitude,
+    ) -> Result<(), ContentDatabaseError> {
+        for scaling in &magnitude.scaling {
+            if !self.combat_attributes.contains_key(&scaling.stat) {
+                return Err(ContentDatabaseError::MissingReference {
+                    owner: owner.clone(),
+                    reference: scaling.stat.clone(),
+                });
             }
         }
 
