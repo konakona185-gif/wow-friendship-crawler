@@ -8,6 +8,7 @@ use super::{
     ContentId,
     ContentMetadata,
     ContentPackManifest,
+    DamageSchoolDefinition,
     EffectDefinition,
     TalentDefinition,
     TalentTreeDefinition,
@@ -16,6 +17,8 @@ use super::{
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ContentPackData {
     pub manifest: ContentPackManifest,
+    #[serde(default)]
+    pub damage_schools: Vec<DamageSchoolDefinition>,
     #[serde(default)]
     pub effects: Vec<EffectDefinition>,
     #[serde(default)]
@@ -51,6 +54,17 @@ impl ContentPackLoader {
         staged_database
             .register_pack(pack.manifest)
             .map_err(ContentPackLoaderError::Database)?;
+
+        for school in pack.damage_schools {
+            validate_content_pack(
+                &school.metadata,
+                &expected_pack,
+            )?;
+
+            staged_database
+                .register_damage_school(school)
+                .map_err(ContentPackLoaderError::Database)?;
+        }
 
         for effect in pack.effects {
             validate_content_pack(
@@ -181,6 +195,7 @@ mod tests {
                 description: String::new(),
                 dependencies: Vec::new(),
             },
+            damage_schools: Vec::new(),
             effects: Vec::new(),
             abilities: Vec::new(),
             talent_trees: Vec::new(),
@@ -188,9 +203,24 @@ mod tests {
         }
     }
 
+    fn physical_damage_school() -> DamageSchoolDefinition {
+        DamageSchoolDefinition {
+            metadata: ContentMetadata {
+                id: ContentId::new("classic:school.physical").unwrap(),
+                pack_id: ContentId::new("pack:classic").unwrap(),
+                name: "Physical".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+            mitigation: super::super::DamageSchoolMitigation::Armor,
+        }
+    }
+
     #[test]
     fn pack_data_supports_ron_serialization() {
-        let original = empty_pack();
+        let mut original = empty_pack();
+        original.damage_schools.push(physical_damage_school());
 
         let serialized = ron::to_string(&original).unwrap();
         let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
@@ -210,6 +240,25 @@ mod tests {
 
         assert_eq!(database.packs().len(), 1);
         assert_eq!(database.pack_load_order().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn loader_registers_damage_schools() {
+        let mut database = ContentDatabase::new();
+        let mut pack = empty_pack();
+        let school = physical_damage_school();
+        let school_id = school.metadata.id.clone();
+
+        pack.damage_schools.push(school);
+
+        ContentPackLoader::load(
+            &mut database,
+            pack,
+        )
+        .unwrap();
+
+        assert_eq!(database.damage_school_count(), 1);
+        assert!(database.damage_school(&school_id).is_some());
     }
 
     #[test]
