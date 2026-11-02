@@ -12,6 +12,46 @@ pub struct CombatStats {
     pub resource: f32,
 }
 
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CombatLevel(u32);
+
+impl CombatLevel {
+    pub fn new(level: u32) -> Result<Self, CombatLevelError> {
+        if level == 0 {
+            return Err(CombatLevelError::InvalidLevel);
+        }
+
+        Ok(Self(level))
+    }
+
+    pub fn value(&self) -> u32 {
+        self.0
+    }
+
+    pub fn set(&mut self, level: u32) -> Result<(), CombatLevelError> {
+        if level == 0 {
+            return Err(CombatLevelError::InvalidLevel);
+        }
+
+        self.0 = level;
+
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CombatLevelError {
+    InvalidLevel,
+}
+
+impl Display for CombatLevelError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Il livello di combattimento deve essere maggiore di zero")
+    }
+}
+
+impl std::error::Error for CombatLevelError {}
+
 #[derive(Component, Clone, Debug, Default)]
 pub struct CombatAttributes {
     values: HashMap<ContentId, f32>,
@@ -74,6 +114,42 @@ mod tests {
 
     fn armor_id() -> ContentId {
         ContentId::new("classic_1_12_1:stat.armor").unwrap()
+    }
+
+    #[test]
+    fn combat_level_accepts_valid_levels() {
+        let level = CombatLevel::new(60).unwrap();
+
+        assert_eq!(level.value(), 60);
+    }
+
+    #[test]
+    fn combat_level_rejects_zero() {
+        assert_eq!(
+            CombatLevel::new(0),
+            Err(CombatLevelError::InvalidLevel)
+        );
+    }
+
+    #[test]
+    fn combat_level_can_be_updated() {
+        let mut level = CombatLevel::new(60).unwrap();
+
+        level.set(70).unwrap();
+
+        assert_eq!(level.value(), 70);
+    }
+
+    #[test]
+    fn combat_level_rejects_invalid_updates_without_mutation() {
+        let mut level = CombatLevel::new(60).unwrap();
+
+        assert_eq!(
+            level.set(0),
+            Err(CombatLevelError::InvalidLevel)
+        );
+
+        assert_eq!(level.value(), 60);
     }
 
     #[test]
