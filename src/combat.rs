@@ -24,6 +24,8 @@ mod target_indicator;
 mod target_selection;
 
 pub use damage::{
+    calculate_armor_mitigation,
+    ArmorMitigationError,
     DamageMitigationError,
     DamageMitigationResult,
     DamageRequest,
