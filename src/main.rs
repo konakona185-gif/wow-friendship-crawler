@@ -411,14 +411,16 @@ fn setup_headless_game(mut commands: Commands) {
             max_health: 100.0,
             resource: 0.0,
         },
-        HealthPool::new(100.0, 100.0)
-            .expect("HealthPool iniziale del giocatore non valida."),
         CombatLevel::new(STARTING_COMBAT_LEVEL)
             .expect("Livello iniziale del giocatore non valido."),
         CombatAttributes::default(),
         Transform::from_xyz(0.0, 1.0, 0.0),
         GlobalTransform::default(),
-    ));
+    ))
+    .insert(
+        HealthPool::new(100.0, 100.0)
+            .expect("HealthPool iniziale del giocatore non valida."),
+    );
 
     let enemy_positions = [
         Vec3::new(5.0, 0.5, -5.0),
@@ -499,14 +501,16 @@ fn setup_game(
                 max_health: 100.0,
                 resource: 0.0,
             },
-            HealthPool::new(100.0, 100.0)
-                .expect("HealthPool iniziale del giocatore non valida."),
             CombatLevel::new(STARTING_COMBAT_LEVEL)
                 .expect("Livello iniziale del giocatore non valido."),
             CombatAttributes::default(),
             Mesh3d(player_mesh),
             MeshMaterial3d(player_material),
         ))
+        .insert(
+            HealthPool::new(100.0, 100.0)
+                .expect("HealthPool iniziale del giocatore non valida."),
+        )
         .insert((
             PickBox,
             CreaturePickPart,
