@@ -145,6 +145,52 @@ impl CombatResources {
         self.pools.remove(resource)
     }
 
+    pub fn apply_request(
+        &mut self,
+        request: ResourceRequest,
+    ) -> Result<ResourceResolution, ResourceApplicationError> {
+        request
+            .validate()
+            .map_err(ResourceApplicationError::InvalidRequest)?;
+
+        let pool = self
+            .pools
+            .get_mut(&request.resource)
+            .ok_or_else(|| {
+                ResourceApplicationError::MissingPool(
+                    request.resource.clone(),
+                )
+            })?;
+
+        let effective_amount = match request.operation {
+            ResourceOperation::Gain => {
+                pool.remaining_capacity().min(request.base_amount)
+            }
+            ResourceOperation::Spend => {
+                pool.current.min(request.base_amount)
+            }
+        };
+
+        let new_current = match request.operation {
+            ResourceOperation::Gain => {
+                (pool.current + effective_amount).min(pool.maximum)
+            }
+            ResourceOperation::Spend => {
+                (pool.current - effective_amount).max(0.0)
+            }
+        };
+
+        let resolution = ResourceResolution::new(
+            request,
+            effective_amount,
+        )
+        .map_err(ResourceApplicationError::InvalidResolution)?;
+
+        pool.current = new_current;
+
+        Ok(resolution)
+    }
+
     pub fn len(&self) -> usize {
         self.pools.len()
     }
@@ -269,6 +315,35 @@ impl Display for ResourceResolutionError {
 
 impl std::error::Error for ResourceResolutionError {}
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ResourceApplicationError {
+    InvalidRequest(ResourceRequestError),
+    MissingPool(ContentId),
+    InvalidResolution(ResourceResolutionError),
+}
+
+impl Display for ResourceApplicationError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidRequest(error) => {
+                write!(formatter, "Richiesta di risorsa non valida: {error}")
+            }
+            Self::MissingPool(id) => {
+                write!(
+                    formatter,
+                    "Pool della risorsa non registrato: {}",
+                    id.as_str()
+                )
+            }
+            Self::InvalidResolution(error) => {
+                write!(formatter, "Risoluzione della risorsa non valida: {error}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ResourceApplicationError {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,6 +364,17 @@ mod tests {
             operation,
             base_amount: 50.0,
         }
+    }
+
+    fn resources_with_mana(current: f32, maximum: f32) -> CombatResources {
+        let mut resources = CombatResources::default();
+
+        resources.insert(
+            mana_id(),
+            ResourcePool::new(current, maximum).unwrap(),
+        );
+
+        resources
     }
 
     #[test]
@@ -519,5 +605,95 @@ mod tests {
                 ResourceRequestError::InvalidAmount
             ))
         );
+    }
+
+    #[test]
+    fn resource_application_supports_partial_gains() {
+        let mut resources = resources_with_mana(80.0, 100.0);
+        let request = valid_request(ResourceOperation::Gain);
+
+        let resolution = resources.apply_request(request).unwrap();
+
+        assert_eq!(resolution.effective_amount, 20.0);
+        assert_eq!(resolution.unapplied_amount(), 30.0);
+        assert_eq!(resources.pool(&mana_id()).unwrap().current(), 100.0);
+    }
+
+    #[test]
+    fn resource_application_supports_partial_spending() {
+        let mut resources = resources_with_mana(30.0, 100.0);
+        let request = valid_request(ResourceOperation::Spend);
+
+        let resolution = resources.apply_request(request).unwrap();
+
+        assert_eq!(resolution.effective_amount, 30.0);
+        assert_eq!(resolution.unapplied_amount(), 20.0);
+        assert_eq!(resources.pool(&mana_id()).unwrap().current(), 0.0);
+    }
+
+    #[test]
+    fn resource_application_supports_full_gains_and_spending() {
+        let mut resources = resources_with_mana(50.0, 100.0);
+        let mut gain = valid_request(ResourceOperation::Gain);
+        gain.base_amount = 25.0;
+
+        let gain_resolution = resources.apply_request(gain).unwrap();
+
+        assert_eq!(gain_resolution.effective_amount, 25.0);
+        assert_eq!(resources.pool(&mana_id()).unwrap().current(), 75.0);
+
+        let mut spend = valid_request(ResourceOperation::Spend);
+        spend.base_amount = 25.0;
+
+        let spend_resolution = resources.apply_request(spend).unwrap();
+
+        assert_eq!(spend_resolution.effective_amount, 25.0);
+        assert_eq!(resources.pool(&mana_id()).unwrap().current(), 50.0);
+    }
+
+    #[test]
+    fn resource_application_rejects_missing_pools() {
+        let mut resources = CombatResources::default();
+        let request = valid_request(ResourceOperation::Gain);
+
+        assert_eq!(
+            resources.apply_request(request),
+            Err(ResourceApplicationError::MissingPool(mana_id()))
+        );
+
+        assert!(resources.is_empty());
+    }
+
+    #[test]
+    fn resource_application_rejects_invalid_requests_without_mutation() {
+        let mut resources = resources_with_mana(50.0, 100.0);
+        let mut request = valid_request(ResourceOperation::Gain);
+        request.base_amount = -10.0;
+
+        assert_eq!(
+            resources.apply_request(request),
+            Err(ResourceApplicationError::InvalidRequest(
+                ResourceRequestError::InvalidAmount
+            ))
+        );
+
+        assert_eq!(resources.pool(&mana_id()).unwrap().current(), 50.0);
+    }
+
+    #[test]
+    fn resource_application_does_not_change_other_pools() {
+        let mut resources = resources_with_mana(50.0, 100.0);
+
+        resources.insert(
+            energy_id(),
+            ResourcePool::new(30.0, 100.0).unwrap(),
+        );
+
+        resources
+            .apply_request(valid_request(ResourceOperation::Spend))
+            .unwrap();
+
+        assert_eq!(resources.pool(&mana_id()).unwrap().current(), 0.0);
+        assert_eq!(resources.pool(&energy_id()).unwrap().current(), 30.0);
     }
 }
