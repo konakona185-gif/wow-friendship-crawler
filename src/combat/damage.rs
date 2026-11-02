@@ -2,7 +2,6 @@ use bevy::prelude::Entity;
 
 use crate::content::{
     ContentId,
-    ContentMetadata,
     DamageSchoolDefinition,
     DamageSchoolMitigation,
 };
@@ -282,6 +281,25 @@ impl DamageResolution {
         Ok(resolution)
     }
 
+    pub fn from_school_mitigation(
+        request: DamageRequest,
+        school: &DamageSchoolDefinition,
+        armor_attribute: &ContentId,
+        target_attributes: &CombatAttributes,
+        attacker_level: &CombatLevel,
+    ) -> Result<Self, DamageResolutionError> {
+        let mitigation = calculate_damage_mitigation(
+            &request,
+            school,
+            armor_attribute,
+            target_attributes,
+            attacker_level,
+        )
+        .map_err(DamageResolutionError::MitigationCalculation)?;
+
+        Self::new(request, mitigation)
+    }
+
     pub fn validate(&self) -> Result<(), DamageResolutionError> {
         self.request
             .validate()
@@ -307,6 +325,7 @@ impl DamageResolution {
 pub enum DamageResolutionError {
     InvalidRequest(DamageRequestError),
     InvalidMitigation(DamageMitigationError),
+    MitigationCalculation(DamageSchoolMitigationError),
     IncomingAmountMismatch,
 }
 
@@ -318,6 +337,9 @@ impl std::fmt::Display for DamageResolutionError {
             }
             Self::InvalidMitigation(error) => {
                 write!(formatter, "Mitigazione non valida: {error}")
+            }
+            Self::MitigationCalculation(error) => {
+                write!(formatter, "Calcolo della mitigazione non riuscito: {error}")
             }
             Self::IncomingAmountMismatch => {
                 formatter.write_str(
@@ -333,6 +355,7 @@ impl std::error::Error for DamageResolutionError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::content::ContentMetadata;
 
     fn valid_request() -> DamageRequest {
         DamageRequest {
@@ -700,6 +723,60 @@ mod tests {
 
         assert_eq!(resolution.final_amount(), 75.0);
         assert!(resolution.validate().is_ok());
+    }
+
+    #[test]
+    fn damage_resolution_builds_from_school_mitigation() {
+        let resolution = DamageResolution::from_school_mitigation(
+            valid_request(),
+            &valid_school(DamageSchoolMitigation::Armor),
+            &armor_id(),
+            &combat_attributes_with_armor(5500.0),
+            &combat_level(60),
+        )
+        .unwrap();
+
+        assert_eq!(resolution.mitigation.mitigated_amount, 50.0);
+        assert_eq!(resolution.final_amount(), 50.0);
+        assert!(resolution.validate().is_ok());
+    }
+
+    #[test]
+    fn damage_resolution_preserves_unmitigated_school_damage() {
+        let resolution = DamageResolution::from_school_mitigation(
+            valid_request(),
+            &valid_school(DamageSchoolMitigation::Unmitigated),
+            &armor_id(),
+            &combat_attributes_with_armor(5500.0),
+            &combat_level(60),
+        )
+        .unwrap();
+
+        assert_eq!(resolution.mitigation.mitigated_amount, 0.0);
+        assert_eq!(resolution.final_amount(), 100.0);
+    }
+
+    #[test]
+    fn damage_resolution_propagates_resistance_mitigation_errors() {
+        let result = DamageResolution::from_school_mitigation(
+            valid_request(),
+            &valid_school(DamageSchoolMitigation::Resistance {
+                stat: ContentId::new(
+                    "classic_1_12_1:stat.fire_resistance",
+                )
+                .unwrap(),
+            }),
+            &armor_id(),
+            &CombatAttributes::default(),
+            &combat_level(60),
+        );
+
+        assert_eq!(
+            result,
+            Err(DamageResolutionError::MitigationCalculation(
+                DamageSchoolMitigationError::ResistanceMitigationNotImplemented
+            ))
+        );
     }
 
     #[test]
