@@ -1,6 +1,13 @@
 use bevy::prelude::Component;
 use std::fmt::{Display, Formatter};
 
+use super::{
+    DamageResolution,
+    DamageResolutionError,
+    HealingResolution,
+    HealingResolutionError,
+};
+
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct HealthPool {
     current: f32,
@@ -96,6 +103,28 @@ impl HealthPool {
         Ok(effective_amount)
     }
 
+    pub fn apply_damage_resolution(
+        &mut self,
+        resolution: &DamageResolution,
+    ) -> Result<f32, HealthPoolError> {
+        resolution
+            .validate()
+            .map_err(HealthPoolError::InvalidDamageResolution)?;
+
+        self.apply_damage(resolution.final_amount())
+    }
+
+    pub fn apply_healing_resolution(
+        &mut self,
+        resolution: &HealingResolution,
+    ) -> Result<f32, HealthPoolError> {
+        resolution
+            .validate()
+            .map_err(HealthPoolError::InvalidHealingResolution)?;
+
+        self.apply_healing(resolution.effective_amount)
+    }
+
     pub fn validate(&self) -> Result<(), HealthPoolError> {
         if !self.current.is_finite() || self.current < 0.0 {
             return Err(HealthPoolError::InvalidCurrent);
@@ -119,26 +148,40 @@ pub enum HealthPoolError {
     InvalidMaximum,
     CurrentExceedsMaximum,
     InvalidAmount,
+    InvalidDamageResolution(DamageResolutionError),
+    InvalidHealingResolution(HealingResolutionError),
 }
 
 impl Display for HealthPoolError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
-        let message = match self {
+        match self {
             Self::InvalidCurrent => {
-                "La salute corrente deve essere finita e non negativa"
+                formatter.write_str(
+                    "La salute corrente deve essere finita e non negativa",
+                )
             }
             Self::InvalidMaximum => {
-                "La salute massima deve essere finita e non negativa"
+                formatter.write_str(
+                    "La salute massima deve essere finita e non negativa",
+                )
             }
             Self::CurrentExceedsMaximum => {
-                "La salute corrente non può superare quella massima"
+                formatter.write_str(
+                    "La salute corrente non può superare quella massima",
+                )
             }
             Self::InvalidAmount => {
-                "La quantità deve essere finita e non negativa"
+                formatter.write_str(
+                    "La quantità deve essere finita e non negativa",
+                )
             }
-        };
-
-        formatter.write_str(message)
+            Self::InvalidDamageResolution(error) => {
+                write!(formatter, "Risoluzione del danno non valida: {error}")
+            }
+            Self::InvalidHealingResolution(error) => {
+                write!(formatter, "Risoluzione della guarigione non valida: {error}")
+            }
+        }
     }
 }
 
@@ -147,6 +190,41 @@ impl std::error::Error for HealthPoolError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::combat::{
+        DamageMitigationError,
+        DamageMitigationResult,
+        DamageRequest,
+        HealingRequest,
+    };
+    use crate::content::ContentId;
+
+    fn valid_damage_resolution() -> DamageResolution {
+        let request = DamageRequest {
+            source: None,
+            target: bevy::prelude::Entity::from_bits(1),
+            base_amount: 100.0,
+            school: ContentId::new(
+                "classic_1_12_1:school.physical",
+            )
+            .unwrap(),
+        };
+
+        DamageResolution::new(
+            request,
+            DamageMitigationResult::new(100.0, 25.0).unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn valid_healing_resolution() -> HealingResolution {
+        let request = HealingRequest {
+            source: None,
+            target: bevy::prelude::Entity::from_bits(1),
+            base_amount: 100.0,
+        };
+
+        HealingResolution::new(request, 75.0).unwrap()
+    }
 
     #[test]
     fn health_pool_accepts_valid_values() {
@@ -294,5 +372,72 @@ mod tests {
 
             assert_eq!(pool.current(), 50.0);
         }
+    }
+
+    #[test]
+    fn health_pool_applies_valid_damage_resolutions() {
+        let mut pool = HealthPool::new(100.0, 100.0).unwrap();
+        let resolution = valid_damage_resolution();
+
+        let effective = pool.apply_damage_resolution(&resolution).unwrap();
+
+        assert_eq!(effective, 75.0);
+        assert_eq!(pool.current(), 25.0);
+    }
+
+    #[test]
+    fn health_pool_caps_damage_resolution_at_current_health() {
+        let mut pool = HealthPool::new(40.0, 100.0).unwrap();
+        let resolution = valid_damage_resolution();
+
+        let effective = pool.apply_damage_resolution(&resolution).unwrap();
+
+        assert_eq!(effective, 40.0);
+        assert_eq!(pool.current(), 0.0);
+    }
+
+    #[test]
+    fn health_pool_rejects_invalid_damage_resolutions_without_mutation() {
+        let mut pool = HealthPool::new(100.0, 100.0).unwrap();
+        let mut resolution = valid_damage_resolution();
+        resolution.mitigation.mitigated_amount = 150.0;
+
+        assert_eq!(
+            pool.apply_damage_resolution(&resolution),
+            Err(HealthPoolError::InvalidDamageResolution(
+                DamageResolutionError::InvalidMitigation(
+                    DamageMitigationError::MitigationExceedsIncomingAmount
+                )
+            ))
+        );
+
+        assert_eq!(pool.current(), 100.0);
+    }
+
+    #[test]
+    fn health_pool_applies_valid_healing_resolutions() {
+        let mut pool = HealthPool::new(50.0, 100.0).unwrap();
+        let resolution = valid_healing_resolution();
+
+        let effective = pool.apply_healing_resolution(&resolution).unwrap();
+
+        assert_eq!(effective, 50.0);
+        assert_eq!(pool.current(), 100.0);
+    }
+
+    #[test]
+    fn health_pool_rejects_invalid_healing_resolutions_without_mutation() {
+        let mut pool = HealthPool::new(50.0, 100.0).unwrap();
+        let mut resolution = valid_healing_resolution();
+        resolution.effective_amount = 150.0;
+
+        assert_eq!(
+            pool.apply_healing_resolution(&resolution),
+            Err(HealthPoolError::InvalidHealingResolution(
+                HealingResolutionError::EffectiveExceedsRequestedAmount
+            ))
+        );
+
+        assert_eq!(pool.current(), 50.0);
     }
 }
