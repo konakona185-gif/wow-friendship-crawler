@@ -20,6 +20,8 @@ mod target_indicator;
 mod target_selection;
 
 pub use damage::{
+    DamageMitigationError,
+    DamageMitigationResult,
     DamageRequest,
     DamageRequestError,
 };
