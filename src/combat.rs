@@ -24,6 +24,8 @@ pub use damage::{
     DamageMitigationResult,
     DamageRequest,
     DamageRequestError,
+    DamageResolution,
+    DamageResolutionError,
 };
 pub use stats::{
     CombatAttributeError,
