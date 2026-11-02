@@ -1,3 +1,4 @@
+
 use super::*;
 
 fn spawn_living_player(
@@ -12,6 +13,24 @@ fn spawn_living_player(
             max_health: 100.0,
             resource: 0.0,
         },
+    )).id()
+}
+
+fn spawn_player_with_health_pool(
+    world: &mut World,
+    position: Vec3,
+    stats_health: f32,
+    pool_health: f32,
+) -> Entity {
+    world.spawn((
+        Character,
+        Transform::from_translation(position),
+        CombatStats {
+            current_health: stats_health,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+        HealthPool::new(pool_health, 100.0).unwrap(),
     )).id()
 }
 
@@ -165,6 +184,97 @@ fn enemy_acquires_the_nearest_living_player_in_range() {
 }
 
 #[test]
+fn enemy_uses_health_pool_to_determine_player_liveness_during_aggro() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let enemy = spawn_enemy_ai(app.world_mut(), Vec3::ZERO);
+
+    let defeated_player = spawn_player_with_health_pool(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 2.0),
+        100.0,
+        0.0,
+    );
+
+    let living_player = spawn_player_with_health_pool(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 6.0),
+        0.0,
+        35.0,
+    );
+
+    let ordinary_player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 10.0),
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(living_player)
+    );
+
+    assert_ne!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(defeated_player)
+    );
+
+    assert_ne!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(ordinary_player)
+    );
+}
+
+#[test]
+fn enemy_drops_threat_and_reacquires_when_target_health_pool_reaches_zero() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let defeated_player = spawn_player_with_health_pool(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 8.0),
+        100.0,
+        0.0,
+    );
+
+    let next_player = spawn_player_with_health_pool(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 12.0),
+        0.0,
+        50.0,
+    );
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(defeated_player),
+            ..EnemyAi::default()
+        },
+        EnemyHomePosition(Vec3::ZERO),
+        EnemyThreat {
+            values: std::collections::HashMap::from([
+                (defeated_player, 80.0),
+            ]),
+        },
+        Transform::default(),
+        CombatStats {
+            current_health: 100.0,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+    )).id();
+
+    app.update();
+
+    let ai = app.world().get::<EnemyAi>(enemy).unwrap();
+    let threat = app.world().get::<EnemyThreat>(enemy).unwrap();
+
+    assert_eq!(ai.target, Some(next_player));
+    assert!(!threat.values.contains_key(&defeated_player));
+    assert!(threat.values.is_empty());
+}
+
+#[test]
 fn enemy_does_not_acquire_a_player_outside_aggro_range() {
     let mut app = setup_enemy_aggro_test_app();
 
@@ -291,6 +401,72 @@ fn defeated_enemies_do_not_acquire_or_keep_targets() {
 }
 
 #[test]
+fn enemy_health_pool_overrides_stats_when_determining_enemy_liveness() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let first_player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 2.0),
+    );
+
+    let second_player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(1000.0, 0.0, 2.0),
+    );
+
+    let defeated_enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(first_player),
+            ..EnemyAi::default()
+        },
+        EnemyThreat {
+            values: std::collections::HashMap::from([
+                (first_player, 50.0),
+            ]),
+        },
+        Transform::default(),
+        CombatStats {
+            current_health: 100.0,
+            max_health: 200.0,
+            resource: 0.0,
+        },
+        HealthPool::new(0.0, 150.0).unwrap(),
+    )).id();
+
+    let living_enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi::default(),
+        Transform::from_xyz(1000.0, 0.0, 0.0),
+        CombatStats {
+            current_health: 0.0,
+            max_health: 75.0,
+            resource: 0.0,
+        },
+        HealthPool::new(40.0, 120.0).unwrap(),
+    )).id();
+
+    app.update();
+
+    let defeated_ai = app.world().get::<EnemyAi>(defeated_enemy).unwrap();
+    let defeated_stats = app.world().get::<CombatStats>(defeated_enemy).unwrap();
+    let defeated_threat = app.world().get::<EnemyThreat>(defeated_enemy).unwrap();
+
+    assert_eq!(defeated_ai.target, None);
+    assert!(!defeated_ai.returning_home);
+    assert_eq!(defeated_stats.current_health, 0.0);
+    assert_eq!(defeated_stats.max_health, 150.0);
+    assert!(defeated_threat.values.is_empty());
+
+    let living_ai = app.world().get::<EnemyAi>(living_enemy).unwrap();
+    let living_stats = app.world().get::<CombatStats>(living_enemy).unwrap();
+
+    assert_eq!(living_ai.target, Some(second_player));
+    assert_eq!(living_stats.current_health, 40.0);
+    assert_eq!(living_stats.max_health, 120.0);
+}
+
+#[test]
 fn non_finite_aggro_range_uses_the_default_range() {
     let mut app = setup_enemy_aggro_test_app();
 
@@ -339,7 +515,7 @@ fn enemy_starts_returning_home_and_recovers_health_after_exceeding_leash() {
         Transform::from_xyz(41.0, 0.0, 0.0),
         CombatStats {
             current_health: 25.0,
-            max_health: 100.0,
+            max_health: 40.0,
             resource: 30.0,
         },
         HealthPool::new(25.0, 100.0).unwrap(),
@@ -363,7 +539,8 @@ fn enemy_starts_returning_home_and_recovers_health_after_exceeding_leash() {
 
     assert_eq!(ai.target, None);
     assert!(ai.returning_home);
-    assert_eq!(stats.current_health, stats.max_health);
+    assert_eq!(stats.current_health, 100.0);
+    assert_eq!(stats.max_health, 100.0);
     assert_eq!(health_pool.current(), health_pool.maximum());
 }
 
