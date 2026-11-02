@@ -1,6 +1,11 @@
 use bevy::prelude::Entity;
 
-use crate::content::ContentId;
+use crate::content::{
+    ContentId,
+    ContentMetadata,
+    DamageSchoolDefinition,
+    DamageSchoolMitigation,
+};
 
 use super::{CombatAttributes, CombatLevel};
 
@@ -133,6 +138,39 @@ impl std::fmt::Display for ArmorMitigationError {
 
 impl std::error::Error for ArmorMitigationError {}
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DamageSchoolMitigationError {
+    InvalidRequest(DamageRequestError),
+    SchoolMismatch,
+    ArmorMitigation(ArmorMitigationError),
+    ResistanceMitigationNotImplemented,
+}
+
+impl std::fmt::Display for DamageSchoolMitigationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidRequest(error) => {
+                write!(formatter, "Richiesta di danno non valida: {error}")
+            }
+            Self::SchoolMismatch => {
+                formatter.write_str(
+                    "La scuola di danno non corrisponde alla richiesta originale",
+                )
+            }
+            Self::ArmorMitigation(error) => {
+                write!(formatter, "Mitigazione dell'armatura non valida: {error}")
+            }
+            Self::ResistanceMitigationNotImplemented => {
+                formatter.write_str(
+                    "La mitigazione tramite resistenza non è ancora implementata",
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for DamageSchoolMitigationError {}
+
 pub fn calculate_armor_mitigation(
     incoming_damage: f32,
     armor: f32,
@@ -182,6 +220,45 @@ pub fn calculate_armor_mitigation_from_attributes(
         armor,
         attacker_level,
     )
+}
+
+pub fn calculate_damage_mitigation(
+    request: &DamageRequest,
+    school: &DamageSchoolDefinition,
+    armor_attribute: &ContentId,
+    target_attributes: &CombatAttributes,
+    attacker_level: &CombatLevel,
+) -> Result<DamageMitigationResult, DamageSchoolMitigationError> {
+    request
+        .validate()
+        .map_err(DamageSchoolMitigationError::InvalidRequest)?;
+
+    if request.school != school.metadata.id {
+        return Err(DamageSchoolMitigationError::SchoolMismatch);
+    }
+
+    match &school.mitigation {
+        DamageSchoolMitigation::Unmitigated => {
+            Ok(DamageMitigationResult {
+                incoming_amount: request.base_amount,
+                mitigated_amount: 0.0,
+            })
+        }
+        DamageSchoolMitigation::Armor => {
+            calculate_armor_mitigation_from_attributes(
+                request.base_amount,
+                armor_attribute,
+                target_attributes,
+                attacker_level,
+            )
+            .map_err(DamageSchoolMitigationError::ArmorMitigation)
+        }
+        DamageSchoolMitigation::Resistance { .. } => {
+            Err(
+                DamageSchoolMitigationError::ResistanceMitigationNotImplemented,
+            )
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -263,6 +340,20 @@ mod tests {
             target: Entity::from_bits(1),
             base_amount: 100.0,
             school: ContentId::new("classic_1_12_1:school.physical").unwrap(),
+        }
+    }
+
+    fn valid_school(mitigation: DamageSchoolMitigation) -> DamageSchoolDefinition {
+        DamageSchoolDefinition {
+            metadata: ContentMetadata {
+                id: ContentId::new("classic_1_12_1:school.physical").unwrap(),
+                pack_id: ContentId::new("pack:classic_1_12_1").unwrap(),
+                name: "Physical".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+            mitigation,
         }
     }
 
@@ -498,6 +589,105 @@ mod tests {
 
         assert_eq!(result.mitigated_amount, 0.0);
         assert_eq!(result.remaining_amount(), 100.0);
+    }
+
+    #[test]
+    fn unmitigated_school_preserves_full_damage() {
+        let request = valid_request();
+        let school = valid_school(DamageSchoolMitigation::Unmitigated);
+
+        let result = calculate_damage_mitigation(
+            &request,
+            &school,
+            &armor_id(),
+            &combat_attributes_with_armor(5500.0),
+            &combat_level(60),
+        )
+        .unwrap();
+
+        assert_eq!(result.mitigated_amount, 0.0);
+        assert_eq!(result.remaining_amount(), 100.0);
+    }
+
+    #[test]
+    fn armor_school_uses_armor_mitigation() {
+        let request = valid_request();
+        let school = valid_school(DamageSchoolMitigation::Armor);
+
+        let result = calculate_damage_mitigation(
+            &request,
+            &school,
+            &armor_id(),
+            &combat_attributes_with_armor(5500.0),
+            &combat_level(60),
+        )
+        .unwrap();
+
+        assert_eq!(result.mitigated_amount, 50.0);
+        assert_eq!(result.remaining_amount(), 50.0);
+    }
+
+    #[test]
+    fn damage_mitigation_rejects_mismatched_school_ids() {
+        let request = valid_request();
+        let mut school = valid_school(DamageSchoolMitigation::Unmitigated);
+        school.metadata.id =
+            ContentId::new("classic_1_12_1:school.fire").unwrap();
+
+        assert_eq!(
+            calculate_damage_mitigation(
+                &request,
+                &school,
+                &armor_id(),
+                &CombatAttributes::default(),
+                &combat_level(60),
+            ),
+            Err(DamageSchoolMitigationError::SchoolMismatch)
+        );
+    }
+
+    #[test]
+    fn damage_mitigation_rejects_unimplemented_resistance_calculation() {
+        let request = valid_request();
+        let school = valid_school(DamageSchoolMitigation::Resistance {
+            stat: ContentId::new(
+                "classic_1_12_1:stat.fire_resistance",
+            )
+            .unwrap(),
+        });
+
+        assert_eq!(
+            calculate_damage_mitigation(
+                &request,
+                &school,
+                &armor_id(),
+                &CombatAttributes::default(),
+                &combat_level(60),
+            ),
+            Err(
+                DamageSchoolMitigationError::ResistanceMitigationNotImplemented
+            )
+        );
+    }
+
+    #[test]
+    fn damage_mitigation_rejects_invalid_requests() {
+        let mut request = valid_request();
+        request.base_amount = -10.0;
+        let school = valid_school(DamageSchoolMitigation::Unmitigated);
+
+        assert_eq!(
+            calculate_damage_mitigation(
+                &request,
+                &school,
+                &armor_id(),
+                &CombatAttributes::default(),
+                &combat_level(60),
+            ),
+            Err(DamageSchoolMitigationError::InvalidRequest(
+                DamageRequestError::InvalidAmount
+            ))
+        );
     }
 
     #[test]
