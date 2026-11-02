@@ -108,6 +108,75 @@ impl std::fmt::Display for DamageMitigationError {
 
 impl std::error::Error for DamageMitigationError {}
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct DamageResolution {
+    pub request: DamageRequest,
+    pub mitigation: DamageMitigationResult,
+}
+
+impl DamageResolution {
+    pub fn new(
+        request: DamageRequest,
+        mitigation: DamageMitigationResult,
+    ) -> Result<Self, DamageResolutionError> {
+        let resolution = Self {
+            request,
+            mitigation,
+        };
+
+        resolution.validate()?;
+
+        Ok(resolution)
+    }
+
+    pub fn validate(&self) -> Result<(), DamageResolutionError> {
+        self.request
+            .validate()
+            .map_err(DamageResolutionError::InvalidRequest)?;
+
+        self.mitigation
+            .validate()
+            .map_err(DamageResolutionError::InvalidMitigation)?;
+
+        if self.request.base_amount != self.mitigation.incoming_amount {
+            return Err(DamageResolutionError::IncomingAmountMismatch);
+        }
+
+        Ok(())
+    }
+
+    pub fn final_amount(&self) -> f32 {
+        self.mitigation.remaining_amount()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DamageResolutionError {
+    InvalidRequest(DamageRequestError),
+    InvalidMitigation(DamageMitigationError),
+    IncomingAmountMismatch,
+}
+
+impl std::fmt::Display for DamageResolutionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidRequest(error) => {
+                write!(formatter, "Richiesta di danno non valida: {error}")
+            }
+            Self::InvalidMitigation(error) => {
+                write!(formatter, "Mitigazione non valida: {error}")
+            }
+            Self::IncomingAmountMismatch => {
+                formatter.write_str(
+                    "Il danno in ingresso non corrisponde alla richiesta originale",
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for DamageResolutionError {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,6 +262,45 @@ mod tests {
         assert_eq!(
             DamageMitigationResult::new(50.0, 75.0),
             Err(DamageMitigationError::MitigationExceedsIncomingAmount)
+        );
+    }
+
+    #[test]
+    fn damage_resolution_combines_request_and_mitigation() {
+        let resolution = DamageResolution::new(
+            valid_request(),
+            DamageMitigationResult::new(100.0, 25.0).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(resolution.final_amount(), 75.0);
+        assert!(resolution.validate().is_ok());
+    }
+
+    #[test]
+    fn damage_resolution_rejects_mismatched_incoming_amounts() {
+        assert_eq!(
+            DamageResolution::new(
+                valid_request(),
+                DamageMitigationResult::new(80.0, 20.0).unwrap(),
+            ),
+            Err(DamageResolutionError::IncomingAmountMismatch)
+        );
+    }
+
+    #[test]
+    fn damage_resolution_rejects_invalid_requests() {
+        let mut request = valid_request();
+        request.base_amount = -10.0;
+
+        assert_eq!(
+            DamageResolution::new(
+                request,
+                DamageMitigationResult::new(100.0, 0.0).unwrap(),
+            ),
+            Err(DamageResolutionError::InvalidRequest(
+                DamageRequestError::InvalidAmount
+            ))
         );
     }
 }
