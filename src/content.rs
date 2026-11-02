@@ -1,4 +1,5 @@
 mod ability;
+mod combat_attribute;
 mod database;
 mod damage_school;
 mod effect;
@@ -16,6 +17,12 @@ pub use ability::{
     AbilityTargeting,
     AbilityValidationError,
     ResourceCost,
+};
+
+pub use combat_attribute::{
+    CombatAttributeDefinition,
+    CombatAttributeValidationError,
+    CombatAttributeValueKind,
 };
 
 pub use database::{
