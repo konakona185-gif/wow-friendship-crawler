@@ -2,7 +2,7 @@ use bevy::prelude::Entity;
 
 use crate::content::ContentId;
 
-use super::CombatLevel;
+use super::{CombatAttributes, CombatLevel};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DamageRequest {
@@ -169,6 +169,21 @@ pub fn calculate_armor_mitigation(
     .map_err(|_| ArmorMitigationError::InvalidIncomingAmount)
 }
 
+pub fn calculate_armor_mitigation_from_attributes(
+    incoming_damage: f32,
+    armor_attribute: &ContentId,
+    target_attributes: &CombatAttributes,
+    attacker_level: &CombatLevel,
+) -> Result<DamageMitigationResult, ArmorMitigationError> {
+    let armor = target_attributes.value(armor_attribute);
+
+    calculate_armor_mitigation(
+        incoming_damage,
+        armor,
+        attacker_level,
+    )
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct DamageResolution {
     pub request: DamageRequest,
@@ -253,6 +268,16 @@ mod tests {
 
     fn combat_level(value: u32) -> CombatLevel {
         CombatLevel::new(value).unwrap()
+    }
+
+    fn armor_id() -> ContentId {
+        ContentId::new("classic_1_12_1:stat.armor").unwrap()
+    }
+
+    fn combat_attributes_with_armor(armor: f32) -> CombatAttributes {
+        let mut attributes = CombatAttributes::default();
+        attributes.set(armor_id(), armor).unwrap();
+        attributes
     }
 
     #[test]
@@ -406,6 +431,73 @@ mod tests {
             calculate_armor_mitigation(100.0, f32::INFINITY, &combat_level(60)),
             Err(ArmorMitigationError::InvalidArmor)
         );
+    }
+
+    #[test]
+    fn armor_mitigation_reads_combat_attributes() {
+        let attributes = combat_attributes_with_armor(5500.0);
+
+        let result = calculate_armor_mitigation_from_attributes(
+            100.0,
+            &armor_id(),
+            &attributes,
+            &combat_level(60),
+        )
+        .unwrap();
+
+        assert_eq!(result.mitigated_amount, 50.0);
+        assert_eq!(result.remaining_amount(), 50.0);
+    }
+
+    #[test]
+    fn armor_mitigation_uses_zero_for_missing_attributes() {
+        let attributes = CombatAttributes::default();
+
+        let result = calculate_armor_mitigation_from_attributes(
+            100.0,
+            &armor_id(),
+            &attributes,
+            &combat_level(60),
+        )
+        .unwrap();
+
+        assert_eq!(result.mitigated_amount, 0.0);
+        assert_eq!(result.remaining_amount(), 100.0);
+    }
+
+    #[test]
+    fn armor_mitigation_supports_custom_attribute_ids() {
+        let custom_armor_id =
+            ContentId::new("custom:armor_rating").unwrap();
+
+        let mut attributes = CombatAttributes::default();
+        attributes.set(custom_armor_id.clone(), 5500.0).unwrap();
+
+        let result = calculate_armor_mitigation_from_attributes(
+            100.0,
+            &custom_armor_id,
+            &attributes,
+            &combat_level(60),
+        )
+        .unwrap();
+
+        assert_eq!(result.mitigated_amount, 50.0);
+    }
+
+    #[test]
+    fn armor_mitigation_clamps_negative_attribute_values() {
+        let attributes = combat_attributes_with_armor(-500.0);
+
+        let result = calculate_armor_mitigation_from_attributes(
+            100.0,
+            &armor_id(),
+            &attributes,
+            &combat_level(60),
+        )
+        .unwrap();
+
+        assert_eq!(result.mitigated_amount, 0.0);
+        assert_eq!(result.remaining_amount(), 100.0);
     }
 
     #[test]
