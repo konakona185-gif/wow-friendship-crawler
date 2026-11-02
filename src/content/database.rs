@@ -13,6 +13,7 @@ use super::{
     ContentMetadata,
     ContentPackManifest,
     ContentPackRegistry,
+    DamageSchoolDefinition,
     EffectDefinition,
     TalentDefinition,
     TalentTreeDefinition,
@@ -24,6 +25,7 @@ pub use validation::ContentDatabaseError;
 pub struct ContentDatabase {
     packs: ContentPackRegistry,
     effects: HashMap<ContentId, EffectDefinition>,
+    damage_schools: HashMap<ContentId, DamageSchoolDefinition>,
     abilities: HashMap<ContentId, AbilityDefinition>,
     talent_trees: HashMap<ContentId, TalentTreeDefinition>,
     talents: HashMap<ContentId, TalentDefinition>,
