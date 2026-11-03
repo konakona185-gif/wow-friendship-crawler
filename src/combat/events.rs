@@ -392,7 +392,9 @@ mod tests {
         assert_eq!(
             context.validate(),
             Err(CombatEventContextError::InvalidDamage(
-                super::super::DamageMitigationError::MitigationExceedsIncomingAmount
+                DamageResolutionError::InvalidMitigation(
+    super::super::DamageMitigationError::MitigationExceedsIncomingAmount
+)
             ))
         );
     }
