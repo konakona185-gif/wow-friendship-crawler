@@ -253,6 +253,68 @@ fn enemy_attack_resets_cooldown_when_health_pool_is_depleted() {
 }
 
 #[test]
+fn enemy_attacks_player_with_only_health_pool() {
+    let mut app = setup_enemy_attack_test_app();
+
+    let player = app.world_mut().spawn((
+        Character,
+        Transform::from_xyz(0.0, 0.0, 1.0),
+        HealthPool::new(100.0, 120.0).unwrap(),
+    )).id();
+
+    app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(player),
+            ..EnemyAi::default()
+        },
+        test_enemy_attack_state(player),
+        Transform::default(),
+    ));
+
+    advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
+    app.update();
+
+    let health_pool = app.world().get::<HealthPool>(player).unwrap();
+
+    assert_eq!(
+        health_pool.current(),
+        100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
+    );
+    assert_eq!(health_pool.maximum(), 120.0);
+    assert!(app.world().get::<CombatStats>(player).is_none());
+}
+
+#[test]
+fn enemy_does_not_attack_player_without_health_components() {
+    let mut app = setup_enemy_attack_test_app();
+
+    let player = app.world_mut().spawn((
+        Character,
+        Transform::from_xyz(0.0, 0.0, 1.0),
+    )).id();
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(player),
+            ..EnemyAi::default()
+        },
+        test_enemy_attack_state(player),
+        Transform::default(),
+    )).id();
+
+    advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
+    app.update();
+
+    let attack_state = app.world().get::<EnemyAttackState>(enemy).unwrap();
+
+    assert_eq!(attack_state.cooldown.elapsed(), Duration::ZERO);
+    assert!(app.world().get::<HealthPool>(player).is_none());
+    assert!(app.world().get::<CombatStats>(player).is_none());
+}
+
+#[test]
 fn enemy_does_not_attack_outside_melee_range() {
     let mut app = setup_enemy_attack_test_app();
 
