@@ -1,11 +1,13 @@
 use super::{
     AbilityDefinition,
+    AuraDefinition,
     CombatAttributeDefinition,
     ContentDatabase,
     ContentDatabaseError,
     ContentId,
     ContentMetadata,
     ContentPackManifest,
+    ContentPackRegistry,
     DamageSchoolDefinition,
     EffectDefinition,
     ResourceDefinition,
@@ -35,6 +37,21 @@ impl ContentDatabase {
 
         let id = effect.metadata.id.clone();
         self.effects.insert(id, effect);
+
+        Ok(())
+    }
+
+    pub fn register_aura(
+        &mut self,
+        aura: AuraDefinition,
+    ) -> Result<(), ContentDatabaseError> {
+        aura.validate()
+            .map_err(ContentDatabaseError::InvalidAura)?;
+
+        self.validate_new_content(&aura.metadata)?;
+
+        let id = aura.metadata.id.clone();
+        self.auras.insert(id, aura);
 
         Ok(())
     }
@@ -147,6 +164,7 @@ impl ContentDatabase {
         let id = &metadata.id;
 
         if self.effects.contains_key(id)
+            || self.auras.contains_key(id)
             || self.damage_schools.contains_key(id)
             || self.combat_attributes.contains_key(id)
             || self.resources.contains_key(id)
