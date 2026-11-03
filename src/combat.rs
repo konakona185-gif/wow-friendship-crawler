@@ -1,3 +1,4 @@
+
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -12,6 +13,7 @@ use crate::player::{
 
 mod damage;
 mod death;
+mod effect_dispatcher;
 mod effect_execution;
 mod effect_magnitude;
 mod effect_resolution;
@@ -179,6 +181,7 @@ impl Plugin for CombatPlugin {
                     enemy_attacks::enemy_attack_system,
                     target_indicator::target_indicator_system,
                     effect_runtime::execute_pending_effects,
+                    effect_dispatcher::dispatch_combat_events,
                 )
                     .chain()
                     .after(CharacterInputSet::Collect)
