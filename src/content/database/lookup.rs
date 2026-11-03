@@ -1,5 +1,6 @@
 use super::{
     AbilityDefinition,
+    AuraDefinition,
     CombatAttributeDefinition,
     ContentDatabase,
     ContentDatabaseError,
@@ -16,6 +17,10 @@ use super::{
 impl ContentDatabase {
     pub fn effect(&self, id: &ContentId) -> Option<&EffectDefinition> {
         self.effects.get(id)
+    }
+
+    pub fn aura(&self, id: &ContentId) -> Option<&AuraDefinition> {
+        self.auras.get(id)
     }
 
     pub fn damage_school(
@@ -59,6 +64,10 @@ impl ContentDatabase {
         self.effects.len()
     }
 
+    pub fn aura_count(&self) -> usize {
+        self.auras.len()
+    }
+
     pub fn damage_school_count(&self) -> usize {
         self.damage_schools.len()
     }
@@ -85,6 +94,7 @@ impl ContentDatabase {
 
     pub fn content_count(&self) -> usize {
         self.effect_count()
+            + self.aura_count()
             + self.damage_school_count()
             + self.combat_attribute_count()
             + self.resource_count()
