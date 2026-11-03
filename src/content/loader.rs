@@ -228,7 +228,9 @@ impl std::error::Error for ContentPackLoaderError {
 mod tests {
     use super::*;
     use crate::content::{
+        AuraRefreshPolicy,
         AuraStackingPolicy,
+        AuraStackingScope,
         CombatAttributeValueKind,
     };
     use serde::Serialize;
@@ -317,6 +319,8 @@ mod tests {
             },
             max_stacks: 5,
             stacking_policy: AuraStackingPolicy::AddStacks,
+            stacking_scope: AuraStackingScope::Shared,
+            refresh_policy: AuraRefreshPolicy::ResetDuration,
             periodic_effects: Vec::new(),
         }
     }
