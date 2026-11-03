@@ -121,10 +121,23 @@ pub(super) fn dispatch_combat_events(
 mod tests {
     use super::*;
 
+    use super::super::{
+        CombatLevel,
+        CombatStats,
+        DamageRequest,
+        HealthPool,
+        ResolvedEffect,
+        ResolvedEffectOperation,
+    };
+
     use crate::content::{
+        CombatAttributeDefinition,
+        CombatAttributeValueKind,
         ContentId,
         ContentMetadata,
         ContentPackManifest,
+        DamageSchoolDefinition,
+        DamageSchoolMitigation,
         EffectDefinition,
         EffectKind,
         EffectMagnitude,
@@ -153,6 +166,28 @@ mod tests {
         }
     }
 
+    fn content_id(value: &str) -> ContentId {
+        ContentId::new(
+            format!("dispatcher_tests:{value}"),
+        )
+        .unwrap()
+    }
+
+    fn metadata(
+        id: ContentId,
+        pack_id: &ContentId,
+        name: &str,
+    ) -> ContentMetadata {
+        ContentMetadata {
+            id,
+            pack_id: pack_id.clone(),
+            name: name.to_string(),
+            description: String::new(),
+            icon: None,
+            tags: Vec::new(),
+        }
+    }
+
     fn test_application(
         trigger: EffectTrigger,
         target: EffectTarget,
@@ -161,7 +196,7 @@ mod tests {
             ContentId::new("pack:dispatcher_tests").unwrap();
 
         let effect_id =
-            ContentId::new("dispatcher_tests:effect.reactive").unwrap();
+            content_id("effect.reactive");
 
         let mut database = ContentDatabase::new();
 
@@ -204,6 +239,89 @@ mod tests {
             .add_systems(Update, dispatch_combat_events);
 
         (app, effect_id)
+    }
+
+    fn runtime_test_application() -> (App, ContentId) {
+        let pack_id =
+            ContentId::new("pack:classic_1_12_1").unwrap();
+
+        let armor_id =
+            ContentId::new("classic_1_12_1:stat.armor").unwrap();
+
+        let school_id =
+            ContentId::new("classic_1_12_1:school.physical").unwrap();
+
+        let effect_id = content_id("effect.reactive");
+
+        let mut database = ContentDatabase::new();
+
+        database
+            .register_pack(ContentPackManifest {
+                id: pack_id.clone(),
+                name: "Classic 1.12.1".to_string(),
+                version: "1.0.0".to_string(),
+                description: String::new(),
+                dependencies: Vec::new(),
+            })
+            .unwrap();
+
+        database
+            .register_combat_attribute(CombatAttributeDefinition {
+                metadata: metadata(
+                    armor_id,
+                    &pack_id,
+                    "Armor",
+                ),
+                value_kind: CombatAttributeValueKind::Rating,
+            })
+            .unwrap();
+
+        database
+            .register_damage_school(DamageSchoolDefinition {
+                metadata: metadata(
+                    school_id.clone(),
+                    &pack_id,
+                    "Physical",
+                ),
+                mitigation: DamageSchoolMitigation::Armor,
+            })
+            .unwrap();
+
+        database
+            .register_effect(EffectDefinition {
+                metadata: metadata(
+                    effect_id.clone(),
+                    &pack_id,
+                    "Reactive Heal",
+                ),
+                trigger: EffectTrigger::OnDamageDealt,
+                target: EffectTarget::SelectedTarget,
+                kind: EffectKind::Heal {
+                    amount: EffectMagnitude {
+                        base: 10.0,
+                        scaling: Vec::new(),
+                    },
+                },
+            })
+            .unwrap();
+
+        database.validate().unwrap();
+
+        let mut app = App::new();
+
+        app.insert_resource(database)
+            .init_resource::<CombatEventQueue>()
+            .init_resource::<PendingCombatEffects>()
+            .add_systems(
+                Update,
+                (
+                    super::super::effect_runtime::execute_pending_effects,
+                    dispatch_combat_events,
+                )
+                    .chain(),
+            );
+
+        (app, school_id)
     }
 
     fn spawn_subscriber(
@@ -402,6 +520,89 @@ mod tests {
 
         assert_eq!(
             app.world().resource::<PendingCombatEffects>().len(),
+            0
+        );
+    }
+
+    #[test]
+    fn reactive_effect_executes_on_the_following_update() {
+        let (mut app, school_id) = runtime_test_application();
+
+        let effect_id = content_id("effect.reactive");
+
+        let mut subscriptions =
+            CombatEffectSubscriptions::default();
+
+        subscriptions.subscribe(effect_id);
+
+        let source = app.world_mut()
+            .spawn((
+                subscriptions,
+                CombatAttributes::default(),
+                CombatLevel::new(60).unwrap(),
+            ))
+            .id();
+
+        let target = app.world_mut()
+            .spawn((
+                CombatAttributes::default(),
+                CombatStats {
+                    current_health: 50.0,
+                    max_health: 100.0,
+                    resource: 0.0,
+                },
+                HealthPool::new(50.0, 100.0).unwrap(),
+            ))
+            .id();
+
+        app.world_mut()
+            .resource_mut::<PendingCombatEffects>()
+            .enqueue(ResolvedEffect {
+                effect: content_id("effect.initial_damage"),
+                trigger: EffectTrigger::OnCast,
+                source: Some(source),
+                target,
+                operation: ResolvedEffectOperation::Damage(
+                    DamageRequest {
+                        source: Some(source),
+                        target,
+                        base_amount: 20.0,
+                        school: school_id,
+                    },
+                ),
+            });
+
+        app.update();
+
+        assert_eq!(
+            app.world()
+                .get::<HealthPool>(target)
+                .unwrap()
+                .current(),
+            30.0
+        );
+
+        assert_eq!(
+            app.world()
+                .resource::<PendingCombatEffects>()
+                .len(),
+            1
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world()
+                .get::<HealthPool>(target)
+                .unwrap()
+                .current(),
+            40.0
+        );
+
+        assert_eq!(
+            app.world()
+                .resource::<PendingCombatEffects>()
+                .len(),
             0
         );
     }
