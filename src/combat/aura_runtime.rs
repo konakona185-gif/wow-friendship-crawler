@@ -258,7 +258,11 @@ pub enum AuraRuntimeError {
 mod tests {
     use super::*;
 
-    use crate::content::ContentMetadata;
+    use crate::content::{
+        AuraRefreshPolicy,
+        AuraStackingScope,
+        ContentMetadata,
+    };
 
     fn aura_definition(
         policy: AuraStackingPolicy,
@@ -275,6 +279,8 @@ mod tests {
             },
             max_stacks,
             stacking_policy: policy,
+            stacking_scope: AuraStackingScope::Shared,
+            refresh_policy: AuraRefreshPolicy::ResetDuration,
             periodic_effects: Vec::new(),
         }
     }
