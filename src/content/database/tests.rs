@@ -9,7 +9,9 @@ use crate::content::{
     AbilityRange,
     AbilityTargeting,
     AuraDefinition,
+    AuraRefreshPolicy,
     AuraStackingPolicy,
+    AuraStackingScope,
     CombatAttributeDefinition,
     CombatAttributeValueKind,
     ContentId,
@@ -20,7 +22,6 @@ use crate::content::{
     EffectDefinition,
     EffectKind,
     EffectMagnitude,
-    EffectScaling,
     EffectTarget,
     EffectTrigger,
     ResourceCost,
@@ -81,6 +82,8 @@ fn aura() -> AuraDefinition {
         metadata: metadata("classic:aura.test", "Test Aura"),
         max_stacks: 5,
         stacking_policy: AuraStackingPolicy::AddStacks,
+        stacking_scope: AuraStackingScope::Shared,
+        refresh_policy: AuraRefreshPolicy::ResetDuration,
         periodic_effects: Vec::new(),
     }
 }
