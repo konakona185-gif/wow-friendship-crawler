@@ -15,6 +15,7 @@ mod death;
 mod effect_execution;
 mod effect_magnitude;
 mod effect_resolution;
+mod effect_runtime;
 mod enemy_ai;
 mod enemy_attacks;
 mod events;
@@ -59,6 +60,7 @@ pub use effect_resolution::{
     ResolvedEffect,
     ResolvedEffectOperation,
 };
+pub use effect_runtime::PendingCombatEffects;
 pub use events::{
     CombatEventContext,
     CombatEventContextError,
@@ -160,20 +162,22 @@ pub struct CombatPlugin;
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (
-                target_selection::target_tab_system,
-                target_selection::target_click_system,
-                player_attacks::player_cast_system,
-                death::enemy_death_system,
-                enemy_ai::enemy_aggro_system,
-                enemy_attacks::enemy_attack_system,
-                target_indicator::target_indicator_system,
-            )
-                .chain()
-                .after(CharacterInputSet::Collect)
-                .after(WorldInteractionSet),
-        );
+        app.init_resource::<PendingCombatEffects>()
+            .add_systems(
+                Update,
+                (
+                    target_selection::target_tab_system,
+                    target_selection::target_click_system,
+                    player_attacks::player_cast_system,
+                    death::enemy_death_system,
+                    enemy_ai::enemy_aggro_system,
+                    enemy_attacks::enemy_attack_system,
+                    target_indicator::target_indicator_system,
+                    effect_runtime::execute_pending_effects,
+                )
+                    .chain()
+                    .after(CharacterInputSet::Collect)
+                    .after(WorldInteractionSet),
+            );
     }
 }
