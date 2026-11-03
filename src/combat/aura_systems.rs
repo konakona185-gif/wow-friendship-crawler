@@ -1,9 +1,16 @@
 use bevy::prelude::*;
 
-use super::ActiveAuras;
+use super::{
+    ActiveAuras,
+    CombatEventContext,
+    CombatEventOutcome,
+    CombatEventQueue,
+    EffectTrigger,
+};
 
 pub(super) fn tick_active_auras(
     time: Res<Time>,
+    mut event_queue: ResMut<CombatEventQueue>,
     mut aura_owners: Query<(Entity, &mut ActiveAuras)>,
 ) {
     let delta_seconds = time.delta_secs();
@@ -12,6 +19,28 @@ pub(super) fn tick_active_auras(
         let expired_auras = active_auras.tick(delta_seconds);
 
         for expired in expired_auras {
+            let event = CombatEventContext {
+                trigger: EffectTrigger::OnExpire,
+                source: expired.source,
+                target: Some(owner),
+                ability: None,
+                effect: None,
+                outcome: Some(CombatEventOutcome::AuraExpired {
+                    aura: expired.aura.clone(),
+                    stacks: expired.stacks,
+                }),
+            };
+
+            if let Err(error) = event_queue.enqueue(event) {
+                warn!(
+                    owner = ?owner,
+                    aura = ?expired.aura,
+                    %error,
+                    "Impossibile registrare l'evento di scadenza dell'aura."
+                );
+                continue;
+            }
+
             debug!(
                 owner = ?owner,
                 aura = ?expired.aura,
@@ -86,6 +115,7 @@ mod tests {
         time.advance_by(delta);
 
         app.insert_resource(time)
+            .init_resource::<CombatEventQueue>()
             .add_systems(Update, tick_active_auras);
 
         app
@@ -114,6 +144,12 @@ mod tests {
                 .remaining_duration(),
             Some(3.0)
         );
+
+        assert!(
+            app.world()
+                .resource::<CombatEventQueue>()
+                .is_empty()
+        );
     }
 
     #[test]
@@ -133,6 +169,24 @@ mod tests {
             .unwrap();
 
         assert!(active.is_empty());
+
+        let events = app
+            .world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .drain();
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].trigger, EffectTrigger::OnExpire);
+        assert_eq!(events[0].source, None);
+        assert_eq!(events[0].target, Some(entity));
+
+        assert_eq!(
+            events[0].outcome,
+            Some(CombatEventOutcome::AuraExpired {
+                aura: aura_id(),
+                stacks: 1,
+            })
+        );
     }
 
     #[test]
@@ -158,6 +212,12 @@ mod tests {
                 .unwrap()
                 .remaining_duration(),
             None
+        );
+
+        assert!(
+            app.world()
+                .resource::<CombatEventQueue>()
+                .is_empty()
         );
     }
 
@@ -196,5 +256,13 @@ mod tests {
                 .remaining_duration(),
             Some(5.0)
         );
+
+        let events = app
+            .world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .drain();
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].target, Some(first));
     }
 }
