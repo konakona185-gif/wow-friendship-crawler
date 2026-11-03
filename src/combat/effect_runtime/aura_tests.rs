@@ -1,4 +1,6 @@
-use bevy::prelude::{App, Entity, Update};
+use std::time::Duration;
+
+use bevy::prelude::*;
 
 use super::{
     execute_pending_effects,
@@ -7,8 +9,12 @@ use super::{
 
 use crate::combat::{
     ActiveAuras,
+    CombatAttributes,
+    CombatEffectSubscriptions,
     CombatEventQueue,
+    CombatStats,
     EffectTrigger,
+    HealthPool,
     ResolvedEffect,
     ResolvedEffectOperation,
 };
@@ -20,6 +26,10 @@ use crate::content::{
     ContentId,
     ContentMetadata,
     ContentPackManifest,
+    EffectDefinition,
+    EffectKind,
+    EffectMagnitude,
+    EffectTarget,
 };
 
 fn aura_id() -> ContentId {
@@ -85,6 +95,78 @@ fn runtime_app(register_aura: bool) -> App {
     app
 }
 
+fn expiration_runtime_app() -> App {
+    let pack_id = ContentId::new(
+        "pack:classic_1_12_1",
+    )
+    .unwrap();
+
+    let effect_id = ContentId::new(
+        "classic_1_12_1:effect.aura_expiration_heal",
+    )
+    .unwrap();
+
+    let mut database = ContentDatabase::new();
+
+    database
+        .register_pack(ContentPackManifest {
+            id: pack_id.clone(),
+            name: "Classic 1.12.1".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            dependencies: Vec::new(),
+        })
+        .unwrap();
+
+    database
+        .register_aura(aura_definition())
+        .unwrap();
+
+    database
+        .register_effect(EffectDefinition {
+            metadata: ContentMetadata {
+                id: effect_id,
+                pack_id,
+                name: "Aura Expiration Heal".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+            trigger: EffectTrigger::OnExpire,
+            target: EffectTarget::SelectedTarget,
+            kind: EffectKind::Heal {
+                amount: EffectMagnitude {
+                    base: 10.0,
+                    scaling: Vec::new(),
+                },
+            },
+        })
+        .unwrap();
+
+    database.validate().unwrap();
+
+    let mut time = Time::default();
+    time.advance_by(Duration::from_secs(2));
+
+    let mut app = App::new();
+
+    app.insert_resource(database)
+        .insert_resource(time)
+        .init_resource::<PendingCombatEffects>()
+        .init_resource::<CombatEventQueue>()
+        .add_systems(
+            Update,
+            (
+                crate::combat::aura_systems::tick_active_auras,
+                execute_pending_effects,
+                crate::combat::effect_dispatcher::dispatch_combat_events,
+            )
+                .chain(),
+        );
+
+    app
+}
+
 fn resolved_aura_effect(
     target: Entity,
     operation: ResolvedEffectOperation,
@@ -108,6 +190,91 @@ fn enqueue(
     app.world_mut()
         .resource_mut::<PendingCombatEffects>()
         .enqueue(effect);
+}
+
+#[test]
+fn aura_expiration_dispatches_reactive_effect_to_original_applier() {
+    let mut app = expiration_runtime_app();
+
+    let applier = app
+        .world_mut()
+        .spawn((
+            CombatAttributes::default(),
+            CombatStats {
+                current_health: 50.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            HealthPool::new(50.0, 100.0).unwrap(),
+        ))
+        .id();
+
+    let mut active_auras = ActiveAuras::default();
+
+    active_auras
+        .apply(
+            &aura_definition(),
+            Some(applier),
+            1,
+            Some(1.0),
+        )
+        .unwrap();
+
+    let effect_id = ContentId::new(
+        "classic_1_12_1:effect.aura_expiration_heal",
+    )
+    .unwrap();
+
+    let mut subscriptions =
+        CombatEffectSubscriptions::default();
+
+    subscriptions.subscribe(effect_id);
+
+    app.world_mut()
+        .spawn((
+            active_auras,
+            subscriptions,
+            CombatAttributes::default(),
+        ));
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(applier)
+            .unwrap()
+            .current(),
+        50.0
+    );
+
+    assert_eq!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .len(),
+        1
+    );
+
+    assert!(
+        app.world()
+            .resource::<CombatEventQueue>()
+            .is_empty()
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(applier)
+            .unwrap()
+            .current(),
+        60.0
+    );
+
+    assert!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
 }
 
 #[test]
