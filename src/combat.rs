@@ -13,6 +13,7 @@ use crate::player::{
 mod damage;
 mod death;
 mod effect_magnitude;
+mod effect_resolution;
 mod enemy_ai;
 mod enemy_attacks;
 mod events;
@@ -43,6 +44,13 @@ pub use damage::{
 pub use effect_magnitude::{
     calculate_effect_magnitude,
     EffectMagnitudeError,
+};
+pub use effect_resolution::{
+    resolve_effect,
+    EffectResolutionError,
+    EffectTargetSelection,
+    ResolvedEffect,
+    ResolvedEffectOperation,
 };
 pub use events::{
     CombatEventContext,
