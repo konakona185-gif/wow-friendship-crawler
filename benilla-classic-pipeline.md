@@ -111,7 +111,13 @@ Moduli attualmente presenti:
 - `src/combat/damage.rs`
 - `src/combat/death.rs`
 - `src/combat/effect_magnitude.rs`
+- `src/combat/effect_execution.rs`
 - `src/combat/effect_resolution.rs`
+- `src/combat/effect_runtime.rs`
+- `src/combat/effect_dispatcher.rs`
+- `src/combat/aura_execution.rs`
+- `src/combat/aura_runtime.rs`
+- `src/combat/aura_systems.rs`
 - `src/combat/enemy_ai.rs`
 - `src/combat/enemy_attacks.rs`
 - `src/combat/events.rs`
@@ -151,6 +157,7 @@ Percorso principale: `src/content.rs`
 Moduli:
 
 - `src/content/ability.rs`
+- `src/content/aura.rs`
 - `src/content/combat_attribute.rs`
 - `src/content/database.rs`
 - `src/content/damage_school.rs`
@@ -184,6 +191,7 @@ Sono già presenti:
 - Definizioni degli attributi di combattimento.
 - Definizioni delle risorse.
 - Definizioni degli effetti.
+- Definizioni delle aure, incluse politiche configurabili di stacking, scope di applicazione, refresh e scaling degli effetti periodici.
 - Definizioni delle abilità.
 - Definizioni degli alberi e dei talenti.
 - Database centrale dei contenuti.
@@ -376,6 +384,20 @@ Sono stati superati sia i controlli Linux sia quelli Windows, comprendenti compi
 
 Riferimento: https://github.com/konakona185-gif/wow-friendship-crawler/actions/runs/41326117971
 
+### Verifica della revisione corrente
+
+- Revisione: `4208e9a5c084b5b76353143c6ac6b769b6eefc76`.
+- Flusso di lavoro: numero 372.
+- Identificativo: `41727513526`.
+- Stato all'ultimo controllo del 3 novembre 2026: `in_progress`.
+- Formattazione Rust: superata.
+- Cache Rust: in esecuzione.
+- Controllo statico di tutti i target Rust: ancora in attesa.
+
+Riferimento: https://github.com/konakona185-gif/wow-friendship-crawler/actions/runs/41727513526
+
+La revisione corrente non è ancora certificata come superata. Aggiornare questo stato soltanto dopo aver verificato il risultato finale del workflow associato esattamente a questo SHA.
+
 Questo risultato certifica esclusivamente quella specifica revisione. Le modifiche successive devono essere verificate tramite i rispettivi flussi di lavoro.
 
 Non considerare una CI superata finché il relativo workflow sulla revisione esatta non riporta `success`.
@@ -425,42 +447,58 @@ La fase è conclusa a livello di fondamenta tecniche. L'integrazione operativa c
 
 ### Fase 3 — Sistema di esecuzione degli effetti
 
-**Stato: in corso**
+**Stato: in corso — stima orientativa: circa 75%.**
 
 Implementazione di un sistema centralizzato e modulare capace di trasformare le definizioni degli effetti in operazioni valide e di applicarle realmente alle entità del gioco.
 
-Componenti già realizzati:
+Componenti già realizzate:
 
 - Calcolo della magnitudine degli effetti tramite attributi e coefficienti di scaling.
 - Risoluzione delle definizioni degli effetti.
-- Preparazione di richieste di danno, guarigione e risorse.
-- Risoluzione dei bersagli caster, selezionati e ad area.
-- Validazione delle selezioni e prevenzione dei bersagli duplicati.
-- Rappresentazione delle operazioni risolte.
-- Integrazione di `ContentDatabase` come Resource Bevy.
+- Esecutore ECS degli effetti e coda delle operazioni in attesa.
+- Operazioni di base per danno, guarigione e risorse.
+- Applicazione e rimozione delle aure.
+- Gestione delle istanze attive tramite `ActiveAuras`, con stack, durata, tick temporale e rimozione.
+- Sistema di aggiornamento delle aure e rilevamento della scadenza.
+- Accodamento degli eventi `OnExpire`.
+- Dispatcher degli eventi reattivi con supporto ai trigger `OnExpire` e `OnPeriodicTick`.
+- Esito `AuraExpired` con identificazione dell'aura e numero di stack.
+- Coda eventi con gestione FIFO e generazioni.
+- Modello dati delle aure con `AuraStackingScope` (`Shared` / `PerCaster`), `AuraRefreshPolicy` (`ResetDuration` / `Pandemic`) e `PeriodicEffectStackScaling` (`None` / `Linear`).
+- Test dell'esecuzione delle operazioni sulle entità ECS e test end-to-end della scadenza delle aure.
+
+Comportamenti già verificati e invarianti da preservare:
+
+- Gli eventi reattivi accodati durante un aggiornamento vengono eseguiti nell'Update successivo, non nello stesso frame.
+- Alla scadenza di un'aura, la sorgente dell'evento `OnExpire` è il caster originale e il bersaglio è il proprietario dell'aura.
+- Il dispatcher supporta già `OnPeriodicTick`, ma al momento nessun runtime periodico produce ancora questi eventi.
+- `CombatEffectSubscriptions` viene ancora popolato manualmente o nei test; non è ancora collegato automaticamente alle abilità.
+
+Modello dati delle aure e regole di comportamento:
+
+- Il riferimento progettuale per buff e debuff è WoW Retail.
+- Lo scope `Shared` o `PerCaster` deve essere selezionabile per ogni aura.
+- La politica di stacking deve essere componibile con lo scope: il runtime dovrà chiarire e testare come si raggruppano gli stack per bersaglio e per caster.
+- Il refresh normale (`ResetDuration`) e Pandemic sono configurabili separatamente per aura.
+- Pandemic, quando abilitato, conserva la durata residua entro il limite del 30% della durata base e la aggiunge alla nuova durata.
+- Lo scaling degli effetti periodici con gli stack può essere disabilitato oppure lineare.
+- Questi campi sono attualmente presenti nel modello dati: non considerarli ancora meccaniche operative finché il runtime non li applica e i relativi test non lo dimostrano.
 
 Attività ancora da completare:
 
-1. Caricamento effettivo dei pacchetti di contenuti nel runtime.
-2. Collegamento del database ai sistemi di esecuzione.
-3. Applicazione effettiva del danno alle `HealthPool`.
-4. Integrazione della mitigazione con scuole di danno, armatura, resistenze e livello dell'attaccante.
-5. Applicazione effettiva delle guarigioni.
-6. Applicazione effettiva delle modifiche alle risorse.
-7. Sistema di applicazione e rimozione di buff e debuff.
-8. Gestione delle durate e degli stack delle aure.
-9. Gestione degli effetti periodici.
-10. Gestione della minaccia.
-11. Gestione delle interruzioni.
-12. Gestione degli spostamenti.
-13. Gestione delle evocazioni.
-14. Gestione degli effetti personalizzati.
-15. Integrazione con il contesto e i trigger degli eventi di combattimento.
-16. Test end-to-end delle operazioni sulle entità ECS.
+1. Implementare il runtime dei tick periodici: accumulo del tempo, gestione degli intervalli e produzione degli eventi `OnPeriodicTick`.
+2. Collegare i tick periodici al dispatcher e all'esecutore degli effetti, rispettando la semantica di esecuzione nell'Update successivo.
+3. Rendere operative le regole Shared / PerCaster e la composizione tra scope e politica di stacking.
+4. Rendere operativo il refresh normale e Pandemic, con test sui limiti della durata residua.
+5. Rendere operativo lo scaling degli effetti periodici in base agli stack.
+6. Collegare automaticamente le sottoscrizioni degli effetti reattivi alle abilità quando sarà disponibile il runtime delle abilità.
+7. Completare il caricamento dei pacchetti RON effettivi nel runtime e l'integrazione del database con i sistemi di combattimento.
+8. Completare l'acquisizione runtime dei bersagli ad area in base a posizione, squadra e raggio.
+9. Integrare minaccia, interruzioni, spostamenti ed evocazioni.
+10. Implementare e integrare gli handler per gli effetti personalizzati.
+11. Completare i test end-to-end delle operazioni, delle aure e degli effetti reattivi.
 
-Per gli effetti ad area il resolver riceve già gli enti selezionati, ma resta da realizzare l'integrazione con il sistema che individua effettivamente i bersagli in base a posizione, squadra e raggio.
-
-La fase sarà considerata completa soltanto quando le operazioni risolte potranno essere applicate concretamente e correttamente nel mondo di gioco.
+La stima del 75% è indicativa e descrive l'avanzamento complessivo della fase, non una percentuale di test superati. La fase sarà considerata completa soltanto quando le operazioni risolte e le meccaniche elencate saranno applicate correttamente nel mondo di gioco e coperte da test adeguati.
 
 ### Fase 4 — Sistema di esecuzione delle abilità
 
@@ -647,16 +685,16 @@ Comprenderà:
 
 L'ordine di lavoro attuale è:
 
-1. Completare il caricamento effettivo dei pacchetti RON nel runtime.
-2. Rendere il database dei contenuti accessibile ai sistemi di combattimento.
-3. Implementare l'applicazione effettiva delle operazioni risolte alle entità ECS.
-4. Collegare correttamente danni, mitigazioni, guarigioni e risorse.
-5. Implementare buff, debuff, aure e relativi timer.
-6. Implementare effetti periodici.
-7. Integrare minaccia, interruzioni, spostamenti ed evocazioni.
-8. Collegare la gestione degli effetti agli eventi di combattimento.
-9. Completare i test di integrazione della fase 3.
-10. Avviare la fase 4 dedicata all'esecuzione delle abilità.
+1. Verificare l'esito della CI sulla revisione corrente `4208e9a5c084b5b76353143c6ac6b769b6eefc76`.
+2. Implementare il runtime dei tick periodici e l'emissione di `OnPeriodicTick`.
+3. Collegare i tick periodici a dispatcher ed esecutore.
+4. Rendere operative le politiche di stacking, scope Shared / PerCaster, refresh Pandemic e scaling periodico.
+5. Collegare automaticamente le sottoscrizioni degli effetti reattivi al runtime delle abilità.
+6. Completare caricamento RON e integrazione runtime del database.
+7. Completare acquisizione dei bersagli ad area.
+8. Integrare minaccia, interruzioni, spostamenti, evocazioni ed effetti personalizzati.
+9. Completare i test end-to-end della Fase 3.
+10. Avviare la Fase 4 dedicata all'esecuzione delle abilità.
 11. Sostituire progressivamente le meccaniche provvisorie soltanto quando le alternative definitive saranno pronte.
 
 Le attività dovranno procedere un file alla volta, evitando di anticipare integrazioni che richiederebbero meccaniche ancora mancanti.
