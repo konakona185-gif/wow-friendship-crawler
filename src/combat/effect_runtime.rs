@@ -25,6 +25,7 @@ use super::{
     EffectTrigger,
     HealthPool,
     ResolvedEffect,
+    ResourceOperation,
 };
 
 #[derive(Resource, Default)]
@@ -143,7 +144,10 @@ fn enqueue_execution_events(
             }
 
             (
-                vec![effect.trigger],
+                vec![
+                    EffectTrigger::OnHealDealt,
+                    EffectTrigger::OnHealTaken,
+                ],
                 CombatEventOutcome::Healing(resolution.clone()),
             )
         }
@@ -152,8 +156,17 @@ fn enqueue_execution_events(
                 return;
             }
 
+            let trigger = match resolution.request.operation {
+                ResourceOperation::Gain => {
+                    EffectTrigger::OnResourceGained
+                }
+                ResourceOperation::Spend => {
+                    EffectTrigger::OnResourceSpent
+                }
+            };
+
             (
-                vec![effect.trigger],
+                vec![trigger],
                 CombatEventOutcome::Resource(resolution.clone()),
             )
         }
@@ -416,6 +429,16 @@ mod tests {
 
     fn target_two() -> Entity {
         Entity::from_bits(3)
+    }
+
+    fn event_test_effect() -> ResolvedEffect {
+        ResolvedEffect {
+            effect: content_id("effect.event_test"),
+            trigger: EffectTrigger::OnCast,
+            source: Some(source()),
+            target: target(),
+            operation: super::super::ResolvedEffectOperation::Interrupt,
+        }
     }
 
     #[test]
@@ -782,5 +805,160 @@ mod tests {
             .unwrap();
 
         assert_eq!(health.current(), 0.0);
+    }
+
+    #[test]
+    fn runtime_emits_healing_dealt_and_taken_events() {
+        let request = super::super::HealingRequest {
+            source: Some(source()),
+            target: target(),
+            base_amount: 25.0,
+        };
+
+        let resolution = super::super::HealingResolution::new(
+            request,
+            25.0,
+        )
+        .unwrap();
+
+        let result = EffectExecutionResult::Healing {
+            resolution,
+            applied_amount: 25.0,
+        };
+
+        let effect = event_test_effect();
+        let mut event_queue = CombatEventQueue::default();
+
+        enqueue_execution_events(
+            &mut event_queue,
+            &effect,
+            &result,
+        );
+
+        let events = event_queue.drain();
+
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            events[0].trigger,
+            EffectTrigger::OnHealDealt
+        );
+        assert_eq!(
+            events[1].trigger,
+            EffectTrigger::OnHealTaken
+        );
+
+        for event in &events {
+            assert_eq!(event.source, Some(source()));
+            assert_eq!(event.target, Some(target()));
+            assert!(matches!(
+                &event.outcome,
+                Some(CombatEventOutcome::Healing(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn runtime_uses_the_correct_resource_event_trigger() {
+        for (operation, expected_trigger) in [
+            (
+                ResourceOperation::Gain,
+                EffectTrigger::OnResourceGained,
+            ),
+            (
+                ResourceOperation::Spend,
+                EffectTrigger::OnResourceSpent,
+            ),
+        ] {
+            let request = super::super::ResourceRequest {
+                source: Some(source()),
+                target: target(),
+                resource: content_id("resource.mana"),
+                operation,
+                base_amount: 20.0,
+            };
+
+            let resolution = super::super::ResourceResolution::new(
+                request,
+                20.0,
+            )
+            .unwrap();
+
+            let result = EffectExecutionResult::Resource(resolution);
+
+            let effect = event_test_effect();
+            let mut event_queue = CombatEventQueue::default();
+
+            enqueue_execution_events(
+                &mut event_queue,
+                &effect,
+                &result,
+            );
+
+            let events = event_queue.drain();
+
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0].trigger, expected_trigger);
+            assert_eq!(events[0].source, Some(source()));
+            assert_eq!(events[0].target, Some(target()));
+            assert!(matches!(
+                &events[0].outcome,
+                Some(CombatEventOutcome::Resource(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn runtime_does_not_emit_healing_or_resource_events_for_zero_amounts() {
+        let healing_request = super::super::HealingRequest {
+            source: Some(source()),
+            target: target(),
+            base_amount: 25.0,
+        };
+
+        let healing_resolution = super::super::HealingResolution::new(
+            healing_request,
+            0.0,
+        )
+        .unwrap();
+
+        let healing_result = EffectExecutionResult::Healing {
+            resolution: healing_resolution,
+            applied_amount: 0.0,
+        };
+
+        let resource_request = super::super::ResourceRequest {
+            source: Some(source()),
+            target: target(),
+            resource: content_id("resource.mana"),
+            operation: ResourceOperation::Gain,
+            base_amount: 20.0,
+        };
+
+        let resource_resolution = super::super::ResourceResolution::new(
+            resource_request,
+            0.0,
+        )
+        .unwrap();
+
+        let resource_result = EffectExecutionResult::Resource(
+            resource_resolution,
+        );
+
+        let effect = event_test_effect();
+        let mut event_queue = CombatEventQueue::default();
+
+        enqueue_execution_events(
+            &mut event_queue,
+            &effect,
+            &healing_result,
+        );
+
+        enqueue_execution_events(
+            &mut event_queue,
+            &effect,
+            &resource_result,
+        );
+
+        assert!(event_queue.is_empty());
     }
 }
