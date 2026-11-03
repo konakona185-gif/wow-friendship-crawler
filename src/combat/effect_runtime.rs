@@ -374,4 +374,8 @@ pub(super) fn execute_pending_effects(
 }
 
 #[cfg(test)]
+#[path = "effect_runtime/aura_tests.rs"]
+mod aura_tests;
+
+#[cfg(test)]
 mod tests;
