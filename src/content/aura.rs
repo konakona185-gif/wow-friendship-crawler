@@ -13,6 +13,10 @@ pub struct AuraDefinition {
     pub max_stacks: u32,
     pub stacking_policy: AuraStackingPolicy,
     #[serde(default)]
+    pub stacking_scope: AuraStackingScope,
+    #[serde(default)]
+    pub refresh_policy: AuraRefreshPolicy,
+    #[serde(default)]
     pub periodic_effects: Vec<PeriodicAuraEffect>,
 }
 
@@ -44,6 +48,32 @@ impl AuraDefinition {
 pub struct PeriodicAuraEffect {
     pub effect: ContentId,
     pub interval_seconds: f32,
+    #[serde(default)]
+    pub stack_scaling: PeriodicEffectStackScaling,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuraStackingScope {
+    #[default]
+    Shared,
+    PerCaster,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuraRefreshPolicy {
+    #[default]
+    ResetDuration,
+    Pandemic,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PeriodicEffectStackScaling {
+    #[default]
+    None,
+    Linear,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -108,6 +138,8 @@ mod tests {
             },
             max_stacks: 5,
             stacking_policy: AuraStackingPolicy::AddStacks,
+            stacking_scope: AuraStackingScope::Shared,
+            refresh_policy: AuraRefreshPolicy::ResetDuration,
             periodic_effects: Vec::new(),
         }
     }
@@ -138,6 +170,7 @@ mod tests {
             )
             .unwrap(),
             interval_seconds: 0.0,
+            stack_scaling: PeriodicEffectStackScaling::None,
         });
 
         assert_eq!(
@@ -174,12 +207,16 @@ mod tests {
     fn aura_supports_ron_serialization() {
         let mut original = valid_aura();
 
+        original.stacking_scope = AuraStackingScope::PerCaster;
+        original.refresh_policy = AuraRefreshPolicy::Pandemic;
+
         original.periodic_effects.push(PeriodicAuraEffect {
             effect: ContentId::new(
                 "classic_1_12_1:effect.periodic_test"
             )
             .unwrap(),
             interval_seconds: 3.0,
+            stack_scaling: PeriodicEffectStackScaling::Linear,
         });
 
         let serialized = ron::to_string(&original).unwrap();
@@ -188,6 +225,42 @@ mod tests {
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());
+    }
+
+    #[test]
+    fn aura_policies_support_ron_serialization() {
+        for scope in [
+            AuraStackingScope::Shared,
+            AuraStackingScope::PerCaster,
+        ] {
+            let serialized = ron::to_string(&scope).unwrap();
+            let restored: AuraStackingScope =
+                ron::from_str(&serialized).unwrap();
+
+            assert_eq!(restored, scope);
+        }
+
+        for policy in [
+            AuraRefreshPolicy::ResetDuration,
+            AuraRefreshPolicy::Pandemic,
+        ] {
+            let serialized = ron::to_string(&policy).unwrap();
+            let restored: AuraRefreshPolicy =
+                ron::from_str(&serialized).unwrap();
+
+            assert_eq!(restored, policy);
+        }
+
+        for scaling in [
+            PeriodicEffectStackScaling::None,
+            PeriodicEffectStackScaling::Linear,
+        ] {
+            let serialized = ron::to_string(&scaling).unwrap();
+            let restored: PeriodicEffectStackScaling =
+                ron::from_str(&serialized).unwrap();
+
+            assert_eq!(restored, scaling);
+        }
     }
 
     #[test]
