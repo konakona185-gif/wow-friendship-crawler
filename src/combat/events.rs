@@ -137,9 +137,15 @@ impl CombatEffectSubscriptions {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct QueuedCombatEvent {
+    context: CombatEventContext,
+    generation: u8,
+}
+
 #[derive(Resource, Default)]
 pub struct CombatEventQueue {
-    pending: VecDeque<CombatEventContext>,
+    pending: VecDeque<QueuedCombatEvent>,
 }
 
 impl CombatEventQueue {
@@ -147,15 +153,36 @@ impl CombatEventQueue {
         &mut self,
         event: CombatEventContext,
     ) -> Result<(), CombatEventContextError> {
+        self.enqueue_with_generation(event, 0)
+    }
+
+    pub fn enqueue_with_generation(
+        &mut self,
+        event: CombatEventContext,
+        generation: u8,
+    ) -> Result<(), CombatEventContextError> {
         event.validate()?;
 
-        self.pending.push_back(event);
+        self.pending.push_back(QueuedCombatEvent {
+            context: event,
+            generation,
+        });
 
         Ok(())
     }
 
     pub fn drain(&mut self) -> Vec<CombatEventContext> {
-        self.pending.drain(..).collect()
+        self.drain_with_generation()
+            .into_iter()
+            .map(|(event, _)| event)
+            .collect()
+    }
+
+    pub fn drain_with_generation(&mut self) -> Vec<(CombatEventContext, u8)> {
+        self.pending
+            .drain(..)
+            .map(|queued| (queued.context, queued.generation))
+            .collect()
     }
 
     pub fn len(&self) -> usize {
@@ -397,6 +424,45 @@ mod tests {
 
         assert_eq!(drained, vec![first, second]);
         assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn event_queue_preserves_generation_metadata() {
+        let mut queue = CombatEventQueue::default();
+
+        let first = valid_context(EffectTrigger::OnCast);
+        let second = valid_context(EffectTrigger::OnDamageDealt);
+
+        queue
+            .enqueue_with_generation(first.clone(), 0)
+            .unwrap();
+        queue
+            .enqueue_with_generation(second.clone(), 7)
+            .unwrap();
+
+        let drained = queue.drain_with_generation();
+
+        assert_eq!(
+            drained,
+            vec![
+                (first, 0),
+                (second, 7),
+            ]
+        );
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn event_queue_uses_generation_zero_for_standard_enqueue() {
+        let mut queue = CombatEventQueue::default();
+        let event = valid_context(EffectTrigger::OnCast);
+
+        queue.enqueue(event.clone()).unwrap();
+
+        assert_eq!(
+            queue.drain_with_generation(),
+            vec![(event, 0)]
+        );
     }
 
     #[test]
