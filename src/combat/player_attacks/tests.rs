@@ -122,6 +122,81 @@ fn defeated_targets_cannot_receive_additional_player_casts() {
 }
 
 #[test]
+fn defeated_targets_with_health_pool_cannot_receive_player_casts() {
+    let mut app = setup_player_cast_test_app();
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi::default(),
+        EnemyThreat::default(),
+        CombatStats {
+            current_health: 100.0,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+        HealthPool::new(0.0, 100.0).unwrap(),
+    )).id();
+
+    let player = spawn_player_for_cast(
+        &mut app,
+        enemy,
+        FellowshipRole::Dps,
+        100.0,
+    );
+
+    app.update();
+
+    let enemy_pool = app.world().get::<HealthPool>(enemy).unwrap();
+    let enemy_stats = app.world().get::<CombatStats>(enemy).unwrap();
+    let player_stats = app.world().get::<CombatStats>(player).unwrap();
+
+    assert_eq!(enemy_pool.current(), 0.0);
+    assert_eq!(enemy_stats.current_health, 0.0);
+    assert_eq!(player_stats.resource, 100.0);
+}
+
+#[test]
+fn living_targets_with_health_pool_can_receive_player_casts_when_stats_are_stale() {
+    let mut app = setup_player_cast_test_app();
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi::default(),
+        EnemyThreat::default(),
+        CombatStats {
+            current_health: 0.0,
+            max_health: 80.0,
+            resource: 0.0,
+        },
+        HealthPool::new(5.0, 100.0).unwrap(),
+    )).id();
+
+    let player = spawn_player_for_cast(
+        &mut app,
+        enemy,
+        FellowshipRole::Tank,
+        0.0,
+    );
+
+    app.update();
+
+    let enemy_pool = app.world().get::<HealthPool>(enemy).unwrap();
+    let enemy_stats = app.world().get::<CombatStats>(enemy).unwrap();
+    let player_stats = app.world().get::<CombatStats>(player).unwrap();
+    let threat = app.world().get::<EnemyThreat>(enemy).unwrap();
+
+    assert_eq!(enemy_pool.current(), 0.0);
+    assert_eq!(enemy_stats.current_health, 0.0);
+    assert_eq!(enemy_stats.max_health, 100.0);
+    assert_eq!(player_stats.resource, 20.0);
+
+    assert_eq!(
+        threat.values.get(&player),
+        Some(&(5.0 * DEFAULT_TANK_THREAT_MULTIPLIER))
+    );
+}
+
+#[test]
 fn returning_enemies_are_immune_to_player_abilities() {
     let mut app = App::new();
     app.add_systems(Update, player_cast_system);
