@@ -26,23 +26,54 @@ use super::{
     HealthPool,
     ResolvedEffect,
     ResourceOperation,
+    MAX_REACTIVE_EFFECT_GENERATIONS,
 };
+
+#[derive(Clone, Debug, PartialEq)]
+struct PendingEffect {
+    effect: ResolvedEffect,
+    generation: u8,
+}
 
 #[derive(Resource, Default)]
 pub struct PendingCombatEffects {
-    pending: VecDeque<ResolvedEffect>,
+    pending: VecDeque<PendingEffect>,
 }
 
 impl PendingCombatEffects {
     pub fn enqueue(&mut self, effect: ResolvedEffect) {
-        self.pending.push_back(effect);
+        self.enqueue_with_generation(effect, 0);
+    }
+
+    pub fn enqueue_with_generation(
+        &mut self,
+        effect: ResolvedEffect,
+        generation: u8,
+    ) {
+        self.pending.push_back(PendingEffect {
+            effect,
+            generation,
+        });
     }
 
     pub fn enqueue_all(
         &mut self,
         effects: impl IntoIterator<Item = ResolvedEffect>,
     ) {
-        self.pending.extend(effects);
+        self.enqueue_all_with_generation(effects, 0);
+    }
+
+    pub fn enqueue_all_with_generation(
+        &mut self,
+        effects: impl IntoIterator<Item = ResolvedEffect>,
+        generation: u8,
+    ) {
+        self.pending.extend(
+            effects.into_iter().map(|effect| PendingEffect {
+                effect,
+                generation,
+            }),
+        );
     }
 
     pub fn resolve_and_enqueue_from_database(
@@ -52,6 +83,25 @@ impl PendingCombatEffects {
         source: Option<Entity>,
         target_selection: EffectTargetSelection,
         source_attributes: &CombatAttributes,
+    ) -> Result<usize, EffectQueueError> {
+        self.resolve_and_enqueue_from_database_with_generation(
+            database,
+            effect_id,
+            source,
+            target_selection,
+            source_attributes,
+            0,
+        )
+    }
+
+    pub fn resolve_and_enqueue_from_database_with_generation(
+        &mut self,
+        database: &ContentDatabase,
+        effect_id: &ContentId,
+        source: Option<Entity>,
+        target_selection: EffectTargetSelection,
+        source_attributes: &CombatAttributes,
+        generation: u8,
     ) -> Result<usize, EffectQueueError> {
         let definition = database
             .effect(effect_id)
@@ -71,7 +121,10 @@ impl PendingCombatEffects {
 
         let count = resolved_effects.len();
 
-        self.enqueue_all(resolved_effects);
+        self.enqueue_all_with_generation(
+            resolved_effects,
+            generation,
+        );
 
         Ok(count)
     }
@@ -117,6 +170,7 @@ fn enqueue_execution_events(
     event_queue: &mut CombatEventQueue,
     effect: &ResolvedEffect,
     result: &EffectExecutionResult,
+    generation: u8,
 ) {
     let (triggers, outcome) = match result {
         EffectExecutionResult::Damage {
@@ -182,7 +236,10 @@ fn enqueue_execution_events(
             outcome: Some(outcome.clone()),
         };
 
-        if let Err(error) = event_queue.enqueue(event) {
+        if let Err(error) = event_queue.enqueue_with_generation(
+            event,
+            generation,
+        ) {
             warn!(
                 effect = ?effect.effect,
                 target = ?effect.target,
@@ -207,7 +264,10 @@ pub(super) fn execute_pending_effects(
 ) {
     let effects = std::mem::take(&mut pending.pending);
 
-    for effect in effects {
+    for queued_effect in effects {
+        let effect = queued_effect.effect;
+        let generation = queued_effect.generation;
+
         let attacker_level = effect
             .source
             .and_then(|source| attacker_levels.get(source).ok())
@@ -253,11 +313,13 @@ pub(super) fn execute_pending_effects(
                     &mut event_queue,
                     &effect,
                     &result,
+                    generation,
                 );
 
                 debug!(
                     effect = ?effect.effect,
                     target = ?effect.target,
+                    generation,
                     result = ?result,
                     "Effetto di combattimento eseguito."
                 );
@@ -455,6 +517,11 @@ mod tests {
 
         assert_eq!(pending.len(), 1);
         assert!(!pending.is_empty());
+
+        assert_eq!(
+            pending.pending.front().unwrap().generation,
+            0
+        );
     }
 
     #[test]
@@ -479,6 +546,13 @@ mod tests {
         ]);
 
         assert_eq!(pending.len(), 2);
+
+        assert!(
+            pending
+                .pending
+                .iter()
+                .all(|effect| effect.generation == 0)
+        );
     }
 
     #[test]
@@ -505,7 +579,7 @@ mod tests {
         let queued_ids: Vec<ContentId> = pending
             .pending
             .iter()
-            .map(|effect| effect.effect.clone())
+            .map(|queued| queued.effect.effect.clone())
             .collect();
 
         assert_eq!(
@@ -514,6 +588,60 @@ mod tests {
                 content_id("effect.first"),
                 content_id("effect.second"),
             ]
+        );
+    }
+
+    #[test]
+    fn pending_effects_preserve_explicit_generation() {
+        let mut pending = PendingCombatEffects::default();
+
+        pending.enqueue_with_generation(
+            ResolvedEffect {
+                effect: content_id("effect.first"),
+                trigger: EffectTrigger::OnCast,
+                source: None,
+                target: target(),
+                operation: super::super::ResolvedEffectOperation::Interrupt,
+            },
+            5,
+        );
+
+        assert_eq!(
+            pending.pending.front().unwrap().generation,
+            5
+        );
+    }
+
+    #[test]
+    fn pending_effects_apply_generation_to_multiple_effects() {
+        let mut pending = PendingCombatEffects::default();
+
+        pending.enqueue_all_with_generation(
+            vec![
+                ResolvedEffect {
+                    effect: content_id("effect.first"),
+                    trigger: EffectTrigger::OnCast,
+                    source: None,
+                    target: target(),
+                    operation: super::super::ResolvedEffectOperation::Interrupt,
+                },
+                ResolvedEffect {
+                    effect: content_id("effect.second"),
+                    trigger: EffectTrigger::OnCast,
+                    source: None,
+                    target: target_two(),
+                    operation: super::super::ResolvedEffectOperation::Interrupt,
+                },
+            ],
+            3,
+        );
+
+        assert_eq!(pending.len(), 2);
+        assert!(
+            pending
+                .pending
+                .iter()
+                .all(|effect| effect.generation == 3)
         );
     }
 
@@ -548,12 +676,39 @@ mod tests {
 
         let queued = pending.pending.front().unwrap();
 
-        assert_eq!(queued.effect, effect_id);
-        assert_eq!(queued.source, Some(source()));
-        assert_eq!(queued.target, target());
+        assert_eq!(queued.effect.effect, effect_id);
+        assert_eq!(queued.effect.source, Some(source()));
+        assert_eq!(queued.effect.target, target());
         assert_eq!(
-            queued.operation,
+            queued.effect.operation,
             super::super::ResolvedEffectOperation::Interrupt
+        );
+        assert_eq!(queued.generation, 0);
+    }
+
+    #[test]
+    fn database_effects_preserve_requested_generation() {
+        let (database, effect_id) = test_database(
+            EffectTarget::SelectedTarget,
+        );
+
+        let mut pending = PendingCombatEffects::default();
+
+        let count = pending
+            .resolve_and_enqueue_from_database_with_generation(
+                &database,
+                &effect_id,
+                Some(source()),
+                EffectTargetSelection::Selected(target()),
+                &CombatAttributes::default(),
+                4,
+            )
+            .unwrap();
+
+        assert_eq!(count, 1);
+        assert_eq!(
+            pending.pending.front().unwrap().generation,
+            4
         );
     }
 
@@ -586,7 +741,7 @@ mod tests {
         let targets: Vec<Entity> = pending
             .pending
             .iter()
-            .map(|effect| effect.target)
+            .map(|queued| queued.effect.target)
             .collect();
 
         assert_eq!(
@@ -726,27 +881,72 @@ mod tests {
         let events = app
             .world_mut()
             .resource_mut::<CombatEventQueue>()
-            .drain();
+            .drain_with_generation();
 
         assert_eq!(events.len(), 2);
         assert_eq!(
-            events[0].trigger,
+            events[0].0.trigger,
             EffectTrigger::OnDamageDealt
         );
         assert_eq!(
-            events[1].trigger,
+            events[1].0.trigger,
             EffectTrigger::OnDamageTaken
         );
 
-        for event in &events {
+        for (event, generation) in &events {
             assert_eq!(event.source, Some(source_entity));
             assert_eq!(event.target, Some(target_entity));
             assert_eq!(event.effect, Some(effect_id.clone()));
+            assert_eq!(*generation, 0);
             assert!(matches!(
                 &event.outcome,
                 Some(CombatEventOutcome::Damage(_))
             ));
         }
+    }
+
+    #[test]
+    fn runtime_preserves_generation_when_emitting_events() {
+        let request = super::super::DamageRequest {
+            source: Some(source()),
+            target: target(),
+            base_amount: 100.0,
+            school: content_id("school.physical"),
+        };
+
+        let resolution = super::super::DamageResolution::new(
+            request,
+            super::super::DamageMitigationResult::new(
+                100.0,
+                25.0,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        let result = EffectExecutionResult::Damage {
+            resolution,
+            applied_amount: 75.0,
+        };
+
+        let effect = event_test_effect();
+        let mut event_queue = CombatEventQueue::default();
+
+        enqueue_execution_events(
+            &mut event_queue,
+            &effect,
+            &result,
+            6,
+        );
+
+        let events = event_queue.drain_with_generation();
+
+        assert_eq!(events.len(), 2);
+        assert!(
+            events
+                .iter()
+                .all(|(_, generation)| *generation == 6)
+        );
     }
 
     #[test]
@@ -833,6 +1033,7 @@ mod tests {
             &mut event_queue,
             &effect,
             &result,
+            0,
         );
 
         let events = event_queue.drain();
@@ -892,6 +1093,7 @@ mod tests {
                 &mut event_queue,
                 &effect,
                 &result,
+                0,
             );
 
             let events = event_queue.drain();
@@ -951,14 +1153,21 @@ mod tests {
             &mut event_queue,
             &effect,
             &healing_result,
+            0,
         );
 
         enqueue_execution_events(
             &mut event_queue,
             &effect,
             &resource_result,
+            0,
         );
 
         assert!(event_queue.is_empty());
+    }
+
+    #[test]
+    fn generation_limit_is_available_to_runtime() {
+        assert_eq!(MAX_REACTIVE_EFFECT_GENERATIONS, 16);
     }
 }
