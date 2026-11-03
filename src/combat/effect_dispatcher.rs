@@ -26,7 +26,8 @@ fn event_participants(
         EffectTrigger::OnDamageTaken
         | EffectTrigger::OnHealTaken
         | EffectTrigger::OnResourceGained
-        | EffectTrigger::OnResourceSpent => {
+        | EffectTrigger::OnResourceSpent
+        | EffectTrigger::OnExpire => {
             Some((event.target?, event.source))
         }
         _ => None,
@@ -122,6 +123,7 @@ mod tests {
     use super::*;
 
     use super::super::{
+        CombatEventOutcome,
         CombatLevel,
         CombatStats,
         DamageRequest,
@@ -400,6 +402,36 @@ mod tests {
     }
 
     #[test]
+    fn aura_expiration_events_use_owner_as_subscriber() {
+        assert_eq!(
+            event_participants(&event(
+                EffectTrigger::OnExpire,
+                Some(source()),
+                Some(target()),
+            )),
+            Some((target(), Some(source())))
+        );
+
+        assert_eq!(
+            event_participants(&event(
+                EffectTrigger::OnExpire,
+                None,
+                Some(target()),
+            )),
+            Some((target(), None))
+        );
+
+        assert_eq!(
+            event_participants(&event(
+                EffectTrigger::OnExpire,
+                Some(source()),
+                None,
+            )),
+            None
+        );
+    }
+
+    #[test]
     fn unsupported_triggers_do_not_select_subscribers() {
         for trigger in [
             EffectTrigger::OnCast,
@@ -409,7 +441,6 @@ mod tests {
             EffectTrigger::OnKill,
             EffectTrigger::OnDodge,
             EffectTrigger::OnBlock,
-            EffectTrigger::OnExpire,
         ] {
             assert_eq!(
                 event_participants(&event(
@@ -460,6 +491,43 @@ mod tests {
                 Some(subscriber),
                 Some(other),
             ))
+            .unwrap();
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<PendingCombatEffects>().len(),
+            1
+        );
+
+        assert!(
+            app.world().resource::<CombatEventQueue>().is_empty()
+        );
+    }
+
+    #[test]
+    fn aura_expiration_event_enqueues_matching_reactive_effect() {
+        let (mut app, effect_id) = test_application(
+            EffectTrigger::OnExpire,
+            EffectTarget::SelectedTarget,
+        );
+
+        let owner = spawn_subscriber(&mut app, effect_id);
+        let applier = app.world_mut().spawn_empty().id();
+
+        app.world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .enqueue(CombatEventContext {
+                trigger: EffectTrigger::OnExpire,
+                source: Some(applier),
+                target: Some(owner),
+                ability: None,
+                effect: None,
+                outcome: Some(CombatEventOutcome::AuraExpired {
+                    aura: classic_content_id("aura.test"),
+                    stacks: 2,
+                }),
+            })
             .unwrap();
 
         app.update();
