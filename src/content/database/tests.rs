@@ -84,6 +84,34 @@ fn aura() -> AuraDefinition {
     }
 }
 
+fn aura_effect(
+    id: &str,
+    aura_id: &str,
+    apply: bool,
+) -> EffectDefinition {
+    let aura = ContentId::new(aura_id).unwrap();
+
+    let kind = if apply {
+        EffectKind::ApplyAura {
+            aura,
+            stacks: 1,
+            duration_seconds: Some(10.0),
+        }
+    } else {
+        EffectKind::RemoveAura {
+            aura,
+            stacks: None,
+        }
+    };
+
+    EffectDefinition {
+        metadata: metadata(id, id),
+        trigger: EffectTrigger::OnCast,
+        target: EffectTarget::SelectedTarget,
+        kind,
+    }
+}
+
 fn damage_effect() -> EffectDefinition {
     EffectDefinition {
         metadata: metadata("classic:effect.strike", "Strike"),
@@ -249,6 +277,64 @@ fn database_rejects_duplicate_ids_between_auras_and_other_content_types() {
 
     assert_eq!(database.aura_count(), 0);
     assert_eq!(database.effect_count(), 1);
+}
+
+#[test]
+fn database_rejects_effects_with_unknown_aura_references() {
+    let unknown_aura =
+        ContentId::new("classic:aura.missing").unwrap();
+
+    for (effect_id, apply) in [
+        ("classic:effect.apply_aura_test", true),
+        ("classic:effect.remove_aura_test", false),
+    ] {
+        let mut database = database_with_classic_pack();
+
+        database
+            .register_effect(aura_effect(
+                effect_id,
+                unknown_aura.as_str(),
+                apply,
+            ))
+            .unwrap();
+
+        assert_eq!(
+            database.validate(),
+            Err(ContentDatabaseError::MissingReference {
+                owner: ContentId::new(effect_id).unwrap(),
+                reference: unknown_aura.clone(),
+            })
+        );
+    }
+}
+
+#[test]
+fn database_accepts_effects_with_registered_aura_references() {
+    let mut database = database_with_classic_pack();
+    let aura = aura();
+    let aura_id = aura.metadata.id.clone();
+
+    database.register_aura(aura).unwrap();
+
+    database
+        .register_effect(aura_effect(
+            "classic:effect.apply_aura_test",
+            aura_id.as_str(),
+            true,
+        ))
+        .unwrap();
+
+    database
+        .register_effect(aura_effect(
+            "classic:effect.remove_aura_test",
+            aura_id.as_str(),
+            false,
+        ))
+        .unwrap();
+
+    assert!(database.validate().is_ok());
+    assert_eq!(database.aura_count(), 1);
+    assert_eq!(database.effect_count(), 2);
 }
 
 #[test]
