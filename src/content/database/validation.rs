@@ -1,3 +1,4 @@
+
 use super::{ContentDatabase, ContentId, TalentDefinition};
 use super::super::{
     AbilityValidationError,
@@ -31,12 +32,21 @@ impl ContentDatabase {
         &self,
     ) -> Result<(), ContentDatabaseError> {
         for (id, school) in &self.damage_schools {
-            if let DamageSchoolMitigation::Resistance { stat } = &school.mitigation {
-                if !self.combat_attributes.contains_key(stat) {
-                    return Err(ContentDatabaseError::MissingReference {
-                        owner: id.clone(),
-                        reference: stat.clone(),
-                    });
+            let components = match &school.mitigation {
+                DamageSchoolMitigation::Composite { components } => {
+                    components.as_slice()
+                }
+                mitigation => std::slice::from_ref(mitigation),
+            };
+
+            for component in components {
+                if let DamageSchoolMitigation::Resistance { stat } = component {
+                    if !self.combat_attributes.contains_key(stat) {
+                        return Err(ContentDatabaseError::MissingReference {
+                            owner: id.clone(),
+                            reference: stat.clone(),
+                        });
+                    }
                 }
             }
         }
