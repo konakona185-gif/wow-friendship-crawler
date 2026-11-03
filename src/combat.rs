@@ -43,6 +43,7 @@ pub use damage::{
     DamageResolutionError,
     DamageSchoolMitigationError,
 };
+pub use crate::content::EffectTrigger;
 pub use effect_execution::{
     execute_resolved_effect,
     EffectExecutionContext,
