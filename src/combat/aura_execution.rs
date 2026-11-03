@@ -137,7 +137,9 @@ mod tests {
 
     use crate::content::{
         AuraDefinition,
+        AuraRefreshPolicy,
         AuraStackingPolicy,
+        AuraStackingScope,
         ContentMetadata,
         ContentPackManifest,
         EffectTrigger,
@@ -169,6 +171,8 @@ mod tests {
             },
             max_stacks: 5,
             stacking_policy: AuraStackingPolicy::AddStacks,
+            stacking_scope: AuraStackingScope::Shared,
+            refresh_policy: AuraRefreshPolicy::ResetDuration,
             periodic_effects: Vec::new(),
         }
     }
