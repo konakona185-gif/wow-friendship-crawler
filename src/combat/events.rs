@@ -1,3 +1,4 @@
+
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
@@ -13,6 +14,8 @@ use super::{
     ResourceResolution,
     ResourceResolutionError,
 };
+
+pub const MAX_REACTIVE_EFFECT_GENERATIONS: u8 = 16;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum CombatEventOutcome {
@@ -362,9 +365,7 @@ mod tests {
         assert_eq!(
             context.validate(),
             Err(CombatEventContextError::InvalidDamage(
-                DamageResolutionError::InvalidMitigation(
-                    super::super::DamageMitigationError::MitigationExceedsIncomingAmount
-                )
+                super::super::DamageMitigationError::MitigationExceedsIncomingAmount
             ))
         );
     }
