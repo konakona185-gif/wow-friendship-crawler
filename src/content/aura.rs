@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 use super::{
+    ContentId,
     ContentMetadata,
     ContentMetadataError,
 };
@@ -11,6 +12,8 @@ pub struct AuraDefinition {
     pub metadata: ContentMetadata,
     pub max_stacks: u32,
     pub stacking_policy: AuraStackingPolicy,
+    #[serde(default)]
+    pub periodic_effects: Vec<PeriodicAuraEffect>,
 }
 
 impl AuraDefinition {
@@ -23,8 +26,24 @@ impl AuraDefinition {
             return Err(AuraValidationError::ZeroMaxStacks);
         }
 
+        for periodic_effect in &self.periodic_effects {
+            if !periodic_effect.interval_seconds.is_finite()
+                || periodic_effect.interval_seconds <= 0.0
+            {
+                return Err(
+                    AuraValidationError::InvalidPeriodicEffectInterval
+                );
+            }
+        }
+
         Ok(())
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PeriodicAuraEffect {
+    pub effect: ContentId,
+    pub interval_seconds: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,6 +59,7 @@ pub enum AuraStackingPolicy {
 pub enum AuraValidationError {
     InvalidMetadata(ContentMetadataError),
     ZeroMaxStacks,
+    InvalidPeriodicEffectInterval,
 }
 
 impl Display for AuraValidationError {
@@ -53,6 +73,9 @@ impl Display for AuraValidationError {
             }
             Self::ZeroMaxStacks => {
                 "Il numero massimo di stack deve essere maggiore di zero"
+            }
+            Self::InvalidPeriodicEffectInterval => {
+                "L'intervallo dell'effetto periodico deve essere finito e positivo"
             }
         };
 
@@ -85,6 +108,7 @@ mod tests {
             },
             max_stacks: 5,
             stacking_policy: AuraStackingPolicy::AddStacks,
+            periodic_effects: Vec::new(),
         }
     }
 
@@ -105,6 +129,35 @@ mod tests {
     }
 
     #[test]
+    fn aura_rejects_invalid_periodic_effect_intervals() {
+        let mut aura = valid_aura();
+
+        aura.periodic_effects.push(PeriodicAuraEffect {
+            effect: ContentId::new(
+                "classic_1_12_1:effect.periodic_test"
+            )
+            .unwrap(),
+            interval_seconds: 0.0,
+        });
+
+        assert_eq!(
+            aura.validate(),
+            Err(
+                AuraValidationError::InvalidPeriodicEffectInterval
+            )
+        );
+
+        aura.periodic_effects[0].interval_seconds = f32::INFINITY;
+
+        assert_eq!(
+            aura.validate(),
+            Err(
+                AuraValidationError::InvalidPeriodicEffectInterval
+            )
+        );
+    }
+
+    #[test]
     fn aura_rejects_invalid_metadata() {
         let mut aura = valid_aura();
         aura.metadata.name.clear();
@@ -119,7 +172,15 @@ mod tests {
 
     #[test]
     fn aura_supports_ron_serialization() {
-        let original = valid_aura();
+        let mut original = valid_aura();
+
+        original.periodic_effects.push(PeriodicAuraEffect {
+            effect: ContentId::new(
+                "classic_1_12_1:effect.periodic_test"
+            )
+            .unwrap(),
+            interval_seconds: 3.0,
+        });
 
         let serialized = ron::to_string(&original).unwrap();
         let restored: AuraDefinition =
