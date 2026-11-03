@@ -1,3 +1,4 @@
+
 use bevy::prelude::*;
 
 use super::*;
@@ -52,6 +53,11 @@ pub(super) fn enemy_attack_system(
         else {
             continue;
         };
+
+        if let Some(pool) = health_pool.as_deref() {
+            player_stats.current_health = pool.current();
+            player_stats.max_health = pool.maximum();
+        }
 
         if player_stats.current_health <= 0.0 {
             if let Some(mut state) = attack_state {
