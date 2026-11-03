@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
-use bevy::prelude::{Entity, Resource};
+use bevy::prelude::{Component, Entity, Resource};
 
 use crate::content::{ContentId, EffectTrigger};
 
@@ -87,6 +87,53 @@ impl CombatEventContext {
     }
 }
 
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq)]
+pub struct CombatEffectSubscriptions {
+    effects: Vec<ContentId>,
+}
+
+impl CombatEffectSubscriptions {
+    pub fn subscribe(&mut self, effect: ContentId) -> bool {
+        if self.effects.contains(&effect) {
+            return false;
+        }
+
+        self.effects.push(effect);
+
+        true
+    }
+
+    pub fn unsubscribe(&mut self, effect: &ContentId) -> bool {
+        let Some(index) = self
+            .effects
+            .iter()
+            .position(|registered| registered == effect)
+        else {
+            return false;
+        };
+
+        self.effects.remove(index);
+
+        true
+    }
+
+    pub fn contains(&self, effect: &ContentId) -> bool {
+        self.effects.contains(effect)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ContentId> {
+        self.effects.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.effects.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.effects.is_empty()
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct CombatEventQueue {
     pending: VecDeque<CombatEventContext>,
@@ -166,13 +213,20 @@ mod tests {
         Entity::from_bits(2)
     }
 
+    fn content_id(value: &str) -> ContentId {
+        ContentId::new(
+            format!("classic_1_12_1:{value}"),
+        )
+        .unwrap()
+    }
+
     fn valid_context(trigger: EffectTrigger) -> CombatEventContext {
         CombatEventContext {
             trigger,
             source: Some(source()),
             target: Some(target()),
             ability: Some(
-                ContentId::new("classic_1_12_1:ability.test").unwrap(),
+                content_id("ability.test"),
             ),
             effect: None,
             outcome: None,
@@ -184,10 +238,7 @@ mod tests {
             source: Some(source()),
             target: target(),
             base_amount: 100.0,
-            school: ContentId::new(
-                "classic_1_12_1:school.physical",
-            )
-            .unwrap(),
+            school: content_id("school.physical"),
         };
 
         CombatEventOutcome::Damage(
@@ -219,10 +270,7 @@ mod tests {
         let request = super::super::ResourceRequest {
             source: Some(source()),
             target: target(),
-            resource: ContentId::new(
-                "classic_1_12_1:resource.mana",
-            )
-            .unwrap(),
+            resource: content_id("resource.mana"),
             operation: super::super::ResourceOperation::Gain,
             base_amount: 50.0,
         };
@@ -334,14 +382,10 @@ mod tests {
         let mut queue = CombatEventQueue::default();
 
         let mut first = valid_context(EffectTrigger::OnCast);
-        first.effect = Some(
-            ContentId::new("classic_1_12_1:effect.first").unwrap(),
-        );
+        first.effect = Some(content_id("effect.first"));
 
         let mut second = valid_context(EffectTrigger::OnDamageDealt);
-        second.effect = Some(
-            ContentId::new("classic_1_12_1:effect.second").unwrap(),
-        );
+        second.effect = Some(content_id("effect.second"));
 
         queue.enqueue(first.clone()).unwrap();
         queue.enqueue(second.clone()).unwrap();
@@ -368,5 +412,59 @@ mod tests {
         );
 
         assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn effect_subscriptions_start_empty() {
+        let subscriptions = CombatEffectSubscriptions::default();
+
+        assert!(subscriptions.is_empty());
+        assert_eq!(subscriptions.len(), 0);
+    }
+
+    #[test]
+    fn effect_subscriptions_reject_duplicates() {
+        let mut subscriptions = CombatEffectSubscriptions::default();
+        let effect = content_id("effect.passive");
+
+        assert!(subscriptions.subscribe(effect.clone()));
+        assert!(!subscriptions.subscribe(effect.clone()));
+
+        assert_eq!(subscriptions.len(), 1);
+        assert!(subscriptions.contains(&effect));
+    }
+
+    #[test]
+    fn effect_subscriptions_preserve_registration_order() {
+        let mut subscriptions = CombatEffectSubscriptions::default();
+
+        let first = content_id("effect.first");
+        let second = content_id("effect.second");
+
+        assert!(subscriptions.subscribe(first.clone()));
+        assert!(subscriptions.subscribe(second.clone()));
+
+        assert_eq!(
+            subscriptions.iter().cloned().collect::<Vec<_>>(),
+            vec![first, second]
+        );
+    }
+
+    #[test]
+    fn effect_subscriptions_remove_only_requested_effect() {
+        let mut subscriptions = CombatEffectSubscriptions::default();
+
+        let first = content_id("effect.first");
+        let second = content_id("effect.second");
+
+        subscriptions.subscribe(first.clone());
+        subscriptions.subscribe(second.clone());
+
+        assert!(subscriptions.unsubscribe(&first));
+        assert!(!subscriptions.unsubscribe(&first));
+
+        assert_eq!(subscriptions.len(), 1);
+        assert!(!subscriptions.contains(&first));
+        assert!(subscriptions.contains(&second));
     }
 }
