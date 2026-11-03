@@ -68,6 +68,7 @@ pub use events::{
     CombatEventContextError,
     CombatEventOutcome,
     CombatEventQueue,
+    MAX_REACTIVE_EFFECT_GENERATIONS,
 };
 pub use health::{
     HealthPool,
