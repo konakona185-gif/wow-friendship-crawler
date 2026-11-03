@@ -366,6 +366,58 @@ fn database_rejects_damage_schools_with_unknown_resistance_attributes() {
 }
 
 #[test]
+fn database_rejects_composite_damage_schools_with_unknown_resistance_attributes() {
+    let mut database = database_with_classic_pack();
+    let unknown_stat = ContentId::new("classic:stat.fire_resistance").unwrap();
+    let mut school = physical_damage_school();
+
+    school.mitigation = DamageSchoolMitigation::Composite {
+        components: vec![
+            DamageSchoolMitigation::Armor,
+            DamageSchoolMitigation::Resistance {
+                stat: unknown_stat.clone(),
+            },
+        ],
+    };
+
+    database.register_damage_school(school).unwrap();
+
+    assert_eq!(
+        database.validate(),
+        Err(ContentDatabaseError::MissingReference {
+            owner: ContentId::new("classic:school.physical").unwrap(),
+            reference: unknown_stat,
+        })
+    );
+}
+
+#[test]
+fn database_accepts_composite_damage_schools_with_registered_resistance_attributes() {
+    let mut database = database_with_classic_pack();
+    let resistance_id =
+        ContentId::new("classic:stat.fire_resistance").unwrap();
+
+    let mut attribute = combat_attribute();
+    attribute.metadata.id = resistance_id.clone();
+    attribute.metadata.name = "Fire Resistance".to_string();
+
+    let mut school = physical_damage_school();
+    school.mitigation = DamageSchoolMitigation::Composite {
+        components: vec![
+            DamageSchoolMitigation::Armor,
+            DamageSchoolMitigation::Resistance {
+                stat: resistance_id,
+            },
+        ],
+    };
+
+    database.register_combat_attribute(attribute).unwrap();
+    database.register_damage_school(school).unwrap();
+
+    assert!(database.validate().is_ok());
+}
+
+#[test]
 fn database_rejects_effects_with_unknown_scaling_attributes() {
     let mut database = database_with_classic_pack();
     let unknown_stat = ContentId::new("classic:stat.spell_power").unwrap();
