@@ -63,6 +63,7 @@ pub use effect_resolution::{
 };
 pub use effect_runtime::PendingCombatEffects;
 pub use events::{
+    CombatEffectSubscriptions,
     CombatEventContext,
     CombatEventContextError,
     CombatEventOutcome,
