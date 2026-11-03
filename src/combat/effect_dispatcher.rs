@@ -1,4 +1,3 @@
-
 use bevy::prelude::*;
 
 use crate::content::{
@@ -122,6 +121,15 @@ pub(super) fn dispatch_combat_events(
 mod tests {
     use super::*;
 
+    use crate::content::{
+        ContentId,
+        ContentMetadata,
+        ContentPackManifest,
+        EffectDefinition,
+        EffectKind,
+        EffectMagnitude,
+    };
+
     fn source() -> Entity {
         Entity::from_bits(1)
     }
@@ -143,6 +151,76 @@ mod tests {
             effect: None,
             outcome: None,
         }
+    }
+
+    fn test_application(
+        trigger: EffectTrigger,
+        target: EffectTarget,
+    ) -> (App, ContentId) {
+        let pack_id =
+            ContentId::new("pack:dispatcher_tests").unwrap();
+
+        let effect_id =
+            ContentId::new("dispatcher_tests:effect.reactive").unwrap();
+
+        let mut database = ContentDatabase::new();
+
+        database
+            .register_pack(ContentPackManifest {
+                id: pack_id.clone(),
+                name: "Dispatcher Tests".to_string(),
+                version: "1.0.0".to_string(),
+                description: String::new(),
+                dependencies: Vec::new(),
+            })
+            .unwrap();
+
+        database
+            .register_effect(EffectDefinition {
+                metadata: ContentMetadata {
+                    id: effect_id.clone(),
+                    pack_id,
+                    name: "Reactive Test".to_string(),
+                    description: String::new(),
+                    icon: None,
+                    tags: Vec::new(),
+                },
+                trigger,
+                target,
+                kind: EffectKind::Heal {
+                    amount: EffectMagnitude {
+                        base: 10.0,
+                        scaling: Vec::new(),
+                    },
+                },
+            })
+            .unwrap();
+
+        let mut app = App::new();
+
+        app.insert_resource(database)
+            .init_resource::<CombatEventQueue>()
+            .init_resource::<PendingCombatEffects>()
+            .add_systems(Update, dispatch_combat_events);
+
+        (app, effect_id)
+    }
+
+    fn spawn_subscriber(
+        app: &mut App,
+        effect_id: ContentId,
+    ) -> Entity {
+        let mut subscriptions =
+            CombatEffectSubscriptions::default();
+
+        subscriptions.subscribe(effect_id);
+
+        app.world_mut()
+            .spawn((
+                subscriptions,
+                CombatAttributes::default(),
+            ))
+            .id()
     }
 
     #[test]
@@ -237,6 +315,94 @@ mod tests {
                 None,
             )),
             None
+        );
+    }
+
+    #[test]
+    fn damage_dealt_event_enqueues_matching_reactive_effect() {
+        let (mut app, effect_id) = test_application(
+            EffectTrigger::OnDamageDealt,
+            EffectTarget::SelectedTarget,
+        );
+
+        let subscriber = spawn_subscriber(&mut app, effect_id);
+        let other = app.world_mut().spawn_empty().id();
+
+        app.world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .enqueue(event(
+                EffectTrigger::OnDamageDealt,
+                Some(subscriber),
+                Some(other),
+            ))
+            .unwrap();
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<PendingCombatEffects>().len(),
+            1
+        );
+
+        assert!(
+            app.world().resource::<CombatEventQueue>().is_empty()
+        );
+    }
+
+    #[test]
+    fn mismatched_event_trigger_does_not_enqueue_effect() {
+        let (mut app, effect_id) = test_application(
+            EffectTrigger::OnHealDealt,
+            EffectTarget::SelectedTarget,
+        );
+
+        let subscriber = spawn_subscriber(&mut app, effect_id);
+        let other = app.world_mut().spawn_empty().id();
+
+        app.world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .enqueue(event(
+                EffectTrigger::OnDamageDealt,
+                Some(subscriber),
+                Some(other),
+            ))
+            .unwrap();
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<PendingCombatEffects>().len(),
+            0
+        );
+    }
+
+    #[test]
+    fn maximum_generation_does_not_enqueue_reactive_effects() {
+        let (mut app, effect_id) = test_application(
+            EffectTrigger::OnDamageDealt,
+            EffectTarget::SelectedTarget,
+        );
+
+        let subscriber = spawn_subscriber(&mut app, effect_id);
+        let other = app.world_mut().spawn_empty().id();
+
+        app.world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .enqueue_with_generation(
+                event(
+                    EffectTrigger::OnDamageDealt,
+                    Some(subscriber),
+                    Some(other),
+                ),
+                MAX_REACTIVE_EFFECT_GENERATIONS,
+            )
+            .unwrap();
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<PendingCombatEffects>().len(),
+            0
         );
     }
 }
