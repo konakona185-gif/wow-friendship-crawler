@@ -116,6 +116,7 @@ const DEFAULT_ENEMY_ATTACK_INTERVAL: f32 = 2.0;
 const DEFAULT_TANK_THREAT_MULTIPLIER: f32 = 3.0;
 
 #[derive(Component)]
+#[require(crate::combat::ActiveAuras)]
 pub struct Enemy;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
