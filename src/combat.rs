@@ -12,6 +12,7 @@ use crate::player::{
 
 mod aura_execution;
 mod aura_runtime;
+mod aura_systems;
 mod damage;
 mod death;
 mod effect_dispatcher;
@@ -188,6 +189,7 @@ impl Plugin for CombatPlugin {
                     enemy_ai::enemy_aggro_system,
                     enemy_attacks::enemy_attack_system,
                     target_indicator::target_indicator_system,
+                    aura_systems::tick_active_auras,
                     effect_runtime::execute_pending_effects,
                     effect_dispatcher::dispatch_combat_events,
                 )
