@@ -1,0 +1,214 @@
+(
+    manifest: (
+        id: "pack:classic_1_12_1",
+        name: "World of Warcraft Classic 1.12.1",
+        version: "1.0.0",
+        description: "Pacchetto fondamentale dei contenuti Classic 1.12.1.",
+        dependencies: [],
+    ),
+
+    damage_schools: [
+        (
+            metadata: (
+                id: "classic_1_12_1:school.physical",
+                pack_id: "pack:classic_1_12_1",
+                name: "Physical",
+                description: "Danni fisici mitigati dall'armatura.",
+            ),
+            mitigation: (
+                type: "armor",
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:school.holy",
+                pack_id: "pack:classic_1_12_1",
+                name: "Holy",
+                description: "Danni della scuola Holy.",
+            ),
+            mitigation: (
+                type: "resistance",
+                parameters: (
+                    stat: "classic_1_12_1:stat.holy_resistance",
+                ),
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:school.shadow",
+                pack_id: "pack:classic_1_12_1",
+                name: "Shadow",
+                description: "Danni della scuola Shadow.",
+            ),
+            mitigation: (
+                type: "resistance",
+                parameters: (
+                    stat: "classic_1_12_1:stat.shadow_resistance",
+                ),
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:school.nature",
+                pack_id: "pack:classic_1_12_1",
+                name: "Nature",
+                description: "Danni della scuola Nature.",
+            ),
+            mitigation: (
+                type: "resistance",
+                parameters: (
+                    stat: "classic_1_12_1:stat.nature_resistance",
+                ),
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:school.frost",
+                pack_id: "pack:classic_1_12_1",
+                name: "Frost",
+                description: "Danni della scuola Frost.",
+            ),
+            mitigation: (
+                type: "resistance",
+                parameters: (
+                    stat: "classic_1_12_1:stat.frost_resistance",
+                ),
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:school.arcane",
+                pack_id: "pack:classic_1_12_1",
+                name: "Arcane",
+                description: "Danni della scuola Arcane.",
+            ),
+            mitigation: (
+                type: "resistance",
+                parameters: (
+                    stat: "classic_1_12_1:stat.arcane_resistance",
+                ),
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:school.fire",
+                pack_id: "pack:classic_1_12_1",
+                name: "Fire",
+                description: "Danni della scuola Fire.",
+            ),
+            mitigation: (
+                type: "resistance",
+                parameters: (
+                    stat: "classic_1_12_1:stat.fire_resistance",
+                ),
+            ),
+        ),
+    ],
+
+    combat_attributes: [
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.armor",
+                pack_id: "pack:classic_1_12_1",
+                name: "Armor",
+            ),
+            value_kind: rating,
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.holy_resistance",
+                pack_id: "pack:classic_1_12_1",
+                name: "Holy Resistance",
+            ),
+            value_kind: rating,
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.shadow_resistance",
+                pack_id: "pack:classic_1_12_1",
+                name: "Shadow Resistance",
+            ),
+            value_kind: rating,
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.nature_resistance",
+                pack_id: "pack:classic_1_12_1",
+                name: "Nature Resistance",
+            ),
+            value_kind: rating,
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.frost_resistance",
+                pack_id: "pack:classic_1_12_1",
+                name: "Frost Resistance",
+            ),
+            value_kind: rating,
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.arcane_resistance",
+                pack_id: "pack:classic_1_12_1",
+                name: "Arcane Resistance",
+            ),
+            value_kind: rating,
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.fire_resistance",
+                pack_id: "pack:classic_1_12_1",
+                name: "Fire Resistance",
+            ),
+            value_kind: rating,
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.attack_power",
+                pack_id: "pack:classic_1_12_1",
+                name: "Attack Power",
+            ),
+            value_kind: flat,
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.spell_power",
+                pack_id: "pack:classic_1_12_1",
+                name: "Spell Power",
+            ),
+            value_kind: flat,
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:stat.healing_power",
+                pack_id: "pack:classic_1_12_1",
+                name: "Healing Power",
+            ),
+            value_kind: flat,
+        ),
+    ],
+
+    resources: [
+        (
+            metadata: (
+                id: "classic_1_12_1:resource.mana",
+                pack_id: "pack:classic_1_12_1",
+                name: "Mana",
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:resource.rage",
+                pack_id: "pack:classic_1_12_1",
+                name: "Rage",
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:resource.energy",
+                pack_id: "pack:classic_1_12_1",
+                name: "Energy",
+            ),
+        ),
+    ],
+)
