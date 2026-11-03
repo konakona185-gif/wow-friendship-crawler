@@ -11,6 +11,7 @@ use bevy::prelude::Resource;
 
 use super::{
     AbilityDefinition,
+    AuraDefinition,
     CombatAttributeDefinition,
     ContentId,
     ContentMetadata,
@@ -29,6 +30,7 @@ pub use validation::ContentDatabaseError;
 pub struct ContentDatabase {
     packs: ContentPackRegistry,
     effects: HashMap<ContentId, EffectDefinition>,
+    auras: HashMap<ContentId, AuraDefinition>,
     damage_schools: HashMap<ContentId, DamageSchoolDefinition>,
     combat_attributes: HashMap<ContentId, CombatAttributeDefinition>,
     resources: HashMap<ContentId, ResourceDefinition>,
