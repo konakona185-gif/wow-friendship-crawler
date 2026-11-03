@@ -1,23 +1,32 @@
+
 use bevy::prelude::*;
 
 use super::*;
 
 fn player_is_alive(
-    stats: &CombatStats,
+    stats: Option<&CombatStats>,
     health_pool: Option<&HealthPool>,
 ) -> bool {
-    health_pool.map_or(stats.current_health, |pool| pool.current()) > 0.0
+    health_pool
+        .map(|pool| pool.current())
+        .or_else(|| stats.map(|stats| stats.current_health))
+        .is_some_and(|health| health > 0.0)
 }
 
 pub(super) fn enemy_aggro_system(
     player_query: Query<
-        (Entity, &Transform, &CombatStats, Option<&HealthPool>),
+        (
+            Entity,
+            &Transform,
+            Option<&CombatStats>,
+            Option<&HealthPool>,
+        ),
         (With<Character>, Without<Enemy>),
     >,
     mut enemy_query: Query<
         (
             &Transform,
-            &mut CombatStats,
+            Option<&mut CombatStats>,
             &mut EnemyAi,
             Option<&EnemyHomePosition>,
             Option<&mut EnemyThreat>,
@@ -35,12 +44,27 @@ pub(super) fn enemy_aggro_system(
         health_pool,
     ) in &mut enemy_query
     {
+        let current_health = health_pool
+            .as_deref()
+            .map(|pool| pool.current())
+            .or_else(|| {
+                enemy_stats
+                    .as_deref()
+                    .map(|stats| stats.current_health)
+            });
+
+        let Some(current_health) = current_health else {
+            continue;
+        };
+
         if let Some(pool) = health_pool.as_deref() {
-            enemy_stats.current_health = pool.current();
-            enemy_stats.max_health = pool.maximum();
+            if let Some(stats) = enemy_stats.as_deref_mut() {
+                stats.current_health = pool.current();
+                stats.max_health = pool.maximum();
+            }
         }
 
-        if enemy_stats.current_health <= 0.0 {
+        if current_health <= 0.0 {
             enemy_ai.target = None;
             enemy_ai.returning_home = false;
 
@@ -85,11 +109,23 @@ pub(super) fn enemy_aggro_system(
                     enemy_ai.target = None;
                     enemy_ai.returning_home = true;
 
-                    let restored_health = enemy_stats.max_health.max(0.0);
-                    enemy_stats.current_health = restored_health;
+                    let restored_health = health_pool
+                        .as_deref()
+                        .map(|pool| pool.maximum())
+                        .or_else(|| {
+                            enemy_stats
+                                .as_deref()
+                                .map(|stats| stats.max_health)
+                        })
+                        .unwrap_or(0.0)
+                        .max(0.0);
 
-                    if let Some(mut health_pool) = health_pool {
-                        if let Err(error) = health_pool.set_current(restored_health) {
+                    if let Some(stats) = enemy_stats.as_deref_mut() {
+                        stats.current_health = restored_health;
+                    }
+
+                    if let Some(mut pool) = health_pool {
+                        if let Err(error) = pool.set_current(restored_health) {
                             warn!(
                                 "Impossibile ripristinare la HealthPool del nemico: {error}"
                             );
@@ -109,53 +145,58 @@ pub(super) fn enemy_aggro_system(
             }
         }
 
-        let highest_threat_target = if let Some(threat) = enemy_threat.as_deref_mut() {
-            threat.values.retain(|player_entity, value| {
-                value.is_finite()
-                    && *value > 0.0
-                    && player_query
-                        .get(*player_entity)
-                        .is_ok_and(|(_, _, stats, health_pool)| {
-                            player_is_alive(stats, health_pool)
-                        })
-            });
+        let highest_threat_target =
+            if let Some(threat) = enemy_threat.as_deref_mut() {
+                threat.values.retain(|player_entity, value| {
+                    value.is_finite()
+                        && *value > 0.0
+                        && player_query
+                            .get(*player_entity)
+                            .is_ok_and(|(_, _, stats, health_pool)| {
+                                player_is_alive(stats, health_pool)
+                            })
+                });
 
-            threat.values
-                .iter()
-                .filter_map(|(player_entity, value)| {
-                    let (_, player_transform, stats, health_pool) =
-                        player_query.get(*player_entity).ok()?;
+                threat.values
+                    .iter()
+                    .filter_map(|(player_entity, value)| {
+                        let (_, player_transform, stats, health_pool) =
+                            player_query.get(*player_entity).ok()?;
 
-                    player_is_alive(stats, health_pool)
-                        .then_some((
-                            *player_entity,
-                            *value,
-                            enemy_transform
-                                .translation
-                                .distance_squared(player_transform.translation),
-                        ))
-                })
-                .max_by(|a, b| {
-                    a.1.total_cmp(&b.1)
-                        .then_with(|| b.2.total_cmp(&a.2))
-                })
-                .map(|(player_entity, _, _)| player_entity)
-        } else {
-            None
-        };
+                        player_is_alive(stats, health_pool)
+                            .then_some((
+                                *player_entity,
+                                *value,
+                                enemy_transform
+                                    .translation
+                                    .distance_squared(
+                                        player_transform.translation,
+                                    ),
+                            ))
+                    })
+                    .max_by(|a, b| {
+                        a.1.total_cmp(&b.1)
+                            .then_with(|| b.2.total_cmp(&a.2))
+                    })
+                    .map(|(player_entity, _, _)| player_entity)
+            } else {
+                None
+            };
 
         if let Some(target_entity) = highest_threat_target {
             enemy_ai.target = Some(target_entity);
             continue;
         }
 
-        let current_target_is_alive = enemy_ai.target.is_some_and(|target_entity| {
-            player_query
-                .get(target_entity)
-                .is_ok_and(|(_, _, stats, health_pool)| {
-                    player_is_alive(stats, health_pool)
-                })
-        });
+        let current_target_is_alive = enemy_ai.target.is_some_and(
+            |target_entity| {
+                player_query
+                    .get(target_entity)
+                    .is_ok_and(|(_, _, stats, health_pool)| {
+                        player_is_alive(stats, health_pool)
+                    })
+            },
+        );
 
         if current_target_is_alive {
             continue;
@@ -172,7 +213,7 @@ pub(super) fn enemy_aggro_system(
         let new_target = player_query
             .iter()
             .filter(|(_, _, stats, health_pool)| {
-                player_is_alive(stats, *health_pool)
+                player_is_alive(*stats, *health_pool)
             })
             .filter_map(|(entity, player_transform, _, _)| {
                 let distance_squared = enemy_transform
