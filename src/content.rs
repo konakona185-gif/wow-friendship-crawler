@@ -25,6 +25,7 @@ pub use aura::{
     AuraDefinition,
     AuraStackingPolicy,
     AuraValidationError,
+    PeriodicAuraEffect,
 };
 
 pub use combat_attribute::{
