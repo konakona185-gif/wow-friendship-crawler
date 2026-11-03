@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 use super::{
+use crate::content::ContentId;
     ContentMetadata,
     ContentMetadataError,
 };
