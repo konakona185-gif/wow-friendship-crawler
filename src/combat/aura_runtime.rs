@@ -275,6 +275,7 @@ mod tests {
             },
             max_stacks,
             stacking_policy: policy,
+            periodic_effects: Vec::new(),
         }
     }
 
