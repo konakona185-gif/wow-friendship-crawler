@@ -21,7 +21,9 @@ use crate::combat::{
 
 use crate::content::{
     AuraDefinition,
+    AuraRefreshPolicy,
     AuraStackingPolicy,
+    AuraStackingScope,
     ContentDatabase,
     ContentId,
     ContentMetadata,
@@ -58,6 +60,8 @@ fn aura_definition() -> AuraDefinition {
         },
         max_stacks: 5,
         stacking_policy: AuraStackingPolicy::AddStacks,
+        stacking_scope: AuraStackingScope::Shared,
+        refresh_policy: AuraRefreshPolicy::ResetDuration,
         periodic_effects: Vec::new(),
     }
 }
