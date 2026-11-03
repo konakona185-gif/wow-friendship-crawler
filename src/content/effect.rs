@@ -85,6 +85,10 @@ pub enum EffectTrigger {
     OnKill,
     OnDamageTaken,
     OnDamageDealt,
+    OnHealTaken,
+    OnHealDealt,
+    OnResourceGained,
+    OnResourceSpent,
     OnDodge,
     OnBlock,
     OnExpire,
@@ -383,5 +387,21 @@ mod tests {
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());
+    }
+
+    #[test]
+    fn healing_and_resource_triggers_support_ron_serialization() {
+        for trigger in [
+            EffectTrigger::OnHealDealt,
+            EffectTrigger::OnHealTaken,
+            EffectTrigger::OnResourceGained,
+            EffectTrigger::OnResourceSpent,
+        ] {
+            let serialized = ron::to_string(&trigger).unwrap();
+            let restored: EffectTrigger =
+                ron::from_str(&serialized).unwrap();
+
+            assert_eq!(restored, trigger);
+        }
     }
 }
