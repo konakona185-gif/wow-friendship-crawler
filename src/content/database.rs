@@ -7,6 +7,8 @@ mod tests;
 
 use std::collections::HashMap;
 
+use bevy::prelude::Resource;
+
 use super::{
     AbilityDefinition,
     CombatAttributeDefinition,
@@ -23,7 +25,7 @@ use super::{
 
 pub use validation::ContentDatabaseError;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Resource)]
 pub struct ContentDatabase {
     packs: ContentPackRegistry,
     effects: HashMap<ContentId, EffectDefinition>,
