@@ -66,6 +66,7 @@ pub use events::{
     CombatEventContext,
     CombatEventContextError,
     CombatEventOutcome,
+    CombatEventQueue,
 };
 pub use health::{
     HealthPool,
@@ -164,6 +165,7 @@ pub struct CombatPlugin;
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PendingCombatEffects>()
+            .init_resource::<CombatEventQueue>()
             .add_systems(
                 Update,
                 (
