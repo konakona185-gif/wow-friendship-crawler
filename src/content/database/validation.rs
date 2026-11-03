@@ -20,6 +20,7 @@ impl ContentDatabase {
         self.pack_load_order()?;
 
         self.validate_damage_school_references()?;
+        self.validate_aura_definitions()?;
         self.validate_effect_references()?;
         self.validate_ability_references()?;
         self.validate_talent_references()?;
@@ -54,6 +55,17 @@ impl ContentDatabase {
         Ok(())
     }
 
+    fn validate_aura_definitions(
+        &self,
+    ) -> Result<(), ContentDatabaseError> {
+        for aura in self.auras.values() {
+            aura.validate()
+                .map_err(ContentDatabaseError::InvalidAura)?;
+        }
+
+        Ok(())
+    }
+
     fn validate_effect_references(
         &self,
     ) -> Result<(), ContentDatabaseError> {
@@ -83,6 +95,15 @@ impl ContentDatabase {
                 EffectKind::Heal { amount }
                 | EffectKind::ModifyThreat { amount } => {
                     self.validate_effect_magnitude_references(id, amount)?;
+                }
+                EffectKind::ApplyAura { aura, .. }
+                | EffectKind::RemoveAura { aura, .. } => {
+                    if !self.auras.contains_key(aura) {
+                        return Err(ContentDatabaseError::MissingReference {
+                            owner: id.clone(),
+                            reference: aura.clone(),
+                        });
+                    }
                 }
                 _ => {}
             }
