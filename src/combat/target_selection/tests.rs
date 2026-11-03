@@ -1,3 +1,4 @@
+
 use super::*;
 use benilla_world::interact::WorldObject;
 use benilla_world::model_render::ModelKind;
@@ -170,6 +171,34 @@ fn tab_selects_enemy_with_living_health_pool_when_combat_stats_are_zero() {
             max_health: 100.0,
             resource: 0.0,
         },
+        HealthPool::new(50.0, 100.0).unwrap(),
+    )).id();
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<Target>(player).unwrap().entity,
+        Some(living_enemy)
+    );
+}
+
+#[test]
+fn tab_selects_enemy_with_only_a_living_health_pool() {
+    let mut app = setup_target_test_app();
+
+    let player = app.world_mut().spawn((
+        Character,
+        Transform::default(),
+        Target { entity: None },
+        CharacterCommand {
+            select_target: true,
+            ..default()
+        },
+    )).id();
+
+    let living_enemy = app.world_mut().spawn((
+        Enemy,
+        Transform::from_xyz(0.0, 0.0, 3.0),
         HealthPool::new(50.0, 100.0).unwrap(),
     )).id();
 
@@ -388,6 +417,39 @@ fn clicking_an_enemy_with_living_health_pool_selects_it_when_combat_stats_are_ze
             max_health: 100.0,
             resource: 0.0,
         },
+        HealthPool::new(50.0, 100.0).unwrap(),
+        Transform::from_xyz(0.0, 0.0, 2.0),
+    )).id();
+
+    app.world_mut().write_message(WorldObjectClicked {
+        button: MouseButton::Left,
+        entity: Some(living_enemy),
+        object: test_world_object(),
+        point: Vec3::ZERO,
+        distance: 2.0,
+    });
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<Target>(player).unwrap().entity,
+        Some(living_enemy)
+    );
+}
+
+#[test]
+fn clicking_an_enemy_with_only_a_living_health_pool_selects_it() {
+    let mut app = setup_target_test_app();
+
+    let player = app.world_mut().spawn((
+        Character,
+        Transform::default(),
+        Target { entity: None },
+        CharacterCommand::default(),
+    )).id();
+
+    let living_enemy = app.world_mut().spawn((
+        Enemy,
         HealthPool::new(50.0, 100.0).unwrap(),
         Transform::from_xyz(0.0, 0.0, 2.0),
     )).id();
