@@ -8,6 +8,7 @@ Il progetto prende ispirazione da World of Warcraft Classic e da Fellowship, ma 
 
 ### Riferimenti tecnici
 
+- Repository: https://github.com/konakona185-gif/wow-friendship-crawler
 - Linguaggio: Rust.
 - Motore: Bevy 0.18.1.
 - Fisica: Avian3D 0.6.
@@ -105,16 +106,43 @@ La configurazione del personaggio comprende razza e classe. Il ruolo Fellowship 
 
 Percorso principale: `src/combat.rs`
 
-Moduli:
+Moduli attualmente presenti:
 
+- `src/combat/damage.rs`
 - `src/combat/death.rs`
+- `src/combat/effect_magnitude.rs`
+- `src/combat/effect_resolution.rs`
 - `src/combat/enemy_ai.rs`
 - `src/combat/enemy_attacks.rs`
+- `src/combat/events.rs`
+- `src/combat/health.rs`
+- `src/combat/healing.rs`
 - `src/combat/player_attacks.rs`
+- `src/combat/resources.rs`
+- `src/combat/stats.rs`
 - `src/combat/target_indicator.rs`
 - `src/combat/target_selection.rs`
 
+Sottomoduli:
+
+- `src/combat/damage/critical.rs`
+- `src/combat/damage/mitigation.rs`
+
+Responsabilità principali:
+
+- Statistiche, attributi e livelli dei combattenti.
+- Salute e risorse.
+- Richieste e risoluzioni di danno.
+- Calcolo dei colpi critici.
+- Mitigazione tramite armatura e resistenze.
+- Calcolo della magnitudine degli effetti.
+- Preparazione delle operazioni da eseguire.
+- Contesto degli eventi di combattimento.
+- Comportamento dei nemici e selezione dei bersagli.
+
 Il combattimento attuale contiene ancora alcune meccaniche provvisorie, da conservare fino alla loro sostituzione con i sistemi definitivi.
+
+I moduli con responsabilità differenti devono rimanere separati. I file che superano circa 1.000 righe dovranno essere valutati per una suddivisione modulare, evitando frammentazioni artificiali.
 
 ### Contenuti
 
@@ -123,13 +151,16 @@ Percorso principale: `src/content.rs`
 Moduli:
 
 - `src/content/ability.rs`
+- `src/content/combat_attribute.rs`
 - `src/content/database.rs`
+- `src/content/damage_school.rs`
 - `src/content/effect.rs`
 - `src/content/id.rs`
 - `src/content/loader.rs`
 - `src/content/metadata.rs`
 - `src/content/pack.rs`
 - `src/content/registry.rs`
+- `src/content/resource.rs`
 - `src/content/talent.rs`
 
 Sottomoduli del database:
@@ -149,25 +180,154 @@ Sono già presenti:
 - Metadati dei contenuti.
 - Manifesti dei pacchetti.
 - Registro dei pacchetti e ordinamento delle dipendenze.
+- Definizioni delle scuole di danno.
+- Definizioni degli attributi di combattimento.
+- Definizioni delle risorse.
 - Definizioni degli effetti.
 - Definizioni delle abilità.
 - Definizioni degli alberi e dei talenti.
 - Database centrale dei contenuti.
-- Registrazione, ricerca e validazione.
+- Registrazione e ricerca dei contenuti.
+- Validazione dei riferimenti tra contenuti.
 - Caricamento RON con controllo degli errori.
 - Caricamento transazionale: i dati vengono applicati al database soltanto dopo aver superato le verifiche.
+- Supporto di `ContentDatabase` come `Resource` Bevy, per renderlo accessibile ai sistemi ECS.
 
 Non sono ancora presenti:
 
-- Pacchetti RON effettivi con i contenuti di gioco.
-- Caricamento automatico dei pacchetti da una cartella di gioco.
+- Pacchetti RON effettivi completi con i contenuti di gioco.
+- Caricamento automatico dei pacchetti nella fase di avvio del gioco.
+- Integrazione del database caricato con i sistemi di combattimento.
 - Ricaricamento dinamico dei contenuti.
-- Esecuzione effettiva degli effetti.
-- Sistema completo di esecuzione delle abilità.
-- Dati originali completi di abilità e talenti Classic.
 - Regole definitive per sovrascrittura e precedenza dei pacchetti.
+- Dati originali completi di abilità e talenti Classic.
 
-## 6. Meccaniche provvisorie del combattimento
+La distinzione tra database registrabile e database effettivamente caricato nel runtime deve essere mantenuta: il fatto che `ContentDatabase` sia una `Resource` non significa che i pacchetti siano già caricati automaticamente.
+
+## 6. Stato attuale del sistema di combattimento
+
+Le fondamenta del sistema di combattimento sono state consolidate.
+
+### Statistiche e attributi
+
+Sono presenti:
+
+- `CombatStats`
+- `CombatAttributes`
+- `CombatLevel`
+
+Gli attributi sono identificati tramite `ContentId` e memorizzati in una struttura estendibile.
+
+Gli attributi non registrati restituiscono attualmente valore zero.
+
+### Salute e risorse
+
+Sono presenti:
+
+- `HealthPool`
+- `CombatResources`
+- `ResourcePool`
+- `HealingRequest`
+- `HealingResolution`
+- `ResourceRequest`
+- `ResourceResolution`
+
+Le pool supportano validazione, aggiornamento dei valori e applicazione di operazioni effettive.
+
+`HealthPool` costituisce il riferimento autorevole per la salute. `CombatStats` mantiene ancora i valori legacy e deve essere considerato un sistema provvisorio di compatibilità, non una seconda fonte indipendente di verità.
+
+### Scuole di danno
+
+Le scuole fondamentali previste sono:
+
+- Physical
+- Holy
+- Shadow
+- Nature
+- Frost
+- Arcane
+- Fire
+
+È previsto anche il supporto alle scuole ibride e composite.
+
+Le 21 combinazioni ibride a due componenti sono:
+
+- Holystrike
+- Shadowstrike
+- Stormstrike
+- Icestrike
+- Spellstrike
+- Firestrike
+- Twilight
+- Anima
+- Holyfrost
+- Divine
+- Radiant
+- Plague
+- Entropy
+- Curse
+- Incantation
+- Rainstorm
+- Astral
+- Firestorm
+- Spellfrost
+- Freezerburn
+- Spellfire
+
+Sono inoltre previsti gruppi compositi:
+
+- Chaos
+- Cosmic
+- Elemental
+- Blood
+- Chi
+- Magical
+
+Le combinazioni e le relative denominazioni seguono la matrice progettuale stabilita.
+
+### Regole di mitigazione
+
+Per le scuole ibride e composite si applica esclusivamente la mitigazione più elevata tra i componenti. Le resistenze non devono essere sommate.
+
+Per le combinazioni Physical + magia, la mitigazione fisica tramite armatura deve essere confrontata con quella magica in termini di percentuale effettiva, non confrontando direttamente i valori grezzi.
+
+Formula dell'armatura:
+
+`armor / (armor + 85 * attacker_level + 400)`
+
+La mitigazione massima è del 75%.
+
+Formula della resistenza:
+
+`min(0.75, max(resistance, 0) / (max(attacker_level, 20) * 5) * 0.75)`
+
+La resistenza è deterministica: non vengono introdotti tiri casuali per le mitigazioni parziali.
+
+A livello 60:
+
+- 100 resistenza corrisponde al 25%.
+- 200 resistenza corrisponde al 50%.
+- 300 resistenza corrisponde al 75%.
+
+La resistenza Holy deve essere supportata tramite un attributo dedicato `holy_resistance`.
+
+### Colpi critici
+
+Il modulo `critical.rs` contiene il calcolo dei colpi critici.
+
+La funzione riceve la probabilità, il moltiplicatore e il tiro già generato, determinando il risultato. La generazione casuale del tiro non è responsabilità di questo modulo.
+
+La probabilità deve rimanere nell'intervallo 0–100 e il moltiplicatore deve essere almeno 1.
+
+### Stato dell'integrazione
+
+I modelli di danno, mitigazione, guarigione e risorse esistono e dispongono di test dedicati.
+
+Le meccaniche provvisorie di attacco non sono ancora state sostituite con la pipeline definitiva.
+
+Non applicare automaticamente critici, mitigazioni o altre regole agli attacchi segnaposto prima che il sistema definitivo delle abilità e degli effetti sia pronto.
+
+## 7. Meccaniche provvisorie del combattimento
 
 Il sistema di combattimento contiene attualmente una prima implementazione temporanea di `ability_1`, differenziata in base al ruolo Fellowship.
 
@@ -201,9 +361,11 @@ Valori provvisori:
 
 Queste meccaniche sono segnaposto e non rappresentano il bilanciamento definitivo del gioco.
 
-## 7. Stato della compilazione automatica
+Devono rimanere operative fino a quando i rispettivi sistemi definitivi non saranno disponibili e testati.
 
-Ultima verifica completa registrata:
+## 8. Stato della compilazione automatica
+
+Ultima verifica completa registrata come superata:
 
 - Flusso di lavoro: numero 172.
 - Identificativo: `41326117971`.
@@ -214,9 +376,11 @@ Sono stati superati sia i controlli Linux sia quelli Windows, comprendenti compi
 
 Riferimento: https://github.com/konakona185-gif/wow-friendship-crawler/actions/runs/41326117971
 
-Questo risultato certifica quella specifica revisione. Le modifiche successive dovranno essere verificate tramite i rispettivi flussi di lavoro.
+Questo risultato certifica esclusivamente quella specifica revisione. Le modifiche successive devono essere verificate tramite i rispettivi flussi di lavoro.
 
-## 8. Percorso di sviluppo
+Non considerare una CI superata finché il relativo workflow sulla revisione esatta non riporta `success`.
+
+## 9. Percorso di sviluppo
 
 ### Fase 1 — Struttura dei contenuti
 
@@ -224,45 +388,89 @@ Questo risultato certifica quella specifica revisione. Le modifiche successive d
 
 Realizzazione del sistema di identificazione, definizione, registrazione, validazione e caricamento dei pacchetti.
 
+Sono stati implementati:
+
+- Identificatori e metadati.
+- Manifesti e dipendenze.
+- Database centrale.
+- Registrazione e ricerca.
+- Validazione dei riferimenti.
+- Loader RON.
+- Caricamento transazionale.
+- Definizioni di abilità, effetti, risorse, scuole di danno, attributi e talenti.
+
 ### Fase 2 — Fondamenta del combattimento
 
-**Stato: da iniziare**
+**Stato: completata**
 
-Realizzazione di un modello centrale e modulare per:
+Realizzazione del modello centrale e modulare per le regole di combattimento.
+
+Sono stati implementati:
 
 - Statistiche dei personaggi e dei nemici.
+- Attributi di combattimento.
+- Livelli dei combattenti.
 - Salute e risorse.
 - Scuole di danno.
-- Calcolo degli attacchi e degli incantesimi.
+- Scuole composite.
 - Armatura e resistenze.
-- Colpi critici.
+- Calcolo dei colpi critici.
+- Richieste e risoluzioni del danno.
 - Guarigione.
+- Applicazione delle risorse.
 - Contesto degli eventi di combattimento.
+- Test di validazione e comportamento dei modelli.
+
+La fase è conclusa a livello di fondamenta tecniche. L'integrazione operativa con le abilità e con gli attacchi effettivi sarà sviluppata nelle fasi successive, senza modificare prematuramente le meccaniche provvisorie.
 
 ### Fase 3 — Sistema di esecuzione degli effetti
 
-**Stato: da iniziare**
+**Stato: in corso**
 
-Implementazione di un sistema centralizzato per gli effetti, comprendente:
+Implementazione di un sistema centralizzato e modulare capace di trasformare le definizioni degli effetti in operazioni valide e di applicarle realmente alle entità del gioco.
 
-- Danni.
-- Guarigione.
-- Modifica delle risorse.
-- Potenziamenti e penalità.
-- Effetti periodici.
-- Minaccia.
-- Interruzioni.
-- Spostamenti.
-- Evocazioni.
-- Eventuali effetti personalizzati.
+Componenti già realizzati:
+
+- Calcolo della magnitudine degli effetti tramite attributi e coefficienti di scaling.
+- Risoluzione delle definizioni degli effetti.
+- Preparazione di richieste di danno, guarigione e risorse.
+- Risoluzione dei bersagli caster, selezionati e ad area.
+- Validazione delle selezioni e prevenzione dei bersagli duplicati.
+- Rappresentazione delle operazioni risolte.
+- Integrazione di `ContentDatabase` come Resource Bevy.
+
+Attività ancora da completare:
+
+1. Caricamento effettivo dei pacchetti di contenuti nel runtime.
+2. Collegamento del database ai sistemi di esecuzione.
+3. Applicazione effettiva del danno alle `HealthPool`.
+4. Integrazione della mitigazione con scuole di danno, armatura, resistenze e livello dell'attaccante.
+5. Applicazione effettiva delle guarigioni.
+6. Applicazione effettiva delle modifiche alle risorse.
+7. Sistema di applicazione e rimozione di buff e debuff.
+8. Gestione delle durate e degli stack delle aure.
+9. Gestione degli effetti periodici.
+10. Gestione della minaccia.
+11. Gestione delle interruzioni.
+12. Gestione degli spostamenti.
+13. Gestione delle evocazioni.
+14. Gestione degli effetti personalizzati.
+15. Integrazione con il contesto e i trigger degli eventi di combattimento.
+16. Test end-to-end delle operazioni sulle entità ECS.
+
+Per gli effetti ad area il resolver riceve già gli enti selezionati, ma resta da realizzare l'integrazione con il sistema che individua effettivamente i bersagli in base a posizione, squadra e raggio.
+
+La fase sarà considerata completa soltanto quando le operazioni risolte potranno essere applicate concretamente e correttamente nel mondo di gioco.
 
 ### Fase 4 — Sistema di esecuzione delle abilità
 
 **Stato: da iniziare**
 
-Il sistema dovrà gestire:
+Realizzazione del sistema che gestisce l'utilizzo delle abilità e la loro integrazione con il sistema degli effetti.
 
-- Attivazione.
+Dovrà gestire:
+
+- Attivazione delle abilità.
 - Selezione e validazione dei bersagli.
 - Distanza e portata.
 - Costi delle risorse.
@@ -272,6 +480,10 @@ Il sistema dovrà gestire:
 - Interruzioni.
 - Abilità passive.
 - Attivazioni basate su eventi.
+- Prerequisiti e restrizioni di classe.
+- Collegamento agli effetti definiti nei pacchetti di contenuti.
+
+Le abilità dovranno essere completamente data-driven quando supportate dal motore.
 
 ### Fase 5 — Contenuti originali Classic
 
@@ -288,6 +500,11 @@ Dovranno essere rappresentati correttamente:
 - Restrizioni di classe.
 - Prerequisiti.
 - Effetti e interazioni.
+- Scuole di danno.
+- Tempi di recupero e lancio.
+- Comportamenti specifici delle abilità.
+
+I contenuti dovranno essere organizzati in pacchetti RON, senza codificare singolarmente ogni abilità nel motore.
 
 ### Fase 6 — Talenti e configurazioni
 
@@ -321,6 +538,8 @@ Realizzazione dei sistemi per:
 - Boss e relative fasi.
 - Meccaniche degli scontri.
 - Progressione e difficoltà dei dungeon.
+- Comportamenti specifici dei boss.
+- Interazioni con gli effetti e le abilità dei giocatori.
 
 ### Fase 8 — Equipaggiamento e ricompense
 
@@ -335,20 +554,35 @@ Implementazione di:
 - Tabelle di bottino.
 - Ricompense dei dungeon.
 - Gestione degli oggetti e dell'inventario.
+- Influenza dell'equipaggiamento sugli attributi e sulle abilità.
 
 ### Fase 9 — Sistema cooperativo
 
 **Stato: parzialmente avviata**
 
-Consolidamento dei sistemi necessari al gioco di gruppo:
+Consolidamento dei sistemi necessari al gioco di gruppo.
+
+Sono già presenti le prime strutture per:
 
 - Fellowship.
+- Membri del gruppo.
 - Ruoli.
-- Gestione dei giocatori.
+- Identificazione dei giocatori.
+- Gestione delle appartenenze.
+
+Restano da sviluppare:
+
+- Gestione completa dei giocatori.
 - Interazioni tra membri.
 - Sinergie tra classi.
 - Condivisione delle attività.
+- Gestione dei gruppi e degli incontri.
+- Sincronizzazione dello stato di gioco.
 - Infrastruttura multiplayer.
+- Gestione della connessione e della disconnessione.
+- Autorità e coerenza dello stato di combattimento.
+
+La presenza della Fellowship non equivale a un multiplayer di rete già implementato.
 
 ### Fase 10 — Espansione dei contenuti
 
@@ -356,7 +590,19 @@ Consolidamento dei sistemi necessari al gioco di gruppo:
 
 Estensione del sistema per consentire l'aggiunta di contenuti originali e personalizzati, nonché di elementi ispirati o retroportati da espansioni successive.
 
-L'architettura dovrà consentire di mantenere più insiemi di contenuti e di definire in maniera esplicita le relative dipendenze e precedenze.
+L'architettura dovrà consentire di:
+
+- Aggiungere nuove abilità.
+- Aggiungere nuovi talenti e specializzazioni.
+- Introdurre nuove scuole di danno.
+- Introdurre nuove risorse.
+- Creare nuovi effetti.
+- Estendere le meccaniche già supportate.
+- Mantenere più insiemi di contenuti.
+- Definire esplicitamente dipendenze e precedenze.
+- Gestire sovrascritture e varianti dei contenuti.
+
+WoW Classic 1.12.1 deve rimanere il punto di partenza, non il limite del progetto.
 
 ### Fase 11 — Rifinitura e ottimizzazione
 
@@ -364,39 +610,65 @@ L'architettura dovrà consentire di mantenere più insiemi di contenuti e di def
 
 Ottimizzazione delle prestazioni, rifinitura dell'interfaccia, feedback visivi e sonori, bilanciamento e miglioramenti generali.
 
-## 9. Regole operative dello sviluppo
+Comprenderà:
+
+- Ottimizzazione ECS.
+- Riduzione delle allocazioni e delle operazioni superflue.
+- Miglioramento della gestione delle risorse.
+- Rifinitura dell'interfaccia.
+- Feedback visivi e sonori.
+- Bilanciamento delle classi.
+- Bilanciamento dei dungeon.
+- Test di regressione.
+- Miglioramenti dell'esperienza cooperativa.
+
+## 10. Regole operative dello sviluppo
 
 - Modificare un solo file alla volta.
 - Leggere sempre il file completo prima di intervenire.
 - Accorpare le correzioni correlate quando riguardano lo stesso file.
-- Suddividere i moduli troppo grandi quando questo migliora la manutenzione.
+- Per modifiche multilinea fornire sempre il file completo aggiornato.
+- Per una modifica di una sola riga fornire soltanto la riga e indicare dove sostituirla.
+- Non aggiungere commenti al codice né righe di commento che iniziano con `#`.
+- Suddividere i moduli che superano circa 1.000 righe quando esistono responsabilità distinte che giustificano la separazione.
+- Evitare frammentazioni artificiali e mantenere API e comportamento.
 - Preservare le meccaniche già funzionanti.
 - Non modificare una meccanica esistente senza spiegare prima le conseguenze e ottenere l'approvazione.
 - Preferire sistemi modulari e riutilizzabili.
 - Evitare duplicazioni di logica.
 - Mantenere separati contenuti, regole di gioco e implementazione tecnica.
+- Non applicare nuove formule agli attacchi provvisori prima di avere completato il relativo sistema definitivo.
 - Accorpare le modifiche compatibili prima di avviare una nuova verifica automatica.
-- Dopo ogni gruppo di modifiche, controllare la compilazione e i test su Linux e Windows.
+- Verificare i commit e i workflow GitHub sulla revisione esatta.
+- Non considerare una CI superata finché il relativo workflow non riporta `success`.
+- Dopo un gruppo significativo di modifiche aggiornare questo documento e fornire un nuovo prompt di continuità.
 
-## 10. Prossimi passaggi
+## 11. Prossimi passaggi operativi
 
-L'ordine di lavoro previsto è:
+L'ordine di lavoro attuale è:
 
-1. Conservare come riferimento la verifica completa superata nel flusso di lavoro 172.
-2. Progettare il modello centrale delle statistiche e delle regole di combattimento.
-3. Definire le strutture necessarie per danni, guarigione, risorse e scuole di danno.
-4. Suddividere il codice in moduli piccoli e indipendenti.
-5. Mantenere operative le meccaniche provvisorie finché non esistono le relative alternative definitive.
-6. Realizzare il sistema di esecuzione degli effetti.
-7. Realizzare il sistema di esecuzione delle abilità.
-8. Iniziare l'inserimento dei contenuti Classic soltanto quando l'infrastruttura necessaria sarà pronta.
+1. Completare il caricamento effettivo dei pacchetti RON nel runtime.
+2. Rendere il database dei contenuti accessibile ai sistemi di combattimento.
+3. Implementare l'applicazione effettiva delle operazioni risolte alle entità ECS.
+4. Collegare correttamente danni, mitigazioni, guarigioni e risorse.
+5. Implementare buff, debuff, aure e relativi timer.
+6. Implementare effetti periodici.
+7. Integrare minaccia, interruzioni, spostamenti ed evocazioni.
+8. Collegare la gestione degli effetti agli eventi di combattimento.
+9. Completare i test di integrazione della fase 3.
+10. Avviare la fase 4 dedicata all'esecuzione delle abilità.
+11. Sostituire progressivamente le meccaniche provvisorie soltanto quando le alternative definitive saranno pronte.
 
-## 11. Continuità del progetto
+Le attività dovranno procedere un file alla volta, evitando di anticipare integrazioni che richiederebbero meccaniche ancora mancanti.
+
+## 12. Continuità del progetto
 
 Il repository è la fonte di verità per lo stato effettivo del codice.
 
 Questo documento serve a conservare la direzione architetturale, le decisioni di progettazione, le fasi di sviluppo e il relativo stato.
 
 Prima di ogni intervento occorre controllare la situazione reale del repository, senza assumere che le informazioni riportate in questo documento siano necessariamente aggiornate dopo gli ultimi commit.
+
+La roadmap deve essere aggiornata quando viene completata una fase significativa, viene introdotta una componente architetturale importante, cambia una decisione progettuale o viene modificata sostanzialmente la direzione dello sviluppo.
 
 L'obiettivo finale è costruire un sistema di gioco modulare, coerente e ampliabile, nel quale i contenuti originali costituiscano una base solida sulla quale poter sviluppare liberamente nuove possibilità.
