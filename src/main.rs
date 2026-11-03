@@ -60,6 +60,7 @@ use fellowship::{
     LeaveFellowship,
 };
 use character::{CharacterBuild, CharacterClass, CharacterRace};
+use content::{ContentDatabase, ContentPackLoader};
 use interaction::InteractionPlugin;
 use navigation::NavigationPlugin;
 use enemy_navigation::EnemyNavigationPlugin;
@@ -79,6 +80,8 @@ fn main() {
 fn run_headless() {
     let mut app = App::new();
 
+    app.insert_resource(load_content_database());
+
     app.add_plugins(MinimalPlugins)
         .add_plugins(InputPlugin)
         .add_systems(Startup, setup_headless_game);
@@ -97,6 +100,8 @@ fn run_headless() {
 
 fn run_game() {
     let mut app = App::new();
+
+    app.insert_resource(load_content_database());
 
     if let Some(data_dir) = benilla_formats::wow_data() {
         if let Err(error) =
@@ -142,7 +147,48 @@ fn run_game() {
     app.run();
 }
 
+fn load_content_database() -> ContentDatabase {
+    let mut database = ContentDatabase::new();
+
+    ContentPackLoader::load_ron(
+        &mut database,
+        include_str!("../content/packs/classic_1_12_1.ron"),
+    )
+    .expect("Impossibile caricare il pacchetto Classic 1.12.1.");
+
+    database
+}
+
 fn run_headless_tests(app: &mut App) {
+    {
+        let database = app.world().resource::<ContentDatabase>();
+
+        assert_eq!(
+            database.damage_school_count(),
+            7,
+            "Il database deve contenere le sette scuole fondamentali."
+        );
+
+        assert_eq!(
+            database.combat_attribute_count(),
+            10,
+            "Il database deve contenere i dieci attributi di combattimento."
+        );
+
+        assert_eq!(
+            database.resource_count(),
+            3,
+            "Il database deve contenere Mana, Rage ed Energy."
+        );
+
+        assert!(
+            database.validate().is_ok(),
+            "Il database dei contenuti deve superare la validazione."
+        );
+    }
+
+    println!("Test di caricamento del pacchetto Classic superato.");
+
     assert!(
         CharacterBuild::new(CharacterRace::Dwarf, CharacterClass::Shaman).is_some(),
         "Il Nano deve poter scegliere Sciamano."
