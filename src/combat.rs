@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -11,6 +10,7 @@ use crate::player::{
     FellowshipRole,
 };
 
+mod aura_runtime;
 mod damage;
 mod death;
 mod effect_dispatcher;
@@ -29,6 +29,12 @@ mod stats;
 mod target_indicator;
 mod target_selection;
 
+pub use aura_runtime::{
+    ActiveAura,
+    ActiveAuras,
+    AuraRuntimeError,
+    ExpiredAura,
+};
 pub use damage::{
     calculate_armor_mitigation,
     calculate_armor_mitigation_from_attributes,
