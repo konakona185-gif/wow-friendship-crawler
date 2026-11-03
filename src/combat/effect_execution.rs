@@ -11,13 +11,14 @@ use super::{
     CombatLevel,
     CombatResources,
     DamageResolution,
-    EffectResolutionError,
     HealingRequestError,
     HealingResolution,
     HealingResolutionError,
     HealthPool,
     HealthPoolError,
     ResourceApplicationError,
+    ResourceOperation,
+    ResourceRequest,
     ResourceResolution,
     ResolvedEffect,
     ResolvedEffectOperation,
@@ -148,35 +149,60 @@ pub fn execute_resolved_effect(
                 applied_amount,
             })
         }
-        ResolvedEffectOperation::GainResource(request)
-        | ResolvedEffectOperation::SpendResource(request) => {
-            if request.source != effect.source
-                || request.target != effect.target
-            {
-                return Err(EffectExecutionError::ContextMismatch);
-            }
-
-            if context.database.resource(&request.resource).is_none() {
-                return Err(
-                    EffectExecutionError::MissingResourceDefinition(
-                        request.resource.clone(),
-                    ),
-                );
-            }
-
-            let target_resources = context
-                .target_resources
-                .as_deref_mut()
-                .ok_or(EffectExecutionError::MissingTargetResources)?;
-
-            let resolution = target_resources
-                .apply_request(request.clone())
-                .map_err(EffectExecutionError::ResourceApplication)?;
-
-            Ok(EffectExecutionResult::Resource(resolution))
+        ResolvedEffectOperation::GainResource(request) => {
+            execute_resource_request(
+                effect,
+                request,
+                ResourceOperation::Gain,
+                &mut context,
+            )
+        }
+        ResolvedEffectOperation::SpendResource(request) => {
+            execute_resource_request(
+                effect,
+                request,
+                ResourceOperation::Spend,
+                &mut context,
+            )
         }
         _ => Err(EffectExecutionError::UnsupportedOperation),
     }
+}
+
+fn execute_resource_request(
+    effect: &ResolvedEffect,
+    request: &ResourceRequest,
+    expected_operation: ResourceOperation,
+    context: &mut EffectExecutionContext<'_>,
+) -> Result<EffectExecutionResult, EffectExecutionError> {
+    if request.source != effect.source
+        || request.target != effect.target
+    {
+        return Err(EffectExecutionError::ContextMismatch);
+    }
+
+    if request.operation != expected_operation {
+        return Err(EffectExecutionError::ResourceOperationMismatch);
+    }
+
+    if context.database.resource(&request.resource).is_none() {
+        return Err(
+            EffectExecutionError::MissingResourceDefinition(
+                request.resource.clone(),
+            ),
+        );
+    }
+
+    let target_resources = context
+        .target_resources
+        .as_deref_mut()
+        .ok_or(EffectExecutionError::MissingTargetResources)?;
+
+    let resolution = target_resources
+        .apply_request(request.clone())
+        .map_err(EffectExecutionError::ResourceApplication)?;
+
+    Ok(EffectExecutionResult::Resource(resolution))
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -194,6 +220,7 @@ pub enum EffectExecutionError {
     InvalidHealingRequest(HealingRequestError),
     InvalidHealingResolution(HealingResolutionError),
     HealthApplication(HealthPoolError),
+    ResourceOperationMismatch,
     ResourceApplication(ResourceApplicationError),
     UnsupportedOperation,
 }
@@ -277,6 +304,11 @@ impl Display for EffectExecutionError {
                     "Applicazione alla HealthPool non riuscita: {error}"
                 )
             }
+            Self::ResourceOperationMismatch => {
+                formatter.write_str(
+                    "Il tipo di operazione della risorsa non corrisponde all'effetto",
+                )
+            }
             Self::ResourceApplication(error) => {
                 write!(
                     formatter,
@@ -306,7 +338,6 @@ mod tests {
         CombatResources,
         EffectTrigger,
         ResourcePool,
-        ResourceOperation,
     };
 
     use crate::content::{
@@ -316,7 +347,6 @@ mod tests {
         ContentPackManifest,
         DamageSchoolDefinition,
         DamageSchoolMitigation,
-        EffectTarget,
         ResourceDefinition,
     };
 
@@ -522,248 +552,4 @@ mod tests {
             .set(armor_id(), 5500.0)
             .unwrap();
 
-        let mut health = HealthPool::new(100.0, 100.0).unwrap();
-
-        execute_resolved_effect(
-            &damage_effect(source, target),
-            execution_context(
-                &database,
-                Some(&attacker_level),
-                Some(&attributes),
-                Some(&mut health),
-                None,
-            ),
-        )
-        .unwrap();
-
-        assert_eq!(health.current(), 50.0);
-    }
-
-    #[test]
-    fn healing_execution_caps_healing_at_remaining_health() {
-        let database = database_with_school(
-            DamageSchoolMitigation::Unmitigated,
-        );
-
-        let source = Entity::from_bits(1);
-        let target = Entity::from_bits(2);
-
-        let effect = resolved_effect(
-            Some(source),
-            target,
-            ResolvedEffectOperation::Heal(
-                super::super::HealingRequest {
-                    source: Some(source),
-                    target,
-                    base_amount: 80.0,
-                },
-            ),
-        );
-
-        let mut health = HealthPool::new(50.0, 100.0).unwrap();
-
-        let result = execute_resolved_effect(
-            &effect,
-            execution_context(
-                &database,
-                None,
-                None,
-                Some(&mut health),
-                None,
-            ),
-        )
-        .unwrap();
-
-        assert_eq!(health.current(), 100.0);
-
-        assert!(matches!(
-            result,
-            EffectExecutionResult::Healing {
-                applied_amount: 50.0,
-                ..
-            }
-        ));
-    }
-
-    #[test]
-    fn resource_gain_execution_applies_effective_amount() {
-        let database = database_with_school(
-            DamageSchoolMitigation::Unmitigated,
-        );
-
-        let source = Entity::from_bits(1);
-        let target = Entity::from_bits(2);
-
-        let effect = resolved_effect(
-            Some(source),
-            target,
-            ResolvedEffectOperation::GainResource(
-                super::super::ResourceRequest {
-                    source: Some(source),
-                    target,
-                    resource: content_id("resource.mana"),
-                    operation: ResourceOperation::Gain,
-                    base_amount: 25.0,
-                },
-            ),
-        );
-
-        let mut resources = CombatResources::default();
-
-        resources.insert(
-            content_id("resource.mana"),
-            ResourcePool::new(10.0, 100.0).unwrap(),
-        );
-
-        let result = execute_resolved_effect(
-            &effect,
-            execution_context(
-                &database,
-                None,
-                None,
-                None,
-                Some(&mut resources),
-            ),
-        )
-        .unwrap();
-
-        assert_eq!(
-            resources.pool(&content_id("resource.mana")).unwrap().current(),
-            35.0
-        );
-
-        assert!(matches!(
-            result,
-            EffectExecutionResult::Resource(resolution)
-                if resolution.effective_amount == 25.0
-        ));
-    }
-
-    #[test]
-    fn resource_spending_execution_caps_at_available_amount() {
-        let database = database_with_school(
-            DamageSchoolMitigation::Unmitigated,
-        );
-
-        let source = Entity::from_bits(1);
-        let target = Entity::from_bits(2);
-
-        let effect = resolved_effect(
-            Some(source),
-            target,
-            ResolvedEffectOperation::SpendResource(
-                super::super::ResourceRequest {
-                    source: Some(source),
-                    target,
-                    resource: content_id("resource.mana"),
-                    operation: ResourceOperation::Spend,
-                    base_amount: 30.0,
-                },
-            ),
-        );
-
-        let mut resources = CombatResources::default();
-
-        resources.insert(
-            content_id("resource.mana"),
-            ResourcePool::new(10.0, 100.0).unwrap(),
-        );
-
-        let result = execute_resolved_effect(
-            &effect,
-            execution_context(
-                &database,
-                None,
-                None,
-                None,
-                Some(&mut resources),
-            ),
-        )
-        .unwrap();
-
-        assert_eq!(
-            resources.pool(&content_id("resource.mana")).unwrap().current(),
-            0.0
-        );
-
-        assert!(matches!(
-            result,
-            EffectExecutionResult::Resource(resolution)
-                if resolution.effective_amount == 10.0
-        ));
-    }
-
-    #[test]
-    fn execution_rejects_mismatched_targets() {
-        let database = database_with_school(
-            DamageSchoolMitigation::Unmitigated,
-        );
-
-        let source = Entity::from_bits(1);
-        let target = Entity::from_bits(2);
-
-        let effect = damage_effect(source, target);
-
-        let mut health = HealthPool::new(100.0, 100.0).unwrap();
-        let attacker_level = CombatLevel::new(60).unwrap();
-        let attributes = CombatAttributes::default();
-
-        let mut mismatched_effect = effect.clone();
-
-        mismatched_effect.target = Entity::from_bits(3);
-
-        assert_eq!(
-            execute_resolved_effect(
-                &mismatched_effect,
-                execution_context(
-                    &database,
-                    Some(&attacker_level),
-                    Some(&attributes),
-                    Some(&mut health),
-                    None,
-                ),
-            ),
-            Err(EffectExecutionError::ContextMismatch)
-        );
-
-        assert_eq!(health.current(), 100.0);
-    }
-
-    #[test]
-    fn execution_rejects_unsupported_operations_without_mutation() {
-        let database = database_with_school(
-            DamageSchoolMitigation::Unmitigated,
-        );
-
-        let source = Entity::from_bits(1);
-        let target = Entity::from_bits(2);
-
-        let effect = resolved_effect(
-            Some(source),
-            target,
-            ResolvedEffectOperation::ApplyAura {
-                aura: content_id("aura.test"),
-                stacks: 1,
-                duration_seconds: Some(10.0),
-            },
-        );
-
-        let mut health = HealthPool::new(50.0, 100.0).unwrap();
-
-        assert_eq!(
-            execute_resolved_effect(
-                &effect,
-                execution_context(
-                    &database,
-                    None,
-                    None,
-                    Some(&mut health),
-                    None,
-                ),
-            ),
-            Err(EffectExecutionError::UnsupportedOperation)
-        );
-
-        assert_eq!(health.current(), 50.0);
-    }
-}
+        let mut health = HealthPool::new(100.
