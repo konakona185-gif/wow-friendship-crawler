@@ -16,7 +16,7 @@
                 description: "Danni fisici mitigati dall'armatura.",
             ),
             mitigation: (
-                type: "armor",
+                type: armor,
             ),
         ),
         (
@@ -27,7 +27,7 @@
                 description: "Danni della scuola Holy.",
             ),
             mitigation: (
-                type: "resistance",
+                type: resistance,
                 parameters: (
                     stat: "classic_1_12_1:stat.holy_resistance",
                 ),
@@ -41,7 +41,7 @@
                 description: "Danni della scuola Shadow.",
             ),
             mitigation: (
-                type: "resistance",
+                type: resistance,
                 parameters: (
                     stat: "classic_1_12_1:stat.shadow_resistance",
                 ),
@@ -55,7 +55,7 @@
                 description: "Danni della scuola Nature.",
             ),
             mitigation: (
-                type: "resistance",
+                type: resistance,
                 parameters: (
                     stat: "classic_1_12_1:stat.nature_resistance",
                 ),
@@ -69,7 +69,7 @@
                 description: "Danni della scuola Frost.",
             ),
             mitigation: (
-                type: "resistance",
+                type: resistance,
                 parameters: (
                     stat: "classic_1_12_1:stat.frost_resistance",
                 ),
@@ -83,7 +83,7 @@
                 description: "Danni della scuola Arcane.",
             ),
             mitigation: (
-                type: "resistance",
+                type: resistance,
                 parameters: (
                     stat: "classic_1_12_1:stat.arcane_resistance",
                 ),
@@ -97,7 +97,7 @@
                 description: "Danni della scuola Fire.",
             ),
             mitigation: (
-                type: "resistance",
+                type: resistance,
                 parameters: (
                     stat: "classic_1_12_1:stat.fire_resistance",
                 ),
