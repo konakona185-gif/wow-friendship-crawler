@@ -1,18 +1,25 @@
+
 use bevy::prelude::*;
 
 use super::*;
 
 pub(super) fn enemy_death_system(
     mut commands: Commands,
-    enemy_query: Query<(Entity, &CombatStats, Option<&HealthPool>), With<Enemy>>,
+    enemy_query: Query<
+        (Entity, Option<&CombatStats>, Option<&HealthPool>),
+        With<Enemy>,
+    >,
     indicator_query: Query<(Entity, &TargetIndicator)>,
     mut player_target_query: Query<&mut Target, With<Character>>,
 ) {
     for (enemy_entity, stats, health_pool) in &enemy_query {
-        let current_health = health_pool.map_or(
-            stats.current_health,
-            |pool| pool.current(),
-        );
+        let current_health = health_pool
+            .map(|pool| pool.current())
+            .or_else(|| stats.map(|stats| stats.current_health));
+
+        let Some(current_health) = current_health else {
+            continue;
+        };
 
         if current_health <= 0.0 {
             info!(
