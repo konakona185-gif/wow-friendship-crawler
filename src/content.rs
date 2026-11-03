@@ -23,9 +23,12 @@ pub use ability::{
 
 pub use aura::{
     AuraDefinition,
+    AuraRefreshPolicy,
     AuraStackingPolicy,
+    AuraStackingScope,
     AuraValidationError,
     PeriodicAuraEffect,
+    PeriodicEffectStackScaling,
 };
 
 pub use combat_attribute::{
