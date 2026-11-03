@@ -22,7 +22,7 @@ pub(super) fn enemy_attack_system(
         With<Enemy>,
     >,
     mut player_query: Query<
-        (&Transform, &mut CombatStats, Option<&mut HealthPool>),
+        (&Transform, Option<&mut CombatStats>, Option<&mut HealthPool>),
         (With<Character>, Without<Enemy>),
     >,
 ) {
@@ -48,18 +48,37 @@ pub(super) fn enemy_attack_system(
             continue;
         };
 
-        let Ok((player_transform, mut player_stats, health_pool)) =
+        let Ok((player_transform, mut player_stats, mut health_pool)) =
             player_query.get_mut(target_entity)
         else {
             continue;
         };
 
-        if let Some(pool) = health_pool.as_deref() {
-            player_stats.current_health = pool.current();
-            player_stats.max_health = pool.maximum();
+        let current_health = health_pool
+            .as_deref()
+            .map(|pool| pool.current())
+            .or_else(|| {
+                player_stats
+                    .as_deref()
+                    .map(|stats| stats.current_health)
+            });
+
+        let Some(current_health) = current_health else {
+            if let Some(mut state) = attack_state {
+                state.cooldown.reset();
+            }
+
+            continue;
+        };
+
+        if let (Some(pool), Some(stats)) =
+            (health_pool.as_deref(), player_stats.as_deref_mut())
+        {
+            stats.current_health = pool.current();
+            stats.max_health = pool.maximum();
         }
 
-        if player_stats.current_health <= 0.0 {
+        if current_health <= 0.0 {
             if let Some(mut state) = attack_state {
                 state.cooldown.reset();
             }
@@ -96,31 +115,44 @@ pub(super) fn enemy_attack_system(
         state.cooldown.tick(time.delta());
 
         if state.cooldown.just_finished() {
-            if let Some(mut health_pool) = health_pool {
-                match health_pool.apply_damage(DEFAULT_ENEMY_ATTACK_DAMAGE) {
-                    Ok(_) => {
-                        player_stats.current_health = health_pool.current();
+            let (current_health, max_health) =
+                if let Some(pool) = health_pool.as_deref_mut() {
+                    match pool.apply_damage(DEFAULT_ENEMY_ATTACK_DAMAGE) {
+                        Ok(_) => {
+                            let current_health = pool.current();
+                            let max_health = pool.maximum();
+
+                            if let Some(stats) = player_stats.as_deref_mut() {
+                                stats.current_health = current_health;
+                                stats.max_health = max_health;
+                            }
+
+                            (current_health, max_health)
+                        }
+                        Err(error) => {
+                            warn!(
+                                "Impossibile applicare il danno alla HealthPool del giocatore: {error}"
+                            );
+                            continue;
+                        }
                     }
-                    Err(error) => {
-                        warn!(
-                            "Impossibile applicare il danno alla HealthPool del giocatore: {error}"
-                        );
-                        continue;
-                    }
-                }
-            } else {
-                player_stats.current_health =
-                    (player_stats.current_health - DEFAULT_ENEMY_ATTACK_DAMAGE)
-                        .max(0.0);
-            }
+                } else if let Some(stats) = player_stats.as_deref_mut() {
+                    stats.current_health =
+                        (stats.current_health - DEFAULT_ENEMY_ATTACK_DAMAGE)
+                            .max(0.0);
+
+                    (stats.current_health, stats.max_health)
+                } else {
+                    continue;
+                };
 
             info!(
                 "Nemico {:?} attacca il giocatore {:?}. Danno: {}. Vita giocatore: {}/{}",
                 enemy_entity,
                 target_entity,
                 DEFAULT_ENEMY_ATTACK_DAMAGE,
-                player_stats.current_health,
-                player_stats.max_health
+                current_health,
+                max_health
             );
         }
     }
