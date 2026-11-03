@@ -60,7 +60,9 @@ mod tests {
     use crate::combat::ActiveAuras;
     use crate::content::{
         AuraDefinition,
+        AuraRefreshPolicy,
         AuraStackingPolicy,
+        AuraStackingScope,
         ContentId,
         ContentMetadata,
     };
@@ -83,6 +85,8 @@ mod tests {
             },
             max_stacks: 5,
             stacking_policy: AuraStackingPolicy::AddStacks,
+            stacking_scope: AuraStackingScope::Shared,
+            refresh_policy: AuraRefreshPolicy::ResetDuration,
             periodic_effects: Vec::new(),
         }
     }
