@@ -1,4 +1,3 @@
-
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
@@ -22,6 +21,10 @@ pub enum CombatEventOutcome {
     Damage(DamageResolution),
     Healing(HealingResolution),
     Resource(ResourceResolution),
+    AuraExpired {
+        aura: ContentId,
+        stacks: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +69,19 @@ impl CombatEventContext {
                     resolution.request.source,
                     resolution.request.target,
                 )?;
+            }
+            Some(CombatEventOutcome::AuraExpired { stacks, .. }) => {
+                if *stacks == 0 {
+                    return Err(
+                        CombatEventContextError::ZeroExpiredAuraStacks,
+                    );
+                }
+
+                if self.target.is_none() {
+                    return Err(
+                        CombatEventContextError::MissingAuraExpirationTarget,
+                    );
+                }
             }
             None => {}
         }
@@ -201,6 +217,8 @@ pub enum CombatEventContextError {
     InvalidResource(ResourceResolutionError),
     SourceMismatch,
     TargetMismatch,
+    ZeroExpiredAuraStacks,
+    MissingAuraExpirationTarget,
 }
 
 impl Display for CombatEventContextError {
@@ -223,6 +241,16 @@ impl Display for CombatEventContextError {
             Self::TargetMismatch => {
                 formatter.write_str(
                     "Il bersaglio dell'evento non corrisponde al risultato",
+                )
+            }
+            Self::ZeroExpiredAuraStacks => {
+                formatter.write_str(
+                    "Un evento di scadenza deve contenere almeno uno stack",
+                )
+            }
+            Self::MissingAuraExpirationTarget => {
+                formatter.write_str(
+                    "Un evento di scadenza richiede il bersaglio dell'aura",
                 )
             }
         }
@@ -310,6 +338,13 @@ mod tests {
         )
     }
 
+    fn aura_expired_outcome(stacks: u32) -> CombatEventOutcome {
+        CombatEventOutcome::AuraExpired {
+            aura: content_id("aura.test"),
+            stacks,
+        }
+    }
+
     #[test]
     fn event_context_without_outcome_passes_validation() {
         let context = valid_context(EffectTrigger::OnCast);
@@ -339,6 +374,39 @@ mod tests {
         context.outcome = Some(resource_outcome());
 
         assert!(context.validate().is_ok());
+    }
+
+    #[test]
+    fn event_context_validates_aura_expiration_outcomes() {
+        let mut context = valid_context(EffectTrigger::OnExpire);
+        context.outcome = Some(aura_expired_outcome(2));
+
+        assert!(context.validate().is_ok());
+    }
+
+    #[test]
+    fn event_context_rejects_zero_expired_aura_stacks() {
+        let mut context = valid_context(EffectTrigger::OnExpire);
+        context.outcome = Some(aura_expired_outcome(0));
+
+        assert_eq!(
+            context.validate(),
+            Err(CombatEventContextError::ZeroExpiredAuraStacks)
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_aura_expiration_without_target() {
+        let mut context = valid_context(EffectTrigger::OnExpire);
+        context.target = None;
+        context.outcome = Some(aura_expired_outcome(1));
+
+        assert_eq!(
+            context.validate(),
+            Err(
+                CombatEventContextError::MissingAuraExpirationTarget
+            )
+        );
     }
 
     #[test]
@@ -393,8 +461,8 @@ mod tests {
             context.validate(),
             Err(CombatEventContextError::InvalidDamage(
                 DamageResolutionError::InvalidMitigation(
-    super::super::DamageMitigationError::MitigationExceedsIncomingAmount
-)
+                    super::super::DamageMitigationError::MitigationExceedsIncomingAmount
+                )
             ))
         );
     }
