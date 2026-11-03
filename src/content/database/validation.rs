@@ -61,6 +61,15 @@ impl ContentDatabase {
         for aura in self.auras.values() {
             aura.validate()
                 .map_err(ContentDatabaseError::InvalidAura)?;
+
+            for periodic_effect in &aura.periodic_effects {
+                if !self.effects.contains_key(&periodic_effect.effect) {
+                    return Err(ContentDatabaseError::MissingReference {
+                        owner: aura.metadata.id.clone(),
+                        reference: periodic_effect.effect.clone(),
+                    });
+                }
+            }
         }
 
         Ok(())
