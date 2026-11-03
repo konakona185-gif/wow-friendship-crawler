@@ -9,8 +9,10 @@ use crate::content::{
 };
 
 use super::{
+    aura_execution::execute_aura_effect,
     execute_resolved_effect,
     resolve_effect,
+    ActiveAuras,
     CombatAttributes,
     CombatEventContext,
     CombatEventOutcome,
@@ -25,6 +27,7 @@ use super::{
     EffectTrigger,
     HealthPool,
     ResolvedEffect,
+    ResolvedEffectOperation,
     ResourceOperation,
     MAX_REACTIVE_EFFECT_GENERATIONS,
 };
@@ -260,6 +263,7 @@ pub(super) fn execute_pending_effects(
         Option<&mut CombatStats>,
         Option<&mut HealthPool>,
         Option<&mut CombatResources>,
+        Option<&mut ActiveAuras>,
     )>,
 ) {
     let effects = std::mem::take(&mut pending.pending);
@@ -278,6 +282,7 @@ pub(super) fn execute_pending_effects(
             mut target_stats,
             mut target_health,
             mut target_resources,
+            mut target_auras,
         )) = target_query.get_mut(effect.target)
         else {
             warn!(
@@ -286,6 +291,38 @@ pub(super) fn execute_pending_effects(
             );
             continue;
         };
+
+        if matches!(
+            &effect.operation,
+            ResolvedEffectOperation::ApplyAura { .. }
+                | ResolvedEffectOperation::RemoveAura { .. }
+        ) {
+            match execute_aura_effect(
+                &effect,
+                &database,
+                target_auras.as_deref_mut(),
+            ) {
+                Ok(result) => {
+                    debug!(
+                        effect = ?effect.effect,
+                        target = ?effect.target,
+                        generation,
+                        result = ?result,
+                        "Effetto aura di combattimento eseguito."
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        effect = ?effect.effect,
+                        target = ?effect.target,
+                        %error,
+                        "Esecuzione dell'effetto aura non riuscita."
+                    );
+                }
+            }
+
+            continue;
+        }
 
         let execution_result = {
             let context = EffectExecutionContext {
