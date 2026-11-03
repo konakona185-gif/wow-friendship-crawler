@@ -542,3 +542,66 @@ fn tank_health_pool_damage_is_capped_at_remaining_health() {
         Some(&(5.0 * DEFAULT_TANK_THREAT_MULTIPLIER))
     );
 }
+
+#[test]
+fn player_can_attack_enemy_with_only_health_pool() {
+    let mut app = setup_player_cast_test_app();
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi::default(),
+        EnemyThreat::default(),
+        HealthPool::new(100.0, 120.0).unwrap(),
+    )).id();
+
+    let player = spawn_player_for_cast(
+        &mut app,
+        enemy,
+        FellowshipRole::Tank,
+        0.0,
+    );
+
+    app.update();
+
+    let health_pool = app.world().get::<HealthPool>(enemy).unwrap();
+    let threat = app.world().get::<EnemyThreat>(enemy).unwrap();
+    let player_stats = app.world().get::<CombatStats>(player).unwrap();
+
+    assert_eq!(health_pool.current(), 85.0);
+    assert_eq!(health_pool.maximum(), 120.0);
+    assert!(app.world().get::<CombatStats>(enemy).is_none());
+    assert_eq!(player_stats.resource, 20.0);
+
+    assert_eq!(
+        threat.values.get(&player),
+        Some(&(15.0 * DEFAULT_TANK_THREAT_MULTIPLIER))
+    );
+}
+
+#[test]
+fn player_cannot_attack_enemy_without_health_components() {
+    let mut app = setup_player_cast_test_app();
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi::default(),
+        EnemyThreat::default(),
+    )).id();
+
+    let player = spawn_player_for_cast(
+        &mut app,
+        enemy,
+        FellowshipRole::Dps,
+        0.0,
+    );
+
+    app.update();
+
+    let player_stats = app.world().get::<CombatStats>(player).unwrap();
+    let threat = app.world().get::<EnemyThreat>(enemy).unwrap();
+
+    assert!(app.world().get::<HealthPool>(enemy).is_none());
+    assert!(app.world().get::<CombatStats>(enemy).is_none());
+    assert_eq!(player_stats.resource, 0.0);
+    assert!(threat.values.get(&player).is_none());
+}
