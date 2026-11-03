@@ -26,7 +26,7 @@ pub(super) fn player_cast_system(
     >,
     mut enemy_query: Query<
         (
-            &mut CombatStats,
+            Option<&mut CombatStats>,
             Option<&EnemyAi>,
             Option<&mut EnemyThreat>,
             Option<&mut HealthPool>,
@@ -67,12 +67,27 @@ pub(super) fn player_cast_system(
             continue;
         };
 
-        if let Some(health_pool) = enemy_health_pool.as_deref() {
-            enemy_stats.current_health = health_pool.current();
-            enemy_stats.max_health = health_pool.maximum();
+        let current_enemy_health = enemy_health_pool
+            .as_deref()
+            .map(|pool| pool.current())
+            .or_else(|| {
+                enemy_stats
+                    .as_deref()
+                    .map(|stats| stats.current_health)
+            });
+
+        let Some(current_enemy_health) = current_enemy_health else {
+            continue;
+        };
+
+        if let (Some(pool), Some(stats)) =
+            (enemy_health_pool.as_deref(), enemy_stats.as_deref_mut())
+        {
+            stats.current_health = pool.current();
+            stats.max_health = pool.maximum();
         }
 
-        if enemy_stats.current_health <= 0.0
+        if current_enemy_health <= 0.0
             || enemy_ai.is_some_and(|ai| ai.returning_home)
         {
             continue;
@@ -111,36 +126,54 @@ pub(super) fn player_cast_system(
             continue;
         }
 
-        let damage = if let Some(mut health_pool) = enemy_health_pool {
-            match health_pool.apply_damage(requested_damage) {
-                Ok(effective_damage) => {
-                    enemy_stats.current_health = health_pool.current();
-                    effective_damage
-                }
-                Err(error) => {
-                    warn!(
-                        "Impossibile applicare il danno alla HealthPool del nemico: {error}"
-                    );
-                    continue;
-                }
-            }
-        } else {
-            let effective_damage =
-                enemy_stats.current_health.min(requested_damage).max(0.0);
+        let (damage, enemy_current_health, enemy_max_health) =
+            if let Some(mut health_pool) = enemy_health_pool {
+                match health_pool.apply_damage(requested_damage) {
+                    Ok(effective_damage) => {
+                        let current_health = health_pool.current();
+                        let maximum_health = health_pool.maximum();
 
-            enemy_stats.current_health =
-                (enemy_stats.current_health - requested_damage).max(0.0);
+                        if let Some(stats) = enemy_stats.as_deref_mut() {
+                            stats.current_health = current_health;
+                            stats.max_health = maximum_health;
+                        }
 
-            effective_damage
-        };
+                        (
+                            effective_damage,
+                            current_health,
+                            maximum_health,
+                        )
+                    }
+                    Err(error) => {
+                        warn!(
+                            "Impossibile applicare il danno alla HealthPool del nemico: {error}"
+                        );
+                        continue;
+                    }
+                }
+            } else if let Some(stats) = enemy_stats.as_deref_mut() {
+                let effective_damage =
+                    stats.current_health.min(requested_damage).max(0.0);
+
+                stats.current_health =
+                    (stats.current_health - requested_damage).max(0.0);
+
+                (
+                    effective_damage,
+                    stats.current_health,
+                    stats.max_health,
+                )
+            } else {
+                continue;
+            };
 
         match attack_kind {
             PlayerAttackKind::TankStrike => {
                 info!(
                     "Tank colpisce! Danno: {}. Vita Nemico: {}/{}. Rabbia generata: {}",
                     damage,
-                    enemy_stats.current_health,
-                    enemy_stats.max_health,
+                    enemy_current_health,
+                    enemy_max_health,
                     player_stats.resource
                 );
             }
@@ -148,8 +181,8 @@ pub(super) fn player_cast_system(
                 info!(
                     "DPS scatta l'abilità! Danno pesante: {}. Vita Nemico: {}/{}. Energia residua: {}",
                     damage,
-                    enemy_stats.current_health,
-                    enemy_stats.max_health,
+                    enemy_current_health,
+                    enemy_max_health,
                     player_stats.resource
                 );
             }
@@ -157,8 +190,8 @@ pub(super) fn player_cast_system(
                 info!(
                     "DPS attacco base! Danno: {}. Vita Nemico: {}/{}. Energia rigenerata: {}",
                     damage,
-                    enemy_stats.current_health,
-                    enemy_stats.max_health,
+                    enemy_current_health,
+                    enemy_max_health,
                     player_stats.resource
                 );
             }
@@ -166,8 +199,8 @@ pub(super) fn player_cast_system(
                 info!(
                     "Healer lancia incantesimo! Danno: {}. Vita Nemico: {}/{}. Mana residuo: {}",
                     damage,
-                    enemy_stats.current_health,
-                    enemy_stats.max_health,
+                    enemy_current_health,
+                    enemy_max_health,
                     player_stats.resource
                 );
             }
