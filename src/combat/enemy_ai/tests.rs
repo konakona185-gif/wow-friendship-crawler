@@ -34,6 +34,19 @@ fn spawn_player_with_health_pool(
     )).id()
 }
 
+fn spawn_player_with_only_health_pool(
+    world: &mut World,
+    position: Vec3,
+    health: f32,
+    maximum: f32,
+) -> Entity {
+    world.spawn((
+        Character,
+        Transform::from_translation(position),
+        HealthPool::new(health, maximum).unwrap(),
+    )).id()
+}
+
 fn spawn_enemy_ai(
     world: &mut World,
     position: Vec3,
@@ -464,6 +477,124 @@ fn enemy_health_pool_overrides_stats_when_determining_enemy_liveness() {
     assert_eq!(living_ai.target, Some(second_player));
     assert_eq!(living_stats.current_health, 40.0);
     assert_eq!(living_stats.max_health, 120.0);
+}
+
+#[test]
+fn enemy_with_only_health_pool_can_acquire_player_with_only_health_pool() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi::default(),
+        EnemyHomePosition(Vec3::ZERO),
+        EnemyThreat::default(),
+        Transform::default(),
+        HealthPool::new(80.0, 100.0).unwrap(),
+    )).id();
+
+    let player = spawn_player_with_only_health_pool(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 5.0),
+        60.0,
+        100.0,
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(player)
+    );
+}
+
+#[test]
+fn enemy_does_not_acquire_player_without_health_components() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let enemy = spawn_enemy_ai(app.world_mut(), Vec3::ZERO);
+
+    let player_without_health = app.world_mut().spawn((
+        Character,
+        Transform::from_xyz(0.0, 0.0, 1.0),
+    )).id();
+
+    let player_with_health = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 8.0),
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(player_with_health)
+    );
+
+    assert_ne!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(player_without_health)
+    );
+}
+
+#[test]
+fn enemy_without_health_components_does_not_acquire_targets() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi::default(),
+        Transform::default(),
+    )).id();
+
+    spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 5.0),
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        None
+    );
+}
+
+#[test]
+fn enemy_with_only_health_pool_recovers_to_pool_maximum_after_leashing() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(41.0, 0.0, 1.0),
+    );
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(player),
+            ..EnemyAi::default()
+        },
+        EnemyHomePosition(Vec3::ZERO),
+        EnemyThreat {
+            values: std::collections::HashMap::from([
+                (player, 45.0),
+            ]),
+        },
+        Transform::from_xyz(41.0, 0.0, 0.0),
+        HealthPool::new(25.0, 75.0).unwrap(),
+    )).id();
+
+    app.update();
+
+    let ai = app.world().get::<EnemyAi>(enemy).unwrap();
+    let threat = app.world().get::<EnemyThreat>(enemy).unwrap();
+    let health_pool = app.world().get::<HealthPool>(enemy).unwrap();
+
+    assert_eq!(ai.target, None);
+    assert!(ai.returning_home);
+    assert_eq!(health_pool.current(), 75.0);
+    assert_eq!(health_pool.maximum(), 75.0);
+    assert!(threat.values.is_empty());
 }
 
 #[test]
