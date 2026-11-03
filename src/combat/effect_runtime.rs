@@ -186,10 +186,15 @@ mod tests {
     use super::*;
 
     use crate::content::{
+        CombatAttributeDefinition,
+        CombatAttributeValueKind,
         ContentMetadata,
         ContentPackManifest,
+        DamageSchoolDefinition,
+        DamageSchoolMitigation,
         EffectDefinition,
         EffectKind,
+        EffectMagnitude,
         EffectTarget,
         EffectTrigger,
     };
@@ -238,6 +243,85 @@ mod tests {
                 kind: EffectKind::Interrupt,
             })
             .unwrap();
+
+        (database, effect_id)
+    }
+
+    fn damage_test_database() -> (ContentDatabase, ContentId) {
+        let mut database = ContentDatabase::new();
+
+        let pack_id = ContentId::new(
+            "pack:classic_1_12_1",
+        )
+        .unwrap();
+
+        database
+            .register_pack(ContentPackManifest {
+                id: pack_id.clone(),
+                name: "Classic 1.12.1".to_string(),
+                version: "1.0.0".to_string(),
+                description: String::new(),
+                dependencies: Vec::new(),
+            })
+            .unwrap();
+
+        let armor_id = content_id("stat.armor");
+
+        database
+            .register_combat_attribute(CombatAttributeDefinition {
+                metadata: ContentMetadata {
+                    id: armor_id,
+                    pack_id: pack_id.clone(),
+                    name: "Armor".to_string(),
+                    description: String::new(),
+                    icon: None,
+                    tags: Vec::new(),
+                },
+                value_kind: CombatAttributeValueKind::Rating,
+            })
+            .unwrap();
+
+        let school_id = content_id("school.physical");
+
+        database
+            .register_damage_school(DamageSchoolDefinition {
+                metadata: ContentMetadata {
+                    id: school_id.clone(),
+                    pack_id: pack_id.clone(),
+                    name: "Physical".to_string(),
+                    description: String::new(),
+                    icon: None,
+                    tags: Vec::new(),
+                },
+                mitigation: DamageSchoolMitigation::Armor,
+            })
+            .unwrap();
+
+        let effect_id = content_id("effect.damage_test");
+
+        database
+            .register_effect(EffectDefinition {
+                metadata: ContentMetadata {
+                    id: effect_id.clone(),
+                    pack_id,
+                    name: "Damage Test".to_string(),
+                    description: String::new(),
+                    icon: None,
+                    tags: Vec::new(),
+                },
+                trigger: EffectTrigger::OnCast,
+                target: EffectTarget::SelectedTarget,
+                kind: EffectKind::Damage {
+                    amount: EffectMagnitude {
+                        base: 40.0,
+                        scaling: Vec::new(),
+                    },
+                    school: school_id,
+                },
+            })
+            .unwrap();
+
+        database.validate().unwrap();
 
         (database, effect_id)
     }
@@ -466,5 +550,71 @@ mod tests {
         );
 
         assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn runtime_executes_damage_and_synchronizes_health_components() {
+        let (database, effect_id) = damage_test_database();
+
+        let mut app = App::new();
+
+        let source_entity = app
+            .world_mut()
+            .spawn(CombatLevel::new(60).unwrap())
+            .id();
+
+        let target_entity = app
+            .world_mut()
+            .spawn((
+                CombatAttributes::default(),
+                CombatStats {
+                    current_health: 100.0,
+                    max_health: 100.0,
+                    resource: 0.0,
+                },
+                HealthPool::new(100.0, 100.0).unwrap(),
+            ))
+            .id();
+
+        let mut pending = PendingCombatEffects::default();
+
+        let count = pending
+            .resolve_and_enqueue_from_database(
+                &database,
+                &effect_id,
+                Some(source_entity),
+                EffectTargetSelection::Selected(target_entity),
+                &CombatAttributes::default(),
+            )
+            .unwrap();
+
+        assert_eq!(count, 1);
+
+        app.insert_resource(database)
+            .insert_resource(pending)
+            .add_systems(Update, execute_pending_effects);
+
+        app.update();
+
+        let world = app.world();
+
+        let health = world
+            .get::<HealthPool>(target_entity)
+            .unwrap();
+
+        let stats = world
+            .get::<CombatStats>(target_entity)
+            .unwrap();
+
+        assert_eq!(health.current(), 60.0);
+        assert_eq!(health.maximum(), 100.0);
+        assert_eq!(stats.current_health, 60.0);
+        assert_eq!(stats.max_health, 100.0);
+
+        assert!(
+            world
+                .resource::<PendingCombatEffects>()
+                .is_empty()
+        );
     }
 }
