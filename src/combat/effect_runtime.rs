@@ -12,12 +12,17 @@ use super::{
     execute_resolved_effect,
     resolve_effect,
     CombatAttributes,
+    CombatEventContext,
+    CombatEventOutcome,
+    CombatEventQueue,
     CombatLevel,
     CombatResources,
     CombatStats,
     EffectExecutionContext,
+    EffectExecutionResult,
     EffectResolutionError,
     EffectTargetSelection,
+    EffectTrigger,
     HealthPool,
     ResolvedEffect,
 };
@@ -107,8 +112,77 @@ impl Display for EffectQueueError {
 
 impl std::error::Error for EffectQueueError {}
 
+fn enqueue_execution_events(
+    event_queue: &mut CombatEventQueue,
+    effect: &ResolvedEffect,
+    result: &EffectExecutionResult,
+) {
+    let (triggers, outcome) = match result {
+        EffectExecutionResult::Damage {
+            resolution,
+            applied_amount,
+        } => {
+            if *applied_amount <= 0.0 {
+                return;
+            }
+
+            (
+                vec![
+                    EffectTrigger::OnDamageDealt,
+                    EffectTrigger::OnDamageTaken,
+                ],
+                CombatEventOutcome::Damage(resolution.clone()),
+            )
+        }
+        EffectExecutionResult::Healing {
+            resolution,
+            applied_amount,
+        } => {
+            if *applied_amount <= 0.0 {
+                return;
+            }
+
+            (
+                vec![effect.trigger],
+                CombatEventOutcome::Healing(resolution.clone()),
+            )
+        }
+        EffectExecutionResult::Resource(resolution) => {
+            if resolution.effective_amount <= 0.0 {
+                return;
+            }
+
+            (
+                vec![effect.trigger],
+                CombatEventOutcome::Resource(resolution.clone()),
+            )
+        }
+    };
+
+    for trigger in triggers {
+        let event = CombatEventContext {
+            trigger,
+            source: effect.source,
+            target: Some(effect.target),
+            ability: None,
+            effect: Some(effect.effect.clone()),
+            outcome: Some(outcome.clone()),
+        };
+
+        if let Err(error) = event_queue.enqueue(event) {
+            warn!(
+                effect = ?effect.effect,
+                target = ?effect.target,
+                %error,
+                "Impossibile registrare l'evento di combattimento."
+            );
+        }
+    }
+}
+
 pub(super) fn execute_pending_effects(
     mut pending: ResMut<PendingCombatEffects>,
+    mut event_queue: ResMut<CombatEventQueue>,
     database: Res<ContentDatabase>,
     attacker_levels: Query<&CombatLevel>,
     mut target_query: Query<(
@@ -162,6 +236,12 @@ pub(super) fn execute_pending_effects(
 
         match execution_result {
             Ok(result) => {
+                enqueue_execution_events(
+                    &mut event_queue,
+                    &effect,
+                    &result,
+                );
+
                 debug!(
                     effect = ?effect.effect,
                     target = ?effect.target,
@@ -592,29 +672,115 @@ mod tests {
 
         app.insert_resource(database)
             .insert_resource(pending)
+            .init_resource::<CombatEventQueue>()
             .add_systems(Update, execute_pending_effects);
 
         app.update();
 
-        let world = app.world();
+        {
+            let world = app.world();
 
+            let health = world
+                .get::<HealthPool>(target_entity)
+                .unwrap();
+
+            let stats = world
+                .get::<CombatStats>(target_entity)
+                .unwrap();
+
+            assert_eq!(health.current(), 60.0);
+            assert_eq!(health.maximum(), 100.0);
+            assert_eq!(stats.current_health, 60.0);
+            assert_eq!(stats.max_health, 100.0);
+
+            assert!(
+                world
+                    .resource::<PendingCombatEffects>()
+                    .is_empty()
+            );
+        }
+
+        let events = app
+            .world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .drain();
+
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            events[0].trigger,
+            EffectTrigger::OnDamageDealt
+        );
+        assert_eq!(
+            events[1].trigger,
+            EffectTrigger::OnDamageTaken
+        );
+
+        for event in &events {
+            assert_eq!(event.source, Some(source_entity));
+            assert_eq!(event.target, Some(target_entity));
+            assert_eq!(event.effect, Some(effect_id.clone()));
+            assert!(matches!(
+                &event.outcome,
+                Some(CombatEventOutcome::Damage(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn runtime_does_not_emit_damage_events_when_no_damage_is_applied() {
+        let (database, effect_id) = damage_test_database();
+
+        let mut app = App::new();
+
+        let source_entity = app
+            .world_mut()
+            .spawn(CombatLevel::new(60).unwrap())
+            .id();
+
+        let target_entity = app
+            .world_mut()
+            .spawn((
+                CombatAttributes::default(),
+                CombatStats {
+                    current_health: 0.0,
+                    max_health: 100.0,
+                    resource: 0.0,
+                },
+                HealthPool::new(0.0, 100.0).unwrap(),
+            ))
+            .id();
+
+        let mut pending = PendingCombatEffects::default();
+
+        pending
+            .resolve_and_enqueue_from_database(
+                &database,
+                &effect_id,
+                Some(source_entity),
+                EffectTargetSelection::Selected(target_entity),
+                &CombatAttributes::default(),
+            )
+            .unwrap();
+
+        app.insert_resource(database)
+            .insert_resource(pending)
+            .init_resource::<CombatEventQueue>()
+            .add_systems(Update, execute_pending_effects);
+
+        app.update();
+
+        let events = app
+            .world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .drain();
+
+        assert!(events.is_empty());
+
+        let world = app.world();
         let health = world
             .get::<HealthPool>(target_entity)
             .unwrap();
 
-        let stats = world
-            .get::<CombatStats>(target_entity)
-            .unwrap();
-
-        assert_eq!(health.current(), 60.0);
-        assert_eq!(health.maximum(), 100.0);
-        assert_eq!(stats.current_health, 60.0);
-        assert_eq!(stats.max_health, 100.0);
-
-        assert!(
-            world
-                .resource::<PendingCombatEffects>()
-                .is_empty()
-        );
+        assert_eq!(health.current(), 0.0);
     }
 }
