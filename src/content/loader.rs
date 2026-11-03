@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 
 use super::{
     AbilityDefinition,
+    AuraDefinition,
     CombatAttributeDefinition,
     ContentDatabase,
     ContentDatabaseError,
@@ -27,6 +28,8 @@ pub struct ContentPackData {
     pub resources: Vec<ResourceDefinition>,
     #[serde(default)]
     pub effects: Vec<EffectDefinition>,
+    #[serde(default)]
+    pub auras: Vec<AuraDefinition>,
     #[serde(default)]
     pub abilities: Vec<AbilityDefinition>,
     #[serde(default)]
@@ -102,6 +105,17 @@ impl ContentPackLoader {
 
             staged_database
                 .register_effect(effect)
+                .map_err(ContentPackLoaderError::Database)?;
+        }
+
+        for aura in pack.auras {
+            validate_content_pack(
+                &aura.metadata,
+                &expected_pack,
+            )?;
+
+            staged_database
+                .register_aura(aura)
                 .map_err(ContentPackLoaderError::Database)?;
         }
 
@@ -213,7 +227,10 @@ impl std::error::Error for ContentPackLoaderError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::content::CombatAttributeValueKind;
+    use crate::content::{
+        AuraStackingPolicy,
+        CombatAttributeValueKind,
+    };
     use serde::Serialize;
 
     #[derive(Serialize)]
@@ -240,6 +257,7 @@ mod tests {
             combat_attributes: Vec::new(),
             resources: Vec::new(),
             effects: Vec::new(),
+            auras: Vec::new(),
             abilities: Vec::new(),
             talent_trees: Vec::new(),
             talents: Vec::new(),
@@ -287,12 +305,28 @@ mod tests {
         }
     }
 
+    fn test_aura() -> AuraDefinition {
+        AuraDefinition {
+            metadata: ContentMetadata {
+                id: ContentId::new("classic:aura.test").unwrap(),
+                pack_id: ContentId::new("pack:classic").unwrap(),
+                name: "Test Aura".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+            max_stacks: 5,
+            stacking_policy: AuraStackingPolicy::AddStacks,
+        }
+    }
+
     #[test]
     fn pack_data_supports_ron_serialization() {
         let mut original = empty_pack();
         original.damage_schools.push(physical_damage_school());
         original.combat_attributes.push(armor_attribute());
         original.resources.push(mana_resource());
+        original.auras.push(test_aura());
 
         let serialized = ron::to_string(&original).unwrap();
         let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
@@ -301,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn pack_data_loads_legacy_ron_without_resources() {
+    fn pack_data_loads_legacy_ron_without_resources_or_auras() {
         let pack = empty_pack();
 
         let legacy = LegacyContentPackData {
@@ -318,6 +352,7 @@ mod tests {
         let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
 
         assert!(restored.resources.is_empty());
+        assert!(restored.auras.is_empty());
     }
 
     #[test]
@@ -389,6 +424,25 @@ mod tests {
 
         assert_eq!(database.resource_count(), 1);
         assert!(database.resource(&resource_id).is_some());
+    }
+
+    #[test]
+    fn loader_registers_auras() {
+        let mut database = ContentDatabase::new();
+        let mut pack = empty_pack();
+        let aura = test_aura();
+        let aura_id = aura.metadata.id.clone();
+
+        pack.auras.push(aura);
+
+        ContentPackLoader::load(
+            &mut database,
+            pack,
+        )
+        .unwrap();
+
+        assert_eq!(database.aura_count(), 1);
+        assert!(database.aura(&aura_id).is_some());
     }
 
     #[test]
