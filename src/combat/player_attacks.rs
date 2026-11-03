@@ -1,3 +1,4 @@
+
 use bevy::prelude::*;
 
 use super::*;
@@ -13,7 +14,14 @@ enum PlayerAttackKind {
 
 pub(super) fn player_cast_system(
     mut player_query: Query<
-        (Entity, &FellowshipRole, &mut CombatStats, &Target, &mut CharacterCommand),
+        (
+            Entity,
+            &FellowshipRole,
+            &mut CombatStats,
+            &Target,
+            &mut CharacterCommand,
+            Option<&HealthPool>,
+        ),
         With<Character>,
     >,
     mut enemy_query: Query<
@@ -26,9 +34,22 @@ pub(super) fn player_cast_system(
         (With<Enemy>, Without<Character>),
     >,
 ) {
-    for (player_entity, role, mut player_stats, target, mut command) in &mut player_query {
+    for (
+        player_entity,
+        role,
+        mut player_stats,
+        target,
+        mut command,
+        player_health_pool,
+    ) in &mut player_query
+    {
         if !std::mem::take(&mut command.ability_1) {
             continue;
+        }
+
+        if let Some(pool) = player_health_pool {
+            player_stats.current_health = pool.current();
+            player_stats.max_health = pool.maximum();
         }
 
         if player_stats.current_health <= 0.0 {
@@ -48,6 +69,7 @@ pub(super) fn player_cast_system(
 
         if let Some(health_pool) = enemy_health_pool.as_deref() {
             enemy_stats.current_health = health_pool.current();
+            enemy_stats.max_health = health_pool.maximum();
         }
 
         if enemy_stats.current_health <= 0.0
