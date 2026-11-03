@@ -1,3 +1,4 @@
+
 use super::*;
 use std::time::Duration;
 
@@ -41,21 +42,23 @@ fn spawn_living_player(
     )).id()
 }
 
-fn spawn_living_player_with_health_pool(
+fn spawn_player_with_health_pool(
     world: &mut World,
     position: Vec3,
-    health: f32,
-    maximum: f32,
+    stats_health: f32,
+    stats_maximum: f32,
+    pool_health: f32,
+    pool_maximum: f32,
 ) -> Entity {
     world.spawn((
         Character,
         Transform::from_translation(position),
         CombatStats {
-            current_health: health,
-            max_health: maximum,
+            current_health: stats_health,
+            max_health: stats_maximum,
             resource: 0.0,
         },
-        HealthPool::new(health, maximum).unwrap(),
+        HealthPool::new(pool_health, pool_maximum).unwrap(),
     )).id()
 }
 
@@ -97,9 +100,11 @@ fn enemy_attacks_a_living_player_after_the_melee_cooldown() {
 fn enemy_attack_uses_health_pool_when_present() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = spawn_living_player_with_health_pool(
+    let player = spawn_player_with_health_pool(
         app.world_mut(),
         Vec3::new(0.0, 0.0, 1.0),
+        100.0,
+        100.0,
         100.0,
         100.0,
     );
@@ -135,9 +140,11 @@ fn enemy_attack_uses_health_pool_when_present() {
 fn enemy_attack_caps_damage_at_remaining_health_pool() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = spawn_living_player_with_health_pool(
+    let player = spawn_player_with_health_pool(
         app.world_mut(),
         Vec3::new(0.0, 0.0, 1.0),
+        3.0,
+        100.0,
         3.0,
         100.0,
     );
@@ -160,6 +167,89 @@ fn enemy_attack_caps_damage_at_remaining_health_pool() {
 
     assert_eq!(health_pool.current(), 0.0);
     assert_eq!(combat_stats.current_health, 0.0);
+}
+
+#[test]
+fn enemy_attack_uses_health_pool_liveness_when_stats_are_stale() {
+    let mut app = setup_enemy_attack_test_app();
+
+    let player = spawn_player_with_health_pool(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 1.0),
+        0.0,
+        50.0,
+        100.0,
+        120.0,
+    );
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(player),
+            ..EnemyAi::default()
+        },
+        test_enemy_attack_state(player),
+        Transform::default(),
+    )).id();
+
+    advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
+    app.update();
+
+    let health_pool = app.world().get::<HealthPool>(player).unwrap();
+    let combat_stats = app.world().get::<CombatStats>(player).unwrap();
+
+    assert_eq!(
+        health_pool.current(),
+        100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
+    );
+
+    assert_eq!(
+        combat_stats.current_health,
+        health_pool.current()
+    );
+
+    assert_eq!(combat_stats.max_health, 120.0);
+
+    assert_eq!(
+        app.world().get::<EnemyAttackState>(enemy).unwrap().target,
+        player
+    );
+}
+
+#[test]
+fn enemy_attack_resets_cooldown_when_health_pool_is_depleted() {
+    let mut app = setup_enemy_attack_test_app();
+
+    let player = spawn_player_with_health_pool(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 1.0),
+        100.0,
+        100.0,
+        0.0,
+        120.0,
+    );
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(player),
+            ..EnemyAi::default()
+        },
+        test_enemy_attack_state(player),
+        Transform::default(),
+    )).id();
+
+    advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
+    app.update();
+
+    let health_pool = app.world().get::<HealthPool>(player).unwrap();
+    let combat_stats = app.world().get::<CombatStats>(player).unwrap();
+    let attack_state = app.world().get::<EnemyAttackState>(enemy).unwrap();
+
+    assert_eq!(health_pool.current(), 0.0);
+    assert_eq!(combat_stats.current_health, 0.0);
+    assert_eq!(combat_stats.max_health, 120.0);
+    assert_eq!(attack_state.cooldown.elapsed(), Duration::ZERO);
 }
 
 #[test]
