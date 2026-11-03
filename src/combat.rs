@@ -12,6 +12,7 @@ use crate::player::{
 
 mod damage;
 mod death;
+mod effect_execution;
 mod effect_magnitude;
 mod effect_resolution;
 mod enemy_ai;
@@ -40,6 +41,12 @@ pub use damage::{
     DamageResolution,
     DamageResolutionError,
     DamageSchoolMitigationError,
+};
+pub use effect_execution::{
+    execute_resolved_effect,
+    EffectExecutionContext,
+    EffectExecutionError,
+    EffectExecutionResult,
 };
 pub use effect_magnitude::{
     calculate_effect_magnitude,
