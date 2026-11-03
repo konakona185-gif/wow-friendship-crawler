@@ -4,6 +4,9 @@ use crate::content::{
     AbilityDefinition,
     AbilityRange,
     AbilityTargeting,
+    AuraDefinition,
+    AuraStackingPolicy,
+    AuraValidationError,
     CombatAttributeDefinition,
     CombatAttributeValueKind,
     CombatAttributeValidationError,
@@ -70,6 +73,14 @@ fn combat_attribute() -> CombatAttributeDefinition {
 fn resource() -> ResourceDefinition {
     ResourceDefinition {
         metadata: metadata("classic:resource.mana", "Mana"),
+    }
+}
+
+fn aura() -> AuraDefinition {
+    AuraDefinition {
+        metadata: metadata("classic:aura.test", "Test Aura"),
+        max_stacks: 5,
+        stacking_policy: AuraStackingPolicy::AddStacks,
     }
 }
 
@@ -186,6 +197,58 @@ fn database_registers_and_retrieves_content() {
     assert_eq!(database.effect_count(), 1);
     assert_eq!(database.content_count(), 1);
     assert!(database.effect(&id).is_some());
+}
+
+#[test]
+fn database_registers_and_retrieves_auras() {
+    let mut database = database_with_classic_pack();
+    let aura = aura();
+    let id = aura.metadata.id.clone();
+
+    database.register_aura(aura).unwrap();
+
+    assert_eq!(database.aura_count(), 1);
+    assert_eq!(database.content_count(), 1);
+    assert!(database.aura(&id).is_some());
+}
+
+#[test]
+fn database_rejects_invalid_auras() {
+    let mut database = database_with_classic_pack();
+    let mut aura = aura();
+    aura.metadata.name.clear();
+
+    assert_eq!(
+        database.register_aura(aura),
+        Err(ContentDatabaseError::InvalidAura(
+            AuraValidationError::InvalidMetadata(
+                ContentMetadataError::EmptyName
+            )
+        ))
+    );
+
+    assert_eq!(database.aura_count(), 0);
+    assert_eq!(database.content_count(), 0);
+}
+
+#[test]
+fn database_rejects_duplicate_ids_between_auras_and_other_content_types() {
+    let mut database = database_with_classic_pack();
+    database.register_effect(damage_effect()).unwrap();
+
+    let mut aura = aura();
+    aura.metadata.id =
+        ContentId::new("classic:effect.strike").unwrap();
+
+    assert_eq!(
+        database.register_aura(aura),
+        Err(ContentDatabaseError::DuplicateContent(
+            ContentId::new("classic:effect.strike").unwrap()
+        ))
+    );
+
+    assert_eq!(database.aura_count(), 0);
+    assert_eq!(database.effect_count(), 1);
 }
 
 #[test]
