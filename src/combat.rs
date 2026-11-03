@@ -26,8 +26,11 @@ mod target_selection;
 pub use damage::{
     calculate_armor_mitigation,
     calculate_armor_mitigation_from_attributes,
+    calculate_critical_strike,
     calculate_damage_mitigation,
     ArmorMitigationError,
+    CriticalStrikeError,
+    CriticalStrikeResult,
     DamageMitigationError,
     DamageMitigationResult,
     DamageRequest,
