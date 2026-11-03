@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 use super::{
-use crate::content::ContentId;
     ContentMetadata,
     ContentMetadataError,
 };
@@ -66,6 +65,7 @@ impl std::error::Error for AuraValidationError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::content::ContentId;
 
     fn valid_aura() -> AuraDefinition {
         AuraDefinition {
