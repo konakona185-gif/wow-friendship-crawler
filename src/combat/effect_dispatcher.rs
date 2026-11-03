@@ -34,7 +34,7 @@ fn event_participants(
     }
 }
 
-fn dispatch_combat_events(
+pub(super) fn dispatch_combat_events(
     mut event_queue: ResMut<CombatEventQueue>,
     database: Res<ContentDatabase>,
     mut pending: ResMut<PendingCombatEffects>,
