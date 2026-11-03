@@ -58,6 +58,7 @@ fn aura_definition() -> AuraDefinition {
         },
         max_stacks: 5,
         stacking_policy: AuraStackingPolicy::AddStacks,
+        periodic_effects: Vec::new(),
     }
 }
 
