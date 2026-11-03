@@ -173,6 +173,13 @@ mod tests {
         .unwrap()
     }
 
+    fn classic_content_id(value: &str) -> ContentId {
+        ContentId::new(
+            format!("classic_1_12_1:{value}"),
+        )
+        .unwrap()
+    }
+
     fn metadata(
         id: ContentId,
         pack_id: &ContentId,
@@ -251,7 +258,7 @@ mod tests {
         let school_id =
             ContentId::new("classic_1_12_1:school.physical").unwrap();
 
-        let effect_id = content_id("effect.reactive");
+        let effect_id = classic_content_id("effect.reactive");
 
         let mut database = ContentDatabase::new();
 
@@ -528,7 +535,7 @@ mod tests {
     fn reactive_effect_executes_on_the_following_update() {
         let (mut app, school_id) = runtime_test_application();
 
-        let effect_id = content_id("effect.reactive");
+        let effect_id = classic_content_id("effect.reactive");
 
         let mut subscriptions =
             CombatEffectSubscriptions::default();
