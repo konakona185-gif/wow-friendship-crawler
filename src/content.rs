@@ -1,4 +1,5 @@
 mod ability;
+mod aura;
 mod combat_attribute;
 mod database;
 mod damage_school;
@@ -18,6 +19,12 @@ pub use ability::{
     AbilityTargeting,
     AbilityValidationError,
     ResourceCost,
+};
+
+pub use aura::{
+    AuraDefinition,
+    AuraStackingPolicy,
+    AuraValidationError,
 };
 
 pub use combat_attribute::{
