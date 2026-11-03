@@ -7,7 +7,6 @@ use super::{
     ContentId,
     ContentMetadata,
     ContentPackManifest,
-    ContentPackRegistry,
     DamageSchoolDefinition,
     EffectDefinition,
     ResourceDefinition,
