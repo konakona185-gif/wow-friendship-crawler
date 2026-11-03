@@ -10,6 +10,7 @@ use crate::player::{
     FellowshipRole,
 };
 
+mod aura_execution;
 mod aura_runtime;
 mod damage;
 mod death;
