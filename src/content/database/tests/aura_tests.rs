@@ -13,6 +13,7 @@ use crate::content::{
     EffectTarget,
     EffectTrigger,
     PeriodicAuraEffect,
+    PeriodicEffectStackScaling,
 };
 
 fn periodic_heal_effect() -> EffectDefinition {
@@ -44,6 +45,7 @@ fn database_rejects_auras_with_unknown_periodic_effects() {
     aura.periodic_effects.push(PeriodicAuraEffect {
         effect: unknown_effect.clone(),
         interval_seconds: 3.0,
+        stack_scaling: PeriodicEffectStackScaling::None,
     });
 
     database.register_aura(aura).unwrap();
@@ -70,6 +72,7 @@ fn database_accepts_auras_with_registered_periodic_effects() {
     aura.periodic_effects.push(PeriodicAuraEffect {
         effect: effect_id,
         interval_seconds: 3.0,
+        stack_scaling: PeriodicEffectStackScaling::None,
     });
 
     database.register_aura(aura).unwrap();
