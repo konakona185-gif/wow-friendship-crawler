@@ -20,7 +20,9 @@ fn event_participants(
     event: &CombatEventContext,
 ) -> Option<(Entity, Option<Entity>)> {
     match event.trigger {
-        EffectTrigger::OnDamageDealt | EffectTrigger::OnHealDealt => {
+        EffectTrigger::OnDamageDealt
+        | EffectTrigger::OnHealDealt
+        | EffectTrigger::OnPeriodicTick => {
             Some((event.source?, event.target))
         }
         EffectTrigger::OnDamageTaken
@@ -402,6 +404,27 @@ mod tests {
     }
 
     #[test]
+    fn periodic_tick_events_use_source_as_subscriber() {
+        assert_eq!(
+            event_participants(&event(
+                EffectTrigger::OnPeriodicTick,
+                Some(source()),
+                Some(target()),
+            )),
+            Some((source(), Some(target())))
+        );
+
+        assert_eq!(
+            event_participants(&event(
+                EffectTrigger::OnPeriodicTick,
+                None,
+                Some(target()),
+            )),
+            None
+        );
+    }
+
+    #[test]
     fn aura_expiration_events_use_owner_as_subscriber() {
         assert_eq!(
             event_participants(&event(
@@ -437,7 +460,6 @@ mod tests {
             EffectTrigger::OnCast,
             EffectTrigger::OnHit,
             EffectTrigger::OnCriticalHit,
-            EffectTrigger::OnPeriodicTick,
             EffectTrigger::OnKill,
             EffectTrigger::OnDodge,
             EffectTrigger::OnBlock,
@@ -528,6 +550,37 @@ mod tests {
                     stacks: 2,
                 }),
             })
+            .unwrap();
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<PendingCombatEffects>().len(),
+            1
+        );
+
+        assert!(
+            app.world().resource::<CombatEventQueue>().is_empty()
+        );
+    }
+
+    #[test]
+    fn periodic_tick_event_enqueues_matching_reactive_effect() {
+        let (mut app, effect_id) = test_application(
+            EffectTrigger::OnPeriodicTick,
+            EffectTarget::SelectedTarget,
+        );
+
+        let owner = spawn_subscriber(&mut app, effect_id);
+        let affected_target = app.world_mut().spawn_empty().id();
+
+        app.world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .enqueue(event(
+                EffectTrigger::OnPeriodicTick,
+                Some(owner),
+                Some(affected_target),
+            ))
             .unwrap();
 
         app.update();
