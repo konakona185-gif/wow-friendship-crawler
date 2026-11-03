@@ -1,3 +1,4 @@
+
 use bevy::prelude::Component;
 use std::fmt::{Display, Formatter};
 
@@ -221,7 +222,6 @@ mod tests {
         DamageMitigationError,
         DamageMitigationResult,
         DamageRequest,
-        DamageSchoolMitigationError,
         DamageResolutionError,
         HealingRequest,
     };
@@ -524,32 +524,38 @@ mod tests {
     }
 
     #[test]
-    fn health_pool_rejects_unimplemented_resistance_without_mutation() {
+    fn health_pool_applies_resistance_mitigated_damage() {
         let mut pool = HealthPool::new(100.0, 100.0).unwrap();
 
-        let result = pool.apply_damage_from_school_mitigation(
-            valid_damage_request(),
-            &valid_damage_school(DamageSchoolMitigation::Resistance {
-                stat: ContentId::new(
-                    "classic_1_12_1:stat.fire_resistance",
-                )
-                .unwrap(),
-            }),
-            &armor_id(),
-            &CombatAttributes::default(),
-            &valid_combat_level(),
-        );
+        let resistance_id = ContentId::new(
+            "classic_1_12_1:stat.fire_resistance",
+        )
+        .unwrap();
 
-        assert_eq!(
-            result,
-            Err(HealthPoolError::InvalidDamageResolution(
-                DamageResolutionError::MitigationCalculation(
-                    DamageSchoolMitigationError::ResistanceMitigationNotImplemented
-                )
-            ))
-        );
+        let mut attributes = CombatAttributes::default();
+        attributes
+            .set(resistance_id, 200.0)
+            .unwrap();
 
-        assert_eq!(pool.current(), 100.0);
+        let effective = pool
+            .apply_damage_from_school_mitigation(
+                valid_damage_request(),
+                &valid_damage_school(
+                    DamageSchoolMitigation::Resistance {
+                        stat: ContentId::new(
+                            "classic_1_12_1:stat.fire_resistance",
+                        )
+                        .unwrap(),
+                    },
+                ),
+                &armor_id(),
+                &attributes,
+                &valid_combat_level(),
+            )
+            .unwrap();
+
+        assert_eq!(effective, 50.0);
+        assert_eq!(pool.current(), 50.0);
     }
 
     #[test]
