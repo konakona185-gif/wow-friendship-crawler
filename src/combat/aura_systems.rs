@@ -83,6 +83,7 @@ mod tests {
             },
             max_stacks: 5,
             stacking_policy: AuraStackingPolicy::AddStacks,
+            periodic_effects: Vec::new(),
         }
     }
 
