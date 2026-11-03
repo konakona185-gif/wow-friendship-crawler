@@ -1,6 +1,7 @@
+use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
-use bevy::prelude::Entity;
+use bevy::prelude::{Entity, Resource};
 
 use crate::content::{ContentId, EffectTrigger};
 
@@ -83,6 +84,36 @@ impl CombatEventContext {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct CombatEventQueue {
+    pending: VecDeque<CombatEventContext>,
+}
+
+impl CombatEventQueue {
+    pub fn enqueue(
+        &mut self,
+        event: CombatEventContext,
+    ) -> Result<(), CombatEventContextError> {
+        event.validate()?;
+
+        self.pending.push_back(event);
+
+        Ok(())
+    }
+
+    pub fn drain(&mut self) -> Vec<CombatEventContext> {
+        self.pending.drain(..).collect()
+    }
+
+    pub fn len(&self) -> usize {
+        self.pending.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pending.is_empty()
     }
 }
 
@@ -288,5 +319,54 @@ mod tests {
                 )
             ))
         );
+    }
+
+    #[test]
+    fn event_queue_starts_empty() {
+        let queue = CombatEventQueue::default();
+
+        assert!(queue.is_empty());
+        assert_eq!(queue.len(), 0);
+    }
+
+    #[test]
+    fn event_queue_preserves_fifo_order() {
+        let mut queue = CombatEventQueue::default();
+
+        let mut first = valid_context(EffectTrigger::OnCast);
+        first.effect = Some(
+            ContentId::new("classic_1_12_1:effect.first").unwrap(),
+        );
+
+        let mut second = valid_context(EffectTrigger::OnDamageDealt);
+        second.effect = Some(
+            ContentId::new("classic_1_12_1:effect.second").unwrap(),
+        );
+
+        queue.enqueue(first.clone()).unwrap();
+        queue.enqueue(second.clone()).unwrap();
+
+        assert_eq!(queue.len(), 2);
+
+        let drained = queue.drain();
+
+        assert_eq!(drained, vec![first, second]);
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn event_queue_rejects_invalid_events_without_mutation() {
+        let mut queue = CombatEventQueue::default();
+
+        let mut invalid = valid_context(EffectTrigger::OnDamageDealt);
+        invalid.source = None;
+        invalid.outcome = Some(damage_outcome());
+
+        assert_eq!(
+            queue.enqueue(invalid),
+            Err(CombatEventContextError::SourceMismatch)
+        );
+
+        assert!(queue.is_empty());
     }
 }
