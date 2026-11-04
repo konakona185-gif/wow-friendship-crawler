@@ -1,6 +1,7 @@
 mod ability;
 mod aura;
 mod combat_attribute;
+mod creature;
 mod database;
 mod damage_school;
 mod effect;
@@ -35,6 +36,11 @@ pub use combat_attribute::{
     CombatAttributeDefinition,
     CombatAttributeValidationError,
     CombatAttributeValueKind,
+};
+
+pub use creature::{
+    CreatureDefinition,
+    CreatureValidationError,
 };
 
 pub use database::{
