@@ -1,3 +1,4 @@
+
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -155,8 +156,29 @@ impl EnemyThreat {
             return;
         }
 
-        let value = self.values.entry(player).or_insert(0.0);
-        *value = (*value + amount).min(f32::MAX);
+        self.modify_threat(player, amount);
+    }
+
+    fn modify_threat(&mut self, player: Entity, amount: f32) {
+        if !amount.is_finite() || amount == 0.0 {
+            return;
+        }
+
+        let current = self
+            .values
+            .get(&player)
+            .copied()
+            .filter(|value| value.is_finite())
+            .unwrap_or(0.0)
+            .max(0.0);
+
+        let updated = (current + amount).clamp(0.0, f32::MAX);
+
+        if updated > 0.0 {
+            self.values.insert(player, updated);
+        } else {
+            self.values.remove(&player);
+        }
     }
 
     fn clear(&mut self) {
@@ -198,5 +220,92 @@ impl Plugin for CombatPlugin {
                     .after(CharacterInputSet::Collect)
                     .after(WorldInteractionSet),
             );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn threat_modification_adds_and_reduces_values() {
+        let mut world = World::new();
+        let player = world.spawn_empty().id();
+        let mut threat = EnemyThreat::default();
+
+        threat.modify_threat(player, 100.0);
+
+        assert_eq!(
+            threat.values.get(&player),
+            Some(&100.0)
+        );
+
+        threat.modify_threat(player, -35.0);
+
+        assert_eq!(
+            threat.values.get(&player),
+            Some(&65.0)
+        );
+    }
+
+    #[test]
+    fn threat_modification_never_goes_below_zero() {
+        let mut world = World::new();
+        let player = world.spawn_empty().id();
+        let mut threat = EnemyThreat::default();
+
+        threat.modify_threat(player, 25.0);
+        threat.modify_threat(player, -50.0);
+
+        assert!(
+            !threat.values.contains_key(&player)
+        );
+    }
+
+    #[test]
+    fn threat_modification_ignores_invalid_values() {
+        let mut world = World::new();
+        let player = world.spawn_empty().id();
+        let mut threat = EnemyThreat::default();
+
+        threat.modify_threat(player, 50.0);
+        threat.modify_threat(player, f32::NAN);
+        threat.modify_threat(player, f32::INFINITY);
+        threat.modify_threat(player, 0.0);
+
+        assert_eq!(
+            threat.values.get(&player),
+            Some(&50.0)
+        );
+    }
+
+    #[test]
+    fn threat_modification_clamps_overflow() {
+        let mut world = World::new();
+        let player = world.spawn_empty().id();
+        let mut threat = EnemyThreat::default();
+
+        threat.modify_threat(player, f32::MAX);
+        threat.modify_threat(player, f32::MAX);
+
+        assert_eq!(
+            threat.values.get(&player),
+            Some(&f32::MAX)
+        );
+    }
+
+    #[test]
+    fn add_threat_preserves_positive_only_behavior() {
+        let mut world = World::new();
+        let player = world.spawn_empty().id();
+        let mut threat = EnemyThreat::default();
+
+        threat.add_threat(player, 20.0);
+        threat.add_threat(player, -10.0);
+
+        assert_eq!(
+            threat.values.get(&player),
+            Some(&20.0)
+        );
     }
 }
