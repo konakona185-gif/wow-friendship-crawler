@@ -26,6 +26,14 @@ pub enum CombatEventOutcome {
     Damage(DamageResolution),
     Healing(HealingResolution),
     Resource(ResourceResolution),
+    AuraApplied {
+        aura: ContentId,
+        total_stacks: u32,
+    },
+    AuraRemoved {
+        aura: ContentId,
+        removed_stacks: u32,
+    },
     AuraExpired {
         aura: ContentId,
         stacks: u32,
@@ -79,6 +87,50 @@ impl CombatEventContext {
                     resolution.request.source,
                     resolution.request.target,
                 )?;
+            }
+            Some(CombatEventOutcome::AuraApplied {
+                total_stacks,
+                ..
+            }) => {
+                if self.trigger != EffectTrigger::OnAuraApplied {
+                    return Err(
+                        CombatEventContextError::AuraApplicationTriggerMismatch,
+                    );
+                }
+
+                if *total_stacks == 0 {
+                    return Err(
+                        CombatEventContextError::ZeroAppliedAuraStacks,
+                    );
+                }
+
+                if self.target.is_none() {
+                    return Err(
+                        CombatEventContextError::MissingAuraApplicationTarget,
+                    );
+                }
+            }
+            Some(CombatEventOutcome::AuraRemoved {
+                removed_stacks,
+                ..
+            }) => {
+                if self.trigger != EffectTrigger::OnAuraRemoved {
+                    return Err(
+                        CombatEventContextError::AuraRemovalTriggerMismatch,
+                    );
+                }
+
+                if *removed_stacks == 0 {
+                    return Err(
+                        CombatEventContextError::ZeroRemovedAuraStacks,
+                    );
+                }
+
+                if self.target.is_none() {
+                    return Err(
+                        CombatEventContextError::MissingAuraRemovalTarget,
+                    );
+                }
             }
             Some(CombatEventOutcome::AuraExpired { stacks, .. }) => {
                 if *stacks == 0 {
@@ -252,6 +304,12 @@ pub enum CombatEventContextError {
     InvalidResource(ResourceResolutionError),
     SourceMismatch,
     TargetMismatch,
+    AuraApplicationTriggerMismatch,
+    ZeroAppliedAuraStacks,
+    MissingAuraApplicationTarget,
+    AuraRemovalTriggerMismatch,
+    ZeroRemovedAuraStacks,
+    MissingAuraRemovalTarget,
     ZeroExpiredAuraStacks,
     MissingAuraExpirationTarget,
     PeriodicTickTriggerMismatch,
@@ -280,6 +338,36 @@ impl Display for CombatEventContextError {
             Self::TargetMismatch => {
                 formatter.write_str(
                     "Il bersaglio dell'evento non corrisponde al risultato",
+                )
+            }
+            Self::AuraApplicationTriggerMismatch => {
+                formatter.write_str(
+                    "Un evento di applicazione richiede il trigger OnAuraApplied",
+                )
+            }
+            Self::ZeroAppliedAuraStacks => {
+                formatter.write_str(
+                    "Un evento di applicazione deve contenere almeno uno stack",
+                )
+            }
+            Self::MissingAuraApplicationTarget => {
+                formatter.write_str(
+                    "Un evento di applicazione richiede il bersaglio dell'aura",
+                )
+            }
+            Self::AuraRemovalTriggerMismatch => {
+                formatter.write_str(
+                    "Un evento di rimozione richiede il trigger OnAuraRemoved",
+                )
+            }
+            Self::ZeroRemovedAuraStacks => {
+                formatter.write_str(
+                    "Un evento di rimozione deve contenere almeno uno stack rimosso",
+                )
+            }
+            Self::MissingAuraRemovalTarget => {
+                formatter.write_str(
+                    "Un evento di rimozione richiede il bersaglio dell'aura",
                 )
             }
             Self::ZeroExpiredAuraStacks => {
@@ -397,6 +485,20 @@ mod tests {
         )
     }
 
+    fn aura_applied_outcome(total_stacks: u32) -> CombatEventOutcome {
+        CombatEventOutcome::AuraApplied {
+            aura: content_id("aura.test"),
+            total_stacks,
+        }
+    }
+
+    fn aura_removed_outcome(removed_stacks: u32) -> CombatEventOutcome {
+        CombatEventOutcome::AuraRemoved {
+            aura: content_id("aura.test"),
+            removed_stacks,
+        }
+    }
+
     fn aura_expired_outcome(stacks: u32) -> CombatEventOutcome {
         CombatEventOutcome::AuraExpired {
             aura: content_id("aura.test"),
@@ -453,6 +555,22 @@ mod tests {
     }
 
     #[test]
+    fn event_context_validates_aura_application_outcomes() {
+        let mut context = valid_context(EffectTrigger::OnAuraApplied);
+        context.outcome = Some(aura_applied_outcome(3));
+
+        assert!(context.validate().is_ok());
+    }
+
+    #[test]
+    fn event_context_validates_aura_removal_outcomes() {
+        let mut context = valid_context(EffectTrigger::OnAuraRemoved);
+        context.outcome = Some(aura_removed_outcome(2));
+
+        assert!(context.validate().is_ok());
+    }
+
+    #[test]
     fn event_context_validates_aura_expiration_outcomes() {
         let mut context = valid_context(EffectTrigger::OnExpire);
         context.outcome = Some(aura_expired_outcome(2));
@@ -465,6 +583,82 @@ mod tests {
         let context = valid_periodic_tick_context();
 
         assert!(context.validate().is_ok());
+    }
+
+    #[test]
+    fn event_context_rejects_aura_application_with_wrong_trigger() {
+        let mut context = valid_context(EffectTrigger::OnCast);
+        context.outcome = Some(aura_applied_outcome(1));
+
+        assert_eq!(
+            context.validate(),
+            Err(
+                CombatEventContextError::AuraApplicationTriggerMismatch
+            )
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_zero_applied_aura_stacks() {
+        let mut context = valid_context(EffectTrigger::OnAuraApplied);
+        context.outcome = Some(aura_applied_outcome(0));
+
+        assert_eq!(
+            context.validate(),
+            Err(CombatEventContextError::ZeroAppliedAuraStacks)
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_aura_application_without_target() {
+        let mut context = valid_context(EffectTrigger::OnAuraApplied);
+        context.target = None;
+        context.outcome = Some(aura_applied_outcome(1));
+
+        assert_eq!(
+            context.validate(),
+            Err(
+                CombatEventContextError::MissingAuraApplicationTarget
+            )
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_aura_removal_with_wrong_trigger() {
+        let mut context = valid_context(EffectTrigger::OnCast);
+        context.outcome = Some(aura_removed_outcome(1));
+
+        assert_eq!(
+            context.validate(),
+            Err(
+                CombatEventContextError::AuraRemovalTriggerMismatch
+            )
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_zero_removed_aura_stacks() {
+        let mut context = valid_context(EffectTrigger::OnAuraRemoved);
+        context.outcome = Some(aura_removed_outcome(0));
+
+        assert_eq!(
+            context.validate(),
+            Err(CombatEventContextError::ZeroRemovedAuraStacks)
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_aura_removal_without_target() {
+        let mut context = valid_context(EffectTrigger::OnAuraRemoved);
+        context.target = None;
+        context.outcome = Some(aura_removed_outcome(1));
+
+        assert_eq!(
+            context.validate(),
+            Err(
+                CombatEventContextError::MissingAuraRemovalTarget
+            )
+        );
     }
 
     #[test]
