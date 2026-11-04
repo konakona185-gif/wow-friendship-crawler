@@ -120,7 +120,7 @@ const DEFAULT_ENEMY_ATTACK_INTERVAL: f32 = 2.0;
 const DEFAULT_TANK_THREAT_MULTIPLIER: f32 = 3.0;
 
 #[derive(Component)]
-#[require(crate::combat::ActiveAuras)]
+#[require(crate::combat::ActiveAuras, crate::combat::EnemyThreat)]
 pub struct Enemy;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -307,5 +307,15 @@ mod tests {
             threat.values.get(&player),
             Some(&20.0)
         );
+    }
+
+    #[test]
+    fn enemy_requires_threat_and_aura_components() {
+        let mut world = World::new();
+
+        let enemy = world.spawn(Enemy).id();
+
+        assert!(world.get::<EnemyThreat>(enemy).is_some());
+        assert!(world.get::<ActiveAuras>(enemy).is_some());
     }
 }
