@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
@@ -33,9 +32,11 @@ impl EffectDefinition {
             EffectKind::Damage { amount, .. }
             | EffectKind::Heal { amount }
             | EffectKind::GainResource { amount, .. }
-            | EffectKind::SpendResource { amount, .. }
-            | EffectKind::ModifyThreat { amount } => {
+            | EffectKind::SpendResource { amount, .. } => {
                 amount.validate()?;
+            }
+            EffectKind::ModifyThreat { amount } => {
+                amount.validate_signed()?;
             }
             EffectKind::ApplyAura {
                 stacks,
@@ -116,7 +117,18 @@ pub struct EffectMagnitude {
 
 impl EffectMagnitude {
     pub fn validate(&self) -> Result<(), EffectValidationError> {
-        if !self.base.is_finite() || self.base < 0.0 {
+        self.validate_with_sign(false)
+    }
+
+    pub fn validate_signed(&self) -> Result<(), EffectValidationError> {
+        self.validate_with_sign(true)
+    }
+
+    fn validate_with_sign(
+        &self,
+        allow_negative: bool,
+    ) -> Result<(), EffectValidationError> {
+        if !self.base.is_finite() || (!allow_negative && self.base < 0.0) {
             return Err(EffectValidationError::InvalidMagnitude);
         }
 
@@ -307,6 +319,56 @@ mod tests {
             effect.validate(),
             Err(EffectValidationError::InvalidMagnitude)
         );
+    }
+
+    #[test]
+    fn threat_effect_accepts_negative_magnitude() {
+        let mut effect = valid_damage_effect();
+
+        effect.kind = EffectKind::ModifyThreat {
+            amount: EffectMagnitude {
+                base: -25.0,
+                scaling: Vec::new(),
+            },
+        };
+
+        assert!(effect.validate().is_ok());
+    }
+
+    #[test]
+    fn threat_effect_rejects_non_finite_magnitude() {
+        let mut effect = valid_damage_effect();
+
+        effect.kind = EffectKind::ModifyThreat {
+            amount: EffectMagnitude {
+                base: f32::NAN,
+                scaling: Vec::new(),
+            },
+        };
+
+        assert_eq!(
+            effect.validate(),
+            Err(EffectValidationError::InvalidMagnitude)
+        );
+    }
+
+    #[test]
+    fn negative_threat_effect_supports_ron_serialization() {
+        let mut effect = valid_damage_effect();
+
+        effect.kind = EffectKind::ModifyThreat {
+            amount: EffectMagnitude {
+                base: -25.0,
+                scaling: Vec::new(),
+            },
+        };
+
+        let serialized = ron::to_string(&effect).unwrap();
+        let restored: EffectDefinition =
+            ron::from_str(&serialized).unwrap();
+
+        assert_eq!(effect, restored);
+        assert!(restored.validate().is_ok());
     }
 
     #[test]
