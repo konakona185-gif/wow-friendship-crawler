@@ -13,6 +13,7 @@ use crate::player::{
 mod aura_execution;
 mod aura_runtime;
 mod aura_systems;
+mod custom_effects;
 mod damage;
 mod death;
 mod effect_dispatcher;
@@ -37,6 +38,11 @@ pub use aura_runtime::{
     ActiveAuras,
     AuraRuntimeError,
     ExpiredAura,
+};
+pub use custom_effects::{
+    CustomEffectHandler,
+    CustomEffectHandlers,
+    CustomEffectRegistryError,
 };
 pub use damage::{
     calculate_armor_mitigation,
@@ -202,6 +208,7 @@ impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PendingCombatEffects>()
             .init_resource::<CombatEventQueue>()
+            .init_resource::<CustomEffectHandlers>()
             .add_systems(
                 Update,
                 (
@@ -317,5 +324,16 @@ mod tests {
 
         assert!(world.get::<EnemyThreat>(enemy).is_some());
         assert!(world.get::<ActiveAuras>(enemy).is_some());
+    }
+
+    #[test]
+    fn combat_plugin_initializes_custom_effect_registry() {
+        let mut app = App::new();
+
+        app.add_plugins(CombatPlugin);
+
+        assert!(
+            app.world().contains_resource::<CustomEffectHandlers>()
+        );
     }
 }
