@@ -10,6 +10,7 @@ use super::{
     ContentId,
     ContentMetadata,
     ContentPackManifest,
+    CreatureDefinition,
     DamageSchoolDefinition,
     EffectDefinition,
     ResourceDefinition,
@@ -30,6 +31,8 @@ pub struct ContentPackData {
     pub effects: Vec<EffectDefinition>,
     #[serde(default)]
     pub auras: Vec<AuraDefinition>,
+    #[serde(default)]
+    pub creatures: Vec<CreatureDefinition>,
     #[serde(default)]
     pub abilities: Vec<AbilityDefinition>,
     #[serde(default)]
@@ -94,6 +97,17 @@ impl ContentPackLoader {
 
             staged_database
                 .register_resource(resource)
+                .map_err(ContentPackLoaderError::Database)?;
+        }
+
+        for creature in pack.creatures {
+            validate_content_pack(
+                &creature.metadata,
+                &expected_pack,
+            )?;
+
+            staged_database
+                .register_creature(creature)
                 .map_err(ContentPackLoaderError::Database)?;
         }
 
@@ -260,6 +274,7 @@ mod tests {
             resources: Vec::new(),
             effects: Vec::new(),
             auras: Vec::new(),
+            creatures: Vec::new(),
             abilities: Vec::new(),
             talent_trees: Vec::new(),
             talents: Vec::new(),
@@ -325,6 +340,26 @@ mod tests {
         }
     }
 
+    fn test_creature() -> CreatureDefinition {
+        CreatureDefinition {
+            metadata: ContentMetadata {
+                id: ContentId::new("classic:creature.wolf").unwrap(),
+                pack_id: ContentId::new("pack:classic").unwrap(),
+                name: "Wolf Companion".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: vec!["summon".to_string()],
+            },
+            health: 150.0,
+            attack_damage: 12.0,
+            attack_interval_seconds: 2.0,
+            melee_range: 2.5,
+            aggro_range: 15.0,
+            leash_range: 40.0,
+            movement_speed: 5.0,
+        }
+    }
+
     #[test]
     fn pack_data_supports_ron_serialization() {
         let mut original = empty_pack();
@@ -332,6 +367,7 @@ mod tests {
         original.combat_attributes.push(armor_attribute());
         original.resources.push(mana_resource());
         original.auras.push(test_aura());
+        original.creatures.push(test_creature());
 
         let serialized = ron::to_string(&original).unwrap();
         let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
@@ -358,6 +394,7 @@ mod tests {
 
         assert!(restored.resources.is_empty());
         assert!(restored.auras.is_empty());
+        assert!(restored.creatures.is_empty());
     }
 
     #[test]
@@ -448,6 +485,25 @@ mod tests {
 
         assert_eq!(database.aura_count(), 1);
         assert!(database.aura(&aura_id).is_some());
+    }
+
+    #[test]
+    fn loader_registers_creatures() {
+        let mut database = ContentDatabase::new();
+        let mut pack = empty_pack();
+        let creature = test_creature();
+        let creature_id = creature.metadata.id.clone();
+
+        pack.creatures.push(creature);
+
+        ContentPackLoader::load(
+            &mut database,
+            pack,
+        )
+        .unwrap();
+
+        assert_eq!(database.creature_count(), 1);
+        assert!(database.creature(&creature_id).is_some());
     }
 
     #[test]
