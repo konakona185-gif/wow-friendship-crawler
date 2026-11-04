@@ -1,4 +1,3 @@
-
 use super::*;
 
 use crate::content::{
@@ -142,7 +141,9 @@ fn damage_test_database() -> (ContentDatabase, ContentId) {
     (database, effect_id)
 }
 
-fn threat_test_database() -> (ContentDatabase, ContentId) {
+fn threat_test_database(
+    amount: f32,
+) -> (ContentDatabase, ContentId) {
     let mut database = ContentDatabase::new();
 
     let pack_id = ContentId::new(
@@ -176,7 +177,7 @@ fn threat_test_database() -> (ContentDatabase, ContentId) {
             target: EffectTarget::SelectedTarget,
             kind: EffectKind::ModifyThreat {
                 amount: EffectMagnitude {
-                    base: 35.0,
+                    base: amount,
                     scaling: Vec::new(),
                 },
             },
@@ -875,7 +876,7 @@ fn runtime_does_not_emit_healing_or_resource_events_for_zero_amounts() {
 
 #[test]
 fn runtime_executes_threat_modification_without_emitting_events() {
-    let (database, effect_id) = threat_test_database();
+    let (database, effect_id) = threat_test_database(35.0);
 
     let mut app = App::new();
 
@@ -919,6 +920,72 @@ fn runtime_executes_threat_modification_without_emitting_events() {
     assert_eq!(
         threat.values.get(&source_entity),
         Some(&35.0)
+    );
+
+    assert!(
+        world
+            .resource::<CombatEventQueue>()
+            .is_empty()
+    );
+
+    assert!(
+        world
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
+}
+
+#[test]
+fn runtime_executes_negative_threat_modification_without_emitting_events() {
+    let (database, effect_id) = threat_test_database(-20.0);
+
+    let mut app = App::new();
+
+    let source_entity = app
+        .world_mut()
+        .spawn_empty()
+        .id();
+
+    let mut initial_threat = EnemyThreat::default();
+    initial_threat
+        .values
+        .insert(source_entity, 50.0);
+
+    let target_entity = app
+        .world_mut()
+        .spawn(initial_threat)
+        .id();
+
+    let mut pending = PendingCombatEffects::default();
+
+    let count = pending
+        .resolve_and_enqueue_from_database(
+            &database,
+            &effect_id,
+            Some(source_entity),
+            EffectTargetSelection::Selected(target_entity),
+            &CombatAttributes::default(),
+        )
+        .unwrap();
+
+    assert_eq!(count, 1);
+
+    app.insert_resource(database)
+        .insert_resource(pending)
+        .init_resource::<CombatEventQueue>()
+        .add_systems(Update, execute_pending_effects);
+
+    app.update();
+
+    let world = app.world();
+
+    let threat = world
+        .get::<EnemyThreat>(target_entity)
+        .unwrap();
+
+    assert_eq!(
+        threat.values.get(&source_entity),
+        Some(&30.0)
     );
 
     assert!(
