@@ -11,9 +11,36 @@ pub fn calculate_effect_magnitude(
     magnitude: &EffectMagnitude,
     source_attributes: &CombatAttributes,
 ) -> Result<f32, EffectMagnitudeError> {
-    magnitude
-        .validate()
-        .map_err(EffectMagnitudeError::InvalidDefinition)?;
+    calculate_effect_magnitude_with_sign(
+        magnitude,
+        source_attributes,
+        false,
+    )
+}
+
+pub fn calculate_signed_effect_magnitude(
+    magnitude: &EffectMagnitude,
+    source_attributes: &CombatAttributes,
+) -> Result<f32, EffectMagnitudeError> {
+    calculate_effect_magnitude_with_sign(
+        magnitude,
+        source_attributes,
+        true,
+    )
+}
+
+fn calculate_effect_magnitude_with_sign(
+    magnitude: &EffectMagnitude,
+    source_attributes: &CombatAttributes,
+    allow_negative: bool,
+) -> Result<f32, EffectMagnitudeError> {
+    let validation = if allow_negative {
+        magnitude.validate_signed()
+    } else {
+        magnitude.validate()
+    };
+
+    validation.map_err(EffectMagnitudeError::InvalidDefinition)?;
 
     let mut amount = magnitude.base as f64;
 
@@ -24,8 +51,8 @@ pub fn calculate_effect_magnitude(
     }
 
     if !amount.is_finite()
-        || amount < 0.0
-        || amount > f32::MAX as f64
+        || (!allow_negative && amount < 0.0)
+        || amount.abs() > f32::MAX as f64
     {
         return Err(EffectMagnitudeError::InvalidCalculatedAmount);
     }
@@ -254,6 +281,96 @@ mod tests {
 
         assert_eq!(
             calculate_effect_magnitude(&magnitude, &attributes),
+            Err(EffectMagnitudeError::InvalidCalculatedAmount)
+        );
+    }
+
+    #[test]
+    fn signed_effect_magnitude_accepts_negative_base_values() {
+        let result = calculate_signed_effect_magnitude(
+            &magnitude(-10.0),
+            &CombatAttributes::default(),
+        )
+        .unwrap();
+
+        assert_eq!(result, -10.0);
+    }
+
+    #[test]
+    fn signed_effect_magnitude_allows_negative_calculated_amounts() {
+        let magnitude = EffectMagnitude {
+            base: 10.0,
+            scaling: vec![EffectScaling {
+                stat: stat_id("spell_power"),
+                coefficient: -1.0,
+            }],
+        };
+
+        let attributes = attributes_with("spell_power", 20.0);
+
+        let result =
+            calculate_signed_effect_magnitude(&magnitude, &attributes)
+                .unwrap();
+
+        assert_eq!(result, -10.0);
+    }
+
+    #[test]
+    fn signed_effect_magnitude_applies_positive_scaling() {
+        let magnitude = EffectMagnitude {
+            base: -10.0,
+            scaling: vec![EffectScaling {
+                stat: stat_id("spell_power"),
+                coefficient: 0.5,
+            }],
+        };
+
+        let attributes = attributes_with("spell_power", 40.0);
+
+        let result =
+            calculate_signed_effect_magnitude(&magnitude, &attributes)
+                .unwrap();
+
+        assert_eq!(result, 10.0);
+    }
+
+    #[test]
+    fn signed_effect_magnitude_rejects_non_finite_coefficients() {
+        let magnitude = EffectMagnitude {
+            base: -10.0,
+            scaling: vec![EffectScaling {
+                stat: stat_id("spell_power"),
+                coefficient: f32::NAN,
+            }],
+        };
+
+        let result = calculate_signed_effect_magnitude(
+            &magnitude,
+            &CombatAttributes::default(),
+        );
+
+        assert_eq!(
+            result,
+            Err(EffectMagnitudeError::InvalidDefinition(
+                EffectValidationError::InvalidScalingCoefficient
+            ))
+        );
+    }
+
+    #[test]
+    fn signed_effect_magnitude_rejects_values_outside_f32_range() {
+        let magnitude = EffectMagnitude {
+            base: f32::MAX,
+            scaling: vec![EffectScaling {
+                stat: stat_id("spell_power"),
+                coefficient: -2.0,
+            }],
+        };
+
+        let attributes = attributes_with("spell_power", f32::MAX);
+
+        assert_eq!(
+            calculate_signed_effect_magnitude(&magnitude, &attributes),
             Err(EffectMagnitudeError::InvalidCalculatedAmount)
         );
     }
