@@ -1,3 +1,4 @@
+
 use super::*;
 
 use crate::content::{
@@ -132,6 +133,52 @@ fn damage_test_database() -> (ContentDatabase, ContentId) {
                     scaling: Vec::new(),
                 },
                 school: school_id,
+            },
+        })
+        .unwrap();
+
+    database.validate().unwrap();
+
+    (database, effect_id)
+}
+
+fn threat_test_database() -> (ContentDatabase, ContentId) {
+    let mut database = ContentDatabase::new();
+
+    let pack_id = ContentId::new(
+        "pack:classic_1_12_1",
+    )
+    .unwrap();
+
+    database
+        .register_pack(ContentPackManifest {
+            id: pack_id.clone(),
+            name: "Classic 1.12.1".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            dependencies: Vec::new(),
+        })
+        .unwrap();
+
+    let effect_id = content_id("effect.threat_test");
+
+    database
+        .register_effect(EffectDefinition {
+            metadata: ContentMetadata {
+                id: effect_id.clone(),
+                pack_id,
+                name: "Threat Test".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+            trigger: EffectTrigger::OnCast,
+            target: EffectTarget::SelectedTarget,
+            kind: EffectKind::ModifyThreat {
+                amount: EffectMagnitude {
+                    base: 35.0,
+                    scaling: Vec::new(),
+                },
             },
         })
         .unwrap();
@@ -824,6 +871,67 @@ fn runtime_does_not_emit_healing_or_resource_events_for_zero_amounts() {
     );
 
     assert!(event_queue.is_empty());
+}
+
+#[test]
+fn runtime_executes_threat_modification_without_emitting_events() {
+    let (database, effect_id) = threat_test_database();
+
+    let mut app = App::new();
+
+    let source_entity = app
+        .world_mut()
+        .spawn_empty()
+        .id();
+
+    let target_entity = app
+        .world_mut()
+        .spawn(EnemyThreat::default())
+        .id();
+
+    let mut pending = PendingCombatEffects::default();
+
+    let count = pending
+        .resolve_and_enqueue_from_database(
+            &database,
+            &effect_id,
+            Some(source_entity),
+            EffectTargetSelection::Selected(target_entity),
+            &CombatAttributes::default(),
+        )
+        .unwrap();
+
+    assert_eq!(count, 1);
+
+    app.insert_resource(database)
+        .insert_resource(pending)
+        .init_resource::<CombatEventQueue>()
+        .add_systems(Update, execute_pending_effects);
+
+    app.update();
+
+    let world = app.world();
+
+    let threat = world
+        .get::<EnemyThreat>(target_entity)
+        .unwrap();
+
+    assert_eq!(
+        threat.values.get(&source_entity),
+        Some(&35.0)
+    );
+
+    assert!(
+        world
+            .resource::<CombatEventQueue>()
+            .is_empty()
+    );
+
+    assert!(
+        world
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
 }
 
 #[test]
