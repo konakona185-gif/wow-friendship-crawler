@@ -11,6 +11,7 @@ use super::{
     CombatAttributes,
     CombatEffectSubscriptions,
     CombatEventContext,
+    CombatEventOutcome,
     CombatEventQueue,
     EffectTargetSelection,
     PendingCombatEffects,
@@ -48,7 +49,7 @@ fn event_matches_effect(
     event
         .effect
         .as_ref()
-        .is_none_or(|triggered_effect| triggered_effect == effect_id)
+        .is_some_and(|triggered_effect| triggered_effect == effect_id)
 }
 
 pub(super) fn dispatch_combat_events(
@@ -117,16 +118,47 @@ pub(super) fn dispatch_combat_events(
                 }
             };
 
-            if let Err(error) =
-                pending.resolve_and_enqueue_from_database_with_generation(
-                    &database,
-                    effect_id,
-                    Some(subscriber),
-                    target_selection,
-                    &source_attributes,
-                    next_generation,
-                )
-            {
+            let enqueue_result =
+                if event.trigger == EffectTrigger::OnPeriodicTick {
+                    let Some(
+                        CombatEventOutcome::PeriodicTick {
+                            stacks,
+                            stack_scaling,
+                            ..
+                        },
+                    ) = event.outcome.as_ref()
+                    else {
+                        warn!(
+                            effect = ?effect_id,
+                            "Tick periodico senza dati di scalatura: effetto ignorato."
+                        );
+                        continue;
+                    };
+
+                    pending
+                        .resolve_and_enqueue_periodic_from_database_with_generation(
+                            &database,
+                            effect_id,
+                            Some(subscriber),
+                            target_selection,
+                            &source_attributes,
+                            *stacks,
+                            stack_scaling.clone(),
+                            next_generation,
+                        )
+                } else {
+                    pending
+                        .resolve_and_enqueue_from_database_with_generation(
+                            &database,
+                            effect_id,
+                            Some(subscriber),
+                            target_selection,
+                            &source_attributes,
+                            next_generation,
+                        )
+                };
+
+            if let Err(error) = enqueue_result {
                 warn!(
                     "Impossibile accodare l'effetto reattivo {}: {}",
                     effect_id.as_str(),
@@ -142,7 +174,6 @@ mod tests {
     use super::*;
 
     use super::super::{
-        CombatEventOutcome,
         CombatLevel,
         CombatStats,
         DamageRequest,
@@ -162,6 +193,7 @@ mod tests {
         EffectDefinition,
         EffectKind,
         EffectMagnitude,
+        PeriodicEffectStackScaling,
     };
 
     fn source() -> Entity {
@@ -213,6 +245,17 @@ mod tests {
             description: String::new(),
             icon: None,
             tags: Vec::new(),
+        }
+    }
+
+    fn periodic_tick_outcome(
+        stacks: u32,
+        stack_scaling: PeriodicEffectStackScaling,
+    ) -> CombatEventOutcome {
+        CombatEventOutcome::PeriodicTick {
+            aura: classic_content_id("aura.periodic_test"),
+            stacks,
+            stack_scaling,
         }
     }
 
@@ -269,7 +312,9 @@ mod tests {
         (app, effect_id)
     }
 
-    fn runtime_test_application() -> (App, ContentId) {
+    fn runtime_test_application(
+        trigger: EffectTrigger,
+    ) -> (App, ContentId) {
         let pack_id =
             ContentId::new("pack:classic_1_12_1").unwrap();
 
@@ -322,7 +367,7 @@ mod tests {
                     &pack_id,
                     "Reactive Heal",
                 ),
-                trigger: EffectTrigger::OnDamageDealt,
+                trigger,
                 target: EffectTarget::SelectedTarget,
                 kind: EffectKind::Heal {
                     amount: EffectMagnitude {
@@ -442,7 +487,7 @@ mod tests {
     }
 
     #[test]
-    fn periodic_tick_events_match_their_declared_effect() {
+    fn periodic_tick_events_match_only_their_declared_effect() {
         let matching_effect = content_id("effect.periodic");
         let other_effect = content_id("effect.other");
 
@@ -473,7 +518,7 @@ mod tests {
             Some(target()),
         );
 
-        assert!(event_matches_effect(
+        assert!(!event_matches_effect(
             &event_without_effect,
             &matching_effect
         ));
@@ -636,6 +681,10 @@ mod tests {
         );
 
         periodic_event.effect = Some(effect_id);
+        periodic_event.outcome = Some(periodic_tick_outcome(
+            2,
+            PeriodicEffectStackScaling::None,
+        ));
 
         app.world_mut()
             .resource_mut::<CombatEventQueue>()
@@ -671,6 +720,41 @@ mod tests {
         );
 
         periodic_event.effect = Some(content_id("effect.other"));
+        periodic_event.outcome = Some(periodic_tick_outcome(
+            2,
+            PeriodicEffectStackScaling::Linear,
+        ));
+
+        app.world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .enqueue(periodic_event)
+            .unwrap();
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<PendingCombatEffects>().len(),
+            0
+        );
+    }
+
+    #[test]
+    fn periodic_tick_event_without_outcome_is_ignored() {
+        let (mut app, effect_id) = test_application(
+            EffectTrigger::OnPeriodicTick,
+            EffectTarget::SelectedTarget,
+        );
+
+        let owner = spawn_subscriber(&mut app, effect_id.clone());
+        let affected_target = app.world_mut().spawn_empty().id();
+
+        let mut periodic_event = event(
+            EffectTrigger::OnPeriodicTick,
+            Some(owner),
+            Some(affected_target),
+        );
+
+        periodic_event.effect = Some(effect_id);
 
         app.world_mut()
             .resource_mut::<CombatEventQueue>()
@@ -744,7 +828,8 @@ mod tests {
 
     #[test]
     fn reactive_effect_executes_on_the_following_update() {
-        let (mut app, school_id) = runtime_test_application();
+        let (mut app, school_id) =
+            runtime_test_application(EffectTrigger::OnDamageDealt);
 
         let effect_id = classic_content_id("effect.reactive");
 
@@ -815,6 +900,87 @@ mod tests {
                 .unwrap()
                 .current(),
             40.0
+        );
+
+        assert_eq!(
+            app.world()
+                .resource::<PendingCombatEffects>()
+                .len(),
+            0
+        );
+    }
+
+    #[test]
+    fn periodic_tick_scales_effect_by_stack_count() {
+        let (mut app, _) =
+            runtime_test_application(EffectTrigger::OnPeriodicTick);
+
+        let effect_id = classic_content_id("effect.reactive");
+
+        let mut subscriptions =
+            CombatEffectSubscriptions::default();
+
+        subscriptions.subscribe(effect_id.clone());
+
+        let source = app.world_mut()
+            .spawn((
+                subscriptions,
+                CombatAttributes::default(),
+            ))
+            .id();
+
+        let target = app.world_mut()
+            .spawn((
+                CombatAttributes::default(),
+                CombatStats {
+                    current_health: 50.0,
+                    max_health: 100.0,
+                    resource: 0.0,
+                },
+                HealthPool::new(50.0, 100.0).unwrap(),
+            ))
+            .id();
+
+        app.world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .enqueue(CombatEventContext {
+                trigger: EffectTrigger::OnPeriodicTick,
+                source: Some(source),
+                target: Some(target),
+                ability: None,
+                effect: Some(effect_id),
+                outcome: Some(periodic_tick_outcome(
+                    3,
+                    PeriodicEffectStackScaling::Linear,
+                )),
+            })
+            .unwrap();
+
+        app.update();
+
+        assert_eq!(
+            app.world()
+                .get::<HealthPool>(target)
+                .unwrap()
+                .current(),
+            50.0
+        );
+
+        assert_eq!(
+            app.world()
+                .resource::<PendingCombatEffects>()
+                .len(),
+            1
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world()
+                .get::<HealthPool>(target)
+                .unwrap()
+                .current(),
+            80.0
         );
 
         assert_eq!(
