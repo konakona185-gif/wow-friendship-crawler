@@ -19,6 +19,7 @@ mod effect_dispatcher;
 mod effect_execution;
 mod effect_magnitude;
 mod effect_resolution;
+mod effect_targeting;
 mod effect_runtime;
 mod enemy_ai;
 mod enemy_attacks;
