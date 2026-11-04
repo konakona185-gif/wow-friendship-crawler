@@ -109,7 +109,7 @@ fn reactive_area_effect_executes_only_on_enemies_inside_radius() {
         .add_systems(
             Update,
             (
-                super::super::effect_runtime::execute_pending_effects,
+                super::super::super::effect_runtime::execute_pending_effects,
                 dispatch_combat_events,
             )
                 .chain(),
