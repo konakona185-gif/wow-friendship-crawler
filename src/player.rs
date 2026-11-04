@@ -7,7 +7,10 @@ use bevy::prelude::*;
 use benilla_world::schedule::WorldStage;
 
 #[derive(Component)]
-#[require(crate::combat::ActiveAuras)]
+#[require(
+    crate::combat::ActiveAuras,
+    crate::combat::PendingDisplacement,
+)]
 pub struct Character;
 
 #[derive(Component)]
