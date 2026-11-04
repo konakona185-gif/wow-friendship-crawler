@@ -116,7 +116,7 @@ mod tests {
     fn app_with_delta(delta: Duration) -> App {
         let mut app = App::new();
 
-        let mut time = Time::default();
+        let mut time = Time::<()>::default();
         time.advance_by(delta);
 
         app.insert_resource(time)
