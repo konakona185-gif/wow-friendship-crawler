@@ -1,3 +1,4 @@
+
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
@@ -6,6 +7,7 @@ use bevy::prelude::*;
 use crate::content::{
     ContentDatabase,
     ContentId,
+    PeriodicEffectStackScaling,
 };
 
 use super::{
@@ -106,6 +108,52 @@ impl PendingCombatEffects {
         source_attributes: &CombatAttributes,
         generation: u8,
     ) -> Result<usize, EffectQueueError> {
+        self.resolve_and_enqueue_internal(
+            database,
+            effect_id,
+            source,
+            target_selection,
+            source_attributes,
+            generation,
+            None,
+        )
+    }
+
+    pub fn resolve_and_enqueue_periodic_from_database_with_generation(
+        &mut self,
+        database: &ContentDatabase,
+        effect_id: &ContentId,
+        source: Option<Entity>,
+        target_selection: EffectTargetSelection,
+        source_attributes: &CombatAttributes,
+        stacks: u32,
+        stack_scaling: PeriodicEffectStackScaling,
+        generation: u8,
+    ) -> Result<usize, EffectQueueError> {
+        self.resolve_and_enqueue_internal(
+            database,
+            effect_id,
+            source,
+            target_selection,
+            source_attributes,
+            generation,
+            Some((stacks, stack_scaling)),
+        )
+    }
+
+    fn resolve_and_enqueue_internal(
+        &mut self,
+        database: &ContentDatabase,
+        effect_id: &ContentId,
+        source: Option<Entity>,
+        target_selection: EffectTargetSelection,
+        source_attributes: &CombatAttributes,
+        generation: u8,
+        periodic_scaling: Option<(
+            u32,
+            PeriodicEffectStackScaling,
+        )>,
+    ) -> Result<usize, EffectQueueError> {
         let definition = database
             .effect(effect_id)
             .ok_or_else(|| {
@@ -114,13 +162,23 @@ impl PendingCombatEffects {
                 )
             })?;
 
-        let resolved_effects = resolve_effect(
+        let mut resolved_effects = resolve_effect(
             definition,
             source,
             target_selection,
             source_attributes,
         )
         .map_err(EffectQueueError::Resolution)?;
+
+        if let Some((stacks, stack_scaling)) = periodic_scaling {
+            for effect in &mut resolved_effects {
+                apply_periodic_stack_scaling(
+                    effect,
+                    stacks,
+                    stack_scaling,
+                )?;
+            }
+        }
 
         let count = resolved_effects.len();
 
@@ -141,10 +199,60 @@ impl PendingCombatEffects {
     }
 }
 
+fn apply_periodic_stack_scaling(
+    effect: &mut ResolvedEffect,
+    stacks: u32,
+    stack_scaling: PeriodicEffectStackScaling,
+) -> Result<(), EffectQueueError> {
+    if stacks == 0 {
+        return Err(EffectQueueError::ZeroPeriodicStacks);
+    }
+
+    let multiplier = match stack_scaling {
+        PeriodicEffectStackScaling::None => 1.0,
+        PeriodicEffectStackScaling::Linear => stacks as f32,
+    };
+
+    let amount = match &mut effect.operation {
+        ResolvedEffectOperation::Damage(request) => {
+            Some(&mut request.base_amount)
+        }
+        ResolvedEffectOperation::Heal(request) => {
+            Some(&mut request.base_amount)
+        }
+        ResolvedEffectOperation::GainResource(request)
+        | ResolvedEffectOperation::SpendResource(request) => {
+            Some(&mut request.base_amount)
+        }
+        ResolvedEffectOperation::ModifyThreat { amount } => {
+            Some(amount)
+        }
+        _ => None,
+    };
+
+    if let Some(amount) = amount {
+        let scaled_amount = *amount * multiplier;
+
+        if !scaled_amount.is_finite() {
+            return Err(
+                EffectQueueError::InvalidPeriodicMagnitude(
+                    effect.effect.clone(),
+                )
+            );
+        }
+
+        *amount = scaled_amount;
+    }
+
+    Ok(())
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum EffectQueueError {
     MissingEffectDefinition(ContentId),
     Resolution(EffectResolutionError),
+    ZeroPeriodicStacks,
+    InvalidPeriodicMagnitude(ContentId),
 }
 
 impl Display for EffectQueueError {
@@ -161,6 +269,18 @@ impl Display for EffectQueueError {
                 write!(
                     formatter,
                     "Impossibile risolvere l'effetto: {error}"
+                )
+            }
+            Self::ZeroPeriodicStacks => {
+                formatter.write_str(
+                    "Un effetto periodico richiede almeno uno stack",
+                )
+            }
+            Self::InvalidPeriodicMagnitude(id) => {
+                write!(
+                    formatter,
+                    "La scalatura periodica ha prodotto un valore non valido per l'effetto: {}",
+                    id.as_str()
                 )
             }
         }
