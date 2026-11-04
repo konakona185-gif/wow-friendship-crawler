@@ -11,7 +11,10 @@ use crate::content::{
 };
 
 use super::{
-    aura_execution::execute_aura_effect,
+    aura_execution::{
+        execute_aura_effect,
+        AuraExecutionResult,
+    },
     execute_resolved_effect,
     resolve_effect,
     ActiveAuras,
@@ -373,6 +376,63 @@ fn enqueue_execution_events(
     }
 }
 
+fn enqueue_aura_execution_event(
+    event_queue: &mut CombatEventQueue,
+    effect: &ResolvedEffect,
+    result: &AuraExecutionResult,
+    generation: u8,
+) {
+    let (trigger, outcome) = match result {
+        AuraExecutionResult::Applied {
+            aura,
+            total_stacks,
+        } => (
+            EffectTrigger::OnAuraApplied,
+            CombatEventOutcome::AuraApplied {
+                aura: aura.clone(),
+                total_stacks: *total_stacks,
+            },
+        ),
+        AuraExecutionResult::Removed {
+            aura,
+            removed_stacks,
+        } => {
+            if *removed_stacks == 0 {
+                return;
+            }
+
+            (
+                EffectTrigger::OnAuraRemoved,
+                CombatEventOutcome::AuraRemoved {
+                    aura: aura.clone(),
+                    removed_stacks: *removed_stacks,
+                },
+            )
+        }
+    };
+
+    let event = CombatEventContext {
+        trigger,
+        source: effect.source,
+        target: Some(effect.target),
+        ability: None,
+        effect: Some(effect.effect.clone()),
+        outcome: Some(outcome),
+    };
+
+    if let Err(error) = event_queue.enqueue_with_generation(
+        event,
+        generation,
+    ) {
+        warn!(
+            effect = ?effect.effect,
+            target = ?effect.target,
+            %error,
+            "Impossibile registrare l'evento dell'aura."
+        );
+    }
+}
+
 pub(super) fn execute_pending_effects(
     mut pending: ResMut<PendingCombatEffects>,
     mut event_queue: ResMut<CombatEventQueue>,
@@ -423,6 +483,13 @@ pub(super) fn execute_pending_effects(
                 target_auras.as_deref_mut(),
             ) {
                 Ok(result) => {
+                    enqueue_aura_execution_event(
+                        &mut event_queue,
+                        &effect,
+                        &result,
+                        generation,
+                    );
+
                     debug!(
                         effect = ?effect.effect,
                         target = ?effect.target,
