@@ -1,3 +1,4 @@
+
 use std::time::Duration;
 
 use bevy::prelude::*;
@@ -32,11 +33,20 @@ use crate::content::{
     EffectKind,
     EffectMagnitude,
     EffectTarget,
+    PeriodicAuraEffect,
+    PeriodicEffectStackScaling,
 };
 
 fn aura_id() -> ContentId {
     ContentId::new(
         "classic_1_12_1:aura.test",
+    )
+    .unwrap()
+}
+
+fn periodic_effect_id() -> ContentId {
+    ContentId::new(
+        "classic_1_12_1:effect.periodic_test",
     )
     .unwrap()
 }
@@ -64,6 +74,18 @@ fn aura_definition() -> AuraDefinition {
         refresh_policy: AuraRefreshPolicy::ResetDuration,
         periodic_effects: Vec::new(),
     }
+}
+
+fn periodic_aura_definition() -> AuraDefinition {
+    let mut definition = aura_definition();
+
+    definition.periodic_effects.push(PeriodicAuraEffect {
+        effect: periodic_effect_id(),
+        interval_seconds: 2.0,
+        stack_scaling: PeriodicEffectStackScaling::Linear,
+    });
+
+    definition
 }
 
 fn runtime_app(register_aura: bool) -> App {
@@ -138,6 +160,73 @@ fn expiration_runtime_app() -> App {
                 tags: Vec::new(),
             },
             trigger: EffectTrigger::OnExpire,
+            target: EffectTarget::SelectedTarget,
+            kind: EffectKind::Heal {
+                amount: EffectMagnitude {
+                    base: 10.0,
+                    scaling: Vec::new(),
+                },
+            },
+        })
+        .unwrap();
+
+    database.validate().unwrap();
+
+    let mut time = Time::<()>::default();
+    time.advance_by(Duration::from_secs(2));
+
+    let mut app = App::new();
+
+    app.insert_resource(database)
+        .insert_resource(time)
+        .init_resource::<PendingCombatEffects>()
+        .init_resource::<CombatEventQueue>()
+        .add_systems(
+            Update,
+            (
+                crate::combat::aura_systems::tick_active_auras,
+                execute_pending_effects,
+                crate::combat::effect_dispatcher::dispatch_combat_events,
+            )
+                .chain(),
+        );
+
+    app
+}
+
+fn periodic_runtime_app() -> App {
+    let pack_id = ContentId::new(
+        "pack:classic_1_12_1",
+    )
+    .unwrap();
+
+    let mut database = ContentDatabase::new();
+
+    database
+        .register_pack(ContentPackManifest {
+            id: pack_id.clone(),
+            name: "Classic 1.12.1".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            dependencies: Vec::new(),
+        })
+        .unwrap();
+
+    database
+        .register_aura(periodic_aura_definition())
+        .unwrap();
+
+    database
+        .register_effect(EffectDefinition {
+            metadata: ContentMetadata {
+                id: periodic_effect_id(),
+                pack_id,
+                name: "Periodic Test Heal".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+            trigger: EffectTrigger::OnPeriodicTick,
             target: EffectTarget::SelectedTarget,
             kind: EffectKind::Heal {
                 amount: EffectMagnitude {
@@ -273,6 +362,105 @@ fn aura_expiration_dispatches_reactive_effect_to_original_applier() {
             .unwrap()
             .current(),
         60.0
+    );
+
+    assert!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
+}
+
+#[test]
+fn periodic_aura_tick_scales_and_executes_healing() {
+    let mut app = periodic_runtime_app();
+
+    let effect_id = periodic_effect_id();
+
+    let mut subscriptions =
+        CombatEffectSubscriptions::default();
+
+    subscriptions.subscribe(effect_id);
+
+    let applier = app
+        .world_mut()
+        .spawn((
+            subscriptions,
+            CombatAttributes::default(),
+        ))
+        .id();
+
+    let mut active_auras = ActiveAuras::default();
+
+    active_auras
+        .apply(
+            &periodic_aura_definition(),
+            Some(applier),
+            3,
+            Some(2.0),
+        )
+        .unwrap();
+
+    let aura_owner = app
+        .world_mut()
+        .spawn((
+            active_auras,
+            CombatAttributes::default(),
+            CombatStats {
+                current_health: 50.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            HealthPool::new(50.0, 100.0).unwrap(),
+        ))
+        .id();
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(aura_owner)
+            .unwrap()
+            .current(),
+        50.0
+    );
+
+    assert!(
+        app.world()
+            .get::<ActiveAuras>(aura_owner)
+            .unwrap()
+            .is_empty()
+    );
+
+    assert_eq!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .len(),
+        1
+    );
+
+    assert!(
+        app.world()
+            .resource::<CombatEventQueue>()
+            .is_empty()
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(aura_owner)
+            .unwrap()
+            .current(),
+        80.0
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<CombatStats>(aura_owner)
+            .unwrap()
+            .current_health,
+        80.0
     );
 
     assert!(
