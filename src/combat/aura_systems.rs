@@ -26,7 +26,11 @@ pub(super) fn tick_active_auras(
                 target: Some(owner),
                 ability: None,
                 effect: Some(tick.effect.clone()),
-                outcome: None,
+                outcome: Some(CombatEventOutcome::PeriodicTick {
+                    aura: tick.aura.clone(),
+                    stacks: tick.stacks,
+                    stack_scaling: tick.stack_scaling,
+                }),
             };
 
             if let Err(error) = event_queue.enqueue(event) {
@@ -126,13 +130,14 @@ mod tests {
 
     fn periodic_aura_definition(
         interval_seconds: f32,
+        stack_scaling: PeriodicEffectStackScaling,
     ) -> AuraDefinition {
         let mut definition = aura_definition();
 
         definition.periodic_effects.push(PeriodicAuraEffect {
             effect: periodic_effect_id(),
             interval_seconds,
-            stack_scaling: PeriodicEffectStackScaling::None,
+            stack_scaling,
         });
 
         definition
@@ -171,14 +176,19 @@ mod tests {
         source: Entity,
         duration: Option<f32>,
         interval_seconds: f32,
+        stacks: u32,
+        stack_scaling: PeriodicEffectStackScaling,
     ) -> ActiveAuras {
         let mut active = ActiveAuras::default();
 
         active
             .apply(
-                &periodic_aura_definition(interval_seconds),
+                &periodic_aura_definition(
+                    interval_seconds,
+                    stack_scaling,
+                ),
                 Some(source),
-                1,
+                stacks,
                 duration,
             )
             .unwrap();
@@ -268,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn periodic_ticks_enqueue_events_with_original_source_and_owner() {
+    fn periodic_ticks_enqueue_complete_outcomes() {
         let mut app = app_with_delta(Duration::from_secs(2));
 
         let source = app
@@ -282,6 +292,8 @@ mod tests {
                 source,
                 Some(10.0),
                 2.0,
+                3,
+                PeriodicEffectStackScaling::Linear,
             ))
             .id();
 
@@ -304,7 +316,14 @@ mod tests {
             events[0].effect,
             Some(periodic_effect_id())
         );
-        assert_eq!(events[0].outcome, None);
+        assert_eq!(
+            events[0].outcome,
+            Some(CombatEventOutcome::PeriodicTick {
+                aura: aura_id(),
+                stacks: 3,
+                stack_scaling: PeriodicEffectStackScaling::Linear,
+            })
+        );
     }
 
     #[test]
@@ -322,6 +341,8 @@ mod tests {
                 source,
                 Some(5.0),
                 2.0,
+                1,
+                PeriodicEffectStackScaling::None,
             ))
             .id();
 
@@ -364,6 +385,24 @@ mod tests {
             Some(periodic_effect_id())
         );
         assert_eq!(events[2].effect, None);
+
+        assert_eq!(
+            events[0].outcome,
+            Some(CombatEventOutcome::PeriodicTick {
+                aura: aura_id(),
+                stacks: 1,
+                stack_scaling: PeriodicEffectStackScaling::None,
+            })
+        );
+
+        assert_eq!(
+            events[1].outcome,
+            Some(CombatEventOutcome::PeriodicTick {
+                aura: aura_id(),
+                stacks: 1,
+                stack_scaling: PeriodicEffectStackScaling::None,
+            })
+        );
 
         assert_eq!(
             events[2].outcome,
