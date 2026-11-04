@@ -633,3 +633,7 @@ mod periodic_tests;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "effect_runtime/custom_effect_tests.rs"]
+mod custom_effect_tests;
