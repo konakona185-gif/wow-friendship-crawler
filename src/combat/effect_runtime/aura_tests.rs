@@ -150,7 +150,7 @@ fn expiration_runtime_app() -> App {
 
     database.validate().unwrap();
 
-    let mut time = Time::default();
+    let mut time = Time::<()>::default();
     time.advance_by(Duration::from_secs(2));
 
     let mut app = App::new();
