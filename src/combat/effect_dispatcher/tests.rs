@@ -814,3 +814,64 @@ fn periodic_tick_scales_effect_by_stack_count() {
         0
     );
 }
+
+#[test]
+fn reactive_area_effect_acquires_enemies_from_world() {
+    let (mut app, effect_id) = test_application(
+        EffectTrigger::OnDamageDealt,
+        EffectTarget::EnemiesInRadius { radius: 5.0 },
+    );
+
+    let mut subscriptions =
+        CombatEffectSubscriptions::default();
+
+    subscriptions.subscribe(effect_id);
+
+    let subscriber = app.world_mut()
+        .spawn((
+            subscriptions,
+            CombatAttributes::default(),
+            Character,
+            Transform::from_translation(Vec3::ZERO),
+        ))
+        .id();
+
+    let ally = app.world_mut()
+        .spawn((
+            Character,
+            Transform::from_translation(Vec3::new(1.0, 0.0, 0.0)),
+        ))
+        .id();
+
+    app.world_mut()
+        .spawn((
+            Enemy,
+            Transform::from_translation(Vec3::new(3.0, 0.0, 0.0)),
+        ));
+
+    app.world_mut()
+        .spawn((
+            Enemy,
+            Transform::from_translation(Vec3::new(8.0, 0.0, 0.0)),
+        ));
+
+    app.world_mut()
+        .resource_mut::<CombatEventQueue>()
+        .enqueue(event(
+            EffectTrigger::OnDamageDealt,
+            Some(subscriber),
+            Some(ally),
+        ))
+        .unwrap();
+
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<PendingCombatEffects>().len(),
+        1
+    );
+
+    assert!(
+        app.world().resource::<CombatEventQueue>().is_empty()
+    );
+}
