@@ -16,6 +16,7 @@ mod aura_systems;
 mod custom_effects;
 mod damage;
 mod death;
+mod displacement;
 mod effect_dispatcher;
 mod effect_execution;
 mod effect_magnitude;
@@ -43,6 +44,10 @@ pub use custom_effects::{
     CustomEffectHandler,
     CustomEffectHandlers,
     CustomEffectRegistryError,
+};
+pub use displacement::{
+    DisplacementError,
+    PendingDisplacement,
 };
 pub use damage::{
     calculate_armor_mitigation,
@@ -126,7 +131,11 @@ const DEFAULT_ENEMY_ATTACK_INTERVAL: f32 = 2.0;
 const DEFAULT_TANK_THREAT_MULTIPLIER: f32 = 3.0;
 
 #[derive(Component)]
-#[require(crate::combat::ActiveAuras, crate::combat::EnemyThreat)]
+#[require(
+    crate::combat::ActiveAuras,
+    crate::combat::EnemyThreat,
+    crate::combat::PendingDisplacement,
+)]
 pub struct Enemy;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -317,13 +326,14 @@ mod tests {
     }
 
     #[test]
-    fn enemy_requires_threat_and_aura_components() {
+    fn enemy_requires_combat_runtime_components() {
         let mut world = World::new();
 
         let enemy = world.spawn(Enemy).id();
 
         assert!(world.get::<EnemyThreat>(enemy).is_some());
         assert!(world.get::<ActiveAuras>(enemy).is_some());
+        assert!(world.get::<PendingDisplacement>(enemy).is_some());
     }
 
     #[test]
