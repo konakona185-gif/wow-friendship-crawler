@@ -1,3 +1,4 @@
+
 use std::time::Duration;
 
 use avian3d::prelude::{
@@ -18,7 +19,12 @@ use bevy_landmass::prelude::{
 use benilla_assets::coords::bevy_to_wow;
 use benilla_world::collision::WorldCollision;
 
-use crate::combat::{Enemy, EnemyAi, EnemyHomePosition};
+use crate::combat::{
+    Enemy,
+    EnemyAi,
+    EnemyHomePosition,
+    PendingDisplacement,
+};
 
 use super::movement_helpers::*;
 
@@ -83,6 +89,7 @@ pub(super) fn move_enemy_agents(
             &AgentDesiredVelocity3d,
             &mut EnemyVerticalMotion,
             &mut EnemyGroundingState,
+            Option<&mut PendingDisplacement>,
         ),
         (With<Enemy>, With<EnemyNavigationAgent>),
     >,
@@ -109,6 +116,7 @@ pub(super) fn move_enemy_agents(
         desired_velocity,
         mut vertical_motion,
         mut grounding_state,
+        mut pending_displacement,
     ) in &mut enemy_query
     {
         let mut move_direction = desired_velocity.velocity();
@@ -423,6 +431,48 @@ pub(super) fn move_enemy_agents(
         }
 
         grounding_state.steep_support = steep_support;
+
+        if let Some(mut pending_displacement) = pending_displacement {
+            let translation = pending_displacement.pending_translation();
+
+            if translation != Vec3::ZERO {
+                let end_position = transform.translation + translation;
+
+                if end_position.is_finite() {
+                    let start_wow = bevy_to_wow(transform.translation);
+                    let end_wow = bevy_to_wow(end_position);
+
+                    let min = [
+                        start_wow[0].min(end_wow[0]) - ENEMY_CAPSULE_RADIUS,
+                        start_wow[1].min(end_wow[1]) - ENEMY_CAPSULE_RADIUS,
+                    ];
+
+                    let max = [
+                        start_wow[0].max(end_wow[0]) + ENEMY_CAPSULE_RADIUS,
+                        start_wow[1].max(end_wow[1]) + ENEMY_CAPSULE_RADIUS,
+                    ];
+
+                    if world.terrain_resident(min, max) {
+                        let displacement_velocity = translation / delta;
+
+                        if displacement_velocity.is_finite() {
+                            pending_displacement.take();
+
+                            let output = world.slide_mover(
+                                &capsule,
+                                transform.translation,
+                                displacement_velocity,
+                                duration,
+                                &MoveAndSlideConfig::default(),
+                                |_| MoveAndSlideHitResponse::Accept,
+                            );
+
+                            transform.translation = output.position;
+                        }
+                    }
+                }
+            }
+        }
 
         actual_velocity.velocity =
             (transform.translation - start_position) / delta;
