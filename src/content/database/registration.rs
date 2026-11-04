@@ -7,6 +7,7 @@ use super::{
     ContentId,
     ContentMetadata,
     ContentPackManifest,
+    CreatureDefinition,
     DamageSchoolDefinition,
     EffectDefinition,
     ResourceDefinition,
@@ -51,6 +52,22 @@ impl ContentDatabase {
 
         let id = aura.metadata.id.clone();
         self.auras.insert(id, aura);
+
+        Ok(())
+    }
+
+    pub fn register_creature(
+        &mut self,
+        creature: CreatureDefinition,
+    ) -> Result<(), ContentDatabaseError> {
+        creature
+            .validate()
+            .map_err(ContentDatabaseError::InvalidCreature)?;
+
+        self.validate_new_content(&creature.metadata)?;
+
+        let id = creature.metadata.id.clone();
+        self.creatures.insert(id, creature);
 
         Ok(())
     }
@@ -164,6 +181,7 @@ impl ContentDatabase {
 
         if self.effects.contains_key(id)
             || self.auras.contains_key(id)
+            || self.creatures.contains_key(id)
             || self.damage_schools.contains_key(id)
             || self.combat_attributes.contains_key(id)
             || self.resources.contains_key(id)
