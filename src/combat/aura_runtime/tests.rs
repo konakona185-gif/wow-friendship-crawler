@@ -796,3 +796,33 @@ fn pandemic_does_not_carry_duration_between_independent_instances() {
     assert_eq!(instances[0].remaining_duration(), Some(2.0));
     assert_eq!(instances[1].remaining_duration(), Some(10.0));
 }
+
+#[test]
+fn failed_pandemic_refresh_does_not_mutate_existing_stacks() {
+    let mut definition = aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+    );
+
+    definition.refresh_policy = AuraRefreshPolicy::Pandemic;
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 2, Some(f32::MAX))
+        .unwrap();
+
+    let result = active.apply(
+        &definition,
+        Some(source()),
+        1,
+        Some(f32::MAX),
+    );
+
+    assert_eq!(result, Err(AuraRuntimeError::InvalidDuration));
+
+    let aura = active.get(&aura_id()).unwrap();
+
+    assert_eq!(aura.stacks(), 2);
+    assert_eq!(aura.remaining_duration(), Some(f32::MAX));
+}
