@@ -1,3 +1,4 @@
+
 use std::time::Duration;
 
 use avian3d::prelude::{
@@ -21,6 +22,7 @@ use super::{
     CharacterCommand,
     GroundingState,
     MovementSpeed,
+    PendingDisplacement,
     Velocity,
 };
 use super::movement_helpers::{
@@ -59,6 +61,7 @@ pub(super) fn player_movement_system(
             &mut Velocity,
             &mut CharacterCommand,
             Option<&mut GroundingState>,
+            Option<&mut PendingDisplacement>,
         ),
         With<Character>,
     >,
@@ -83,7 +86,15 @@ pub(super) fn player_movement_system(
             progress.focus_resident && progress.presentable()
         });
 
-    for (mut transform, speed, mut velocity, mut command, grounding_state) in &mut query {
+    for (
+        mut transform,
+        speed,
+        mut velocity,
+        mut command,
+        grounding_state,
+        pending_displacement,
+    ) in &mut query
+    {
         if command.look_delta != 0.0 {
             let sensitivity = 0.003;
             transform.rotate_y(-command.look_delta * sensitivity);
@@ -406,6 +417,55 @@ pub(super) fn player_movement_system(
 
             if let Some(mut state) = grounding_state {
                 state.steep_support = steep_support;
+            }
+        }
+
+        if let (
+            Some(world),
+            Some(mut pending_displacement),
+        ) = (
+            world.as_ref().filter(|_| world_ready),
+            pending_displacement,
+        ) {
+            let translation = pending_displacement.pending_translation();
+
+            if translation != Vec3::ZERO {
+                let start_position = transform.translation;
+                let end_position = start_position + translation;
+
+                if end_position.is_finite() {
+                    let start_wow = bevy_to_wow(start_position);
+                    let end_wow = bevy_to_wow(end_position);
+
+                    let min = [
+                        start_wow[0].min(end_wow[0]) - PLAYER_CAPSULE_RADIUS,
+                        start_wow[1].min(end_wow[1]) - PLAYER_CAPSULE_RADIUS,
+                    ];
+
+                    let max = [
+                        start_wow[0].max(end_wow[0]) + PLAYER_CAPSULE_RADIUS,
+                        start_wow[1].max(end_wow[1]) + PLAYER_CAPSULE_RADIUS,
+                    ];
+
+                    if world.terrain_resident(min, max) {
+                        let displacement_velocity = translation / delta;
+
+                        if displacement_velocity.is_finite() {
+                            pending_displacement.take();
+
+                            let output = world.slide_mover(
+                                &capsule,
+                                start_position,
+                                displacement_velocity,
+                                duration,
+                                &MoveAndSlideConfig::default(),
+                                |_| MoveAndSlideHitResponse::Accept,
+                            );
+
+                            transform.translation = output.position;
+                        }
+                    }
+                }
             }
         }
 
