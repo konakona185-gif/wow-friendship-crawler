@@ -128,17 +128,19 @@ impl ActiveAuras {
                     source,
                     definition.stacking_scope,
                 ) {
-                    existing.stacks = existing
-                        .stacks
-                        .saturating_add(applied_stacks)
-                        .min(definition.max_stacks);
-
-                    existing.remaining_duration =
+                    let refreshed_duration =
                         refresh::refreshed_duration(
                             existing.remaining_duration,
                             duration_seconds,
                             definition.refresh_policy,
                         )?;
+
+                    existing.stacks = existing
+                        .stacks
+                        .saturating_add(applied_stacks)
+                        .min(definition.max_stacks);
+
+                    existing.remaining_duration = refreshed_duration;
                 } else {
                     self.instances.push(ActiveAura {
                         aura: aura_id.clone(),
