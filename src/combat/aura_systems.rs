@@ -1,3 +1,4 @@
+
 use bevy::prelude::*;
 
 use super::{
@@ -16,9 +17,39 @@ pub(super) fn tick_active_auras(
     let delta_seconds = time.delta_secs();
 
     for (owner, mut active_auras) in &mut aura_owners {
-        let expired_auras = active_auras.tick(delta_seconds);
+        let advance = active_auras.advance(delta_seconds);
 
-        for expired in expired_auras {
+        for tick in advance.periodic_ticks {
+            let event = CombatEventContext {
+                trigger: EffectTrigger::OnPeriodicTick,
+                source: tick.source,
+                target: Some(owner),
+                ability: None,
+                effect: Some(tick.effect.clone()),
+                outcome: None,
+            };
+
+            if let Err(error) = event_queue.enqueue(event) {
+                warn!(
+                    owner = ?owner,
+                    aura = ?tick.aura,
+                    effect = ?tick.effect,
+                    %error,
+                    "Impossibile registrare il tick periodico dell'aura."
+                );
+                continue;
+            }
+
+            debug!(
+                owner = ?owner,
+                aura = ?tick.aura,
+                effect = ?tick.effect,
+                stacks = tick.stacks,
+                "Tick periodico dell'aura registrato."
+            );
+        }
+
+        for expired in advance.expired {
             let event = CombatEventContext {
                 trigger: EffectTrigger::OnExpire,
                 source: expired.source,
@@ -65,6 +96,8 @@ mod tests {
         AuraStackingScope,
         ContentId,
         ContentMetadata,
+        PeriodicAuraEffect,
+        PeriodicEffectStackScaling,
     };
 
     fn aura_definition() -> AuraDefinition {
@@ -91,9 +124,30 @@ mod tests {
         }
     }
 
+    fn periodic_aura_definition(
+        interval_seconds: f32,
+    ) -> AuraDefinition {
+        let mut definition = aura_definition();
+
+        definition.periodic_effects.push(PeriodicAuraEffect {
+            effect: periodic_effect_id(),
+            interval_seconds,
+            stack_scaling: PeriodicEffectStackScaling::None,
+        });
+
+        definition
+    }
+
     fn aura_id() -> ContentId {
         ContentId::new(
             "classic_1_12_1:aura.test",
+        )
+        .unwrap()
+    }
+
+    fn periodic_effect_id() -> ContentId {
+        ContentId::new(
+            "classic_1_12_1:effect.periodic_test",
         )
         .unwrap()
     }
@@ -105,6 +159,25 @@ mod tests {
             .apply(
                 &aura_definition(),
                 None,
+                1,
+                duration,
+            )
+            .unwrap();
+
+        active
+    }
+
+    fn active_periodic_auras(
+        source: Entity,
+        duration: Option<f32>,
+        interval_seconds: f32,
+    ) -> ActiveAuras {
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(
+                &periodic_aura_definition(interval_seconds),
+                Some(source),
                 1,
                 duration,
             )
@@ -187,6 +260,113 @@ mod tests {
 
         assert_eq!(
             events[0].outcome,
+            Some(CombatEventOutcome::AuraExpired {
+                aura: aura_id(),
+                stacks: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn periodic_ticks_enqueue_events_with_original_source_and_owner() {
+        let mut app = app_with_delta(Duration::from_secs(2));
+
+        let source = app
+            .world_mut()
+            .spawn_empty()
+            .id();
+
+        let owner = app
+            .world_mut()
+            .spawn(active_periodic_auras(
+                source,
+                Some(10.0),
+                2.0,
+            ))
+            .id();
+
+        app.update();
+
+        let events = app
+            .world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .drain();
+
+        assert_eq!(events.len(), 1);
+
+        assert_eq!(
+            events[0].trigger,
+            EffectTrigger::OnPeriodicTick
+        );
+        assert_eq!(events[0].source, Some(source));
+        assert_eq!(events[0].target, Some(owner));
+        assert_eq!(
+            events[0].effect,
+            Some(periodic_effect_id())
+        );
+        assert_eq!(events[0].outcome, None);
+    }
+
+    #[test]
+    fn periodic_ticks_are_enqueued_before_expiration_events() {
+        let mut app = app_with_delta(Duration::from_secs(5));
+
+        let source = app
+            .world_mut()
+            .spawn_empty()
+            .id();
+
+        let owner = app
+            .world_mut()
+            .spawn(active_periodic_auras(
+                source,
+                Some(5.0),
+                2.0,
+            ))
+            .id();
+
+        app.update();
+
+        let events = app
+            .world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .drain();
+
+        assert_eq!(events.len(), 3);
+
+        assert_eq!(
+            events[0].trigger,
+            EffectTrigger::OnPeriodicTick
+        );
+        assert_eq!(
+            events[1].trigger,
+            EffectTrigger::OnPeriodicTick
+        );
+        assert_eq!(
+            events[2].trigger,
+            EffectTrigger::OnExpire
+        );
+
+        assert_eq!(events[0].source, Some(source));
+        assert_eq!(events[1].source, Some(source));
+        assert_eq!(events[2].source, Some(source));
+
+        assert_eq!(events[0].target, Some(owner));
+        assert_eq!(events[1].target, Some(owner));
+        assert_eq!(events[2].target, Some(owner));
+
+        assert_eq!(
+            events[0].effect,
+            Some(periodic_effect_id())
+        );
+        assert_eq!(
+            events[1].effect,
+            Some(periodic_effect_id())
+        );
+        assert_eq!(events[2].effect, None);
+
+        assert_eq!(
+            events[2].outcome,
             Some(CombatEventOutcome::AuraExpired {
                 aura: aura_id(),
                 stacks: 1,
