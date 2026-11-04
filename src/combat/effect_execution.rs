@@ -1,3 +1,4 @@
+
 use std::fmt::{Display, Formatter};
 
 use crate::content::{
@@ -11,6 +12,7 @@ use super::{
     CombatLevel,
     CombatResources,
     DamageResolution,
+    EnemyThreat,
     HealingRequestError,
     HealingResolution,
     HealingResolutionError,
@@ -30,6 +32,7 @@ pub struct EffectExecutionContext<'a> {
     pub target_attributes: Option<&'a CombatAttributes>,
     pub target_health: Option<&'a mut HealthPool>,
     pub target_resources: Option<&'a mut CombatResources>,
+    pub target_threat: Option<&'a mut EnemyThreat>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,6 +46,9 @@ pub enum EffectExecutionResult {
         applied_amount: f32,
     },
     Resource(ResourceResolution),
+    Threat {
+        modified_amount: f32,
+    },
 }
 
 pub fn execute_resolved_effect(
@@ -165,6 +171,32 @@ pub fn execute_resolved_effect(
                 &mut context,
             )
         }
+        ResolvedEffectOperation::ModifyThreat { amount } => {
+            let source = effect
+                .source
+                .ok_or(
+                    EffectExecutionError::MissingSourceForThreatModification,
+                )?;
+
+            if !amount.is_finite() {
+                return Err(
+                    EffectExecutionError::InvalidThreatAmount,
+                );
+            }
+
+            let target_threat = context
+                .target_threat
+                .as_deref_mut()
+                .ok_or(
+                    EffectExecutionError::MissingTargetThreat,
+                )?;
+
+            target_threat.modify_threat(source, *amount);
+
+            Ok(EffectExecutionResult::Threat {
+                modified_amount: *amount,
+            })
+        }
         _ => Err(EffectExecutionError::UnsupportedOperation),
     }
 }
@@ -215,6 +247,9 @@ pub enum EffectExecutionError {
     MissingTargetAttributes,
     MissingTargetHealth,
     MissingTargetResources,
+    MissingSourceForThreatModification,
+    MissingTargetThreat,
+    InvalidThreatAmount,
     InvalidArmorAttributeId(ContentIdError),
     InvalidDamageResolution(super::DamageResolutionError),
     InvalidHealingRequest(HealingRequestError),
@@ -272,6 +307,21 @@ impl Display for EffectExecutionError {
             Self::MissingTargetResources => {
                 formatter.write_str(
                     "Il bersaglio non possiede CombatResources",
+                )
+            }
+            Self::MissingSourceForThreatModification => {
+                formatter.write_str(
+                    "La modifica della minaccia richiede una sorgente",
+                )
+            }
+            Self::MissingTargetThreat => {
+                formatter.write_str(
+                    "Il bersaglio non possiede EnemyThreat",
+                )
+            }
+            Self::InvalidThreatAmount => {
+                formatter.write_str(
+                    "La quantità di minaccia da modificare non è valida",
                 )
             }
             Self::InvalidArmorAttributeId(error) => {
@@ -337,6 +387,7 @@ mod tests {
         CombatLevel,
         CombatResources,
         EffectTrigger,
+        EnemyThreat,
         ResourcePool,
     };
 
@@ -450,6 +501,20 @@ mod tests {
         )
     }
 
+    fn threat_effect(
+        source: Option<Entity>,
+        target: Entity,
+        amount: f32,
+    ) -> ResolvedEffect {
+        resolved_effect(
+            source,
+            target,
+            ResolvedEffectOperation::ModifyThreat {
+                amount,
+            },
+        )
+    }
+
     fn armor_id() -> ContentId {
         content_id("stat.armor")
     }
@@ -483,6 +548,25 @@ mod tests {
             target_attributes,
             target_health,
             target_resources,
+            target_threat: None,
+        }
+    }
+
+    fn execution_context_with_threat<'a>(
+        database: &'a ContentDatabase,
+        attacker_level: Option<&'a CombatLevel>,
+        target_attributes: Option<&'a CombatAttributes>,
+        target_health: Option<&'a mut HealthPool>,
+        target_resources: Option<&'a mut CombatResources>,
+        target_threat: Option<&'a mut EnemyThreat>,
+    ) -> EffectExecutionContext<'a> {
+        EffectExecutionContext {
+            database,
+            attacker_level,
+            target_attributes,
+            target_health,
+            target_resources,
+            target_threat,
         }
     }
 
@@ -847,5 +931,222 @@ mod tests {
         );
 
         assert_eq!(health.current(), 50.0);
+    }
+
+    #[test]
+    fn threat_execution_adds_threat_for_effect_source() {
+        let database = database_with_school(
+            DamageSchoolMitigation::Unmitigated,
+        );
+
+        let source = Entity::from_bits(1);
+        let target = Entity::from_bits(2);
+        let effect = threat_effect(
+            Some(source),
+            target,
+            40.0,
+        );
+
+        let mut threat = EnemyThreat::default();
+
+        let result = execute_resolved_effect(
+            &effect,
+            execution_context_with_threat(
+                &database,
+                None,
+                None,
+                None,
+                None,
+                Some(&mut threat),
+            ),
+        )
+        .unwrap();
+
+        assert_eq!(
+            threat.values.get(&source),
+            Some(&40.0)
+        );
+
+        assert_eq!(
+            result,
+            EffectExecutionResult::Threat {
+                modified_amount: 40.0,
+            }
+        );
+    }
+
+    #[test]
+    fn threat_execution_reduces_existing_threat_for_effect_source() {
+        let database = database_with_school(
+            DamageSchoolMitigation::Unmitigated,
+        );
+
+        let source = Entity::from_bits(1);
+        let target = Entity::from_bits(2);
+        let effect = threat_effect(
+            Some(source),
+            target,
+            -25.0,
+        );
+
+        let mut threat = EnemyThreat::default();
+        threat.values.insert(source, 60.0);
+
+        execute_resolved_effect(
+            &effect,
+            execution_context_with_threat(
+                &database,
+                None,
+                None,
+                None,
+                None,
+                Some(&mut threat),
+            ),
+        )
+        .unwrap();
+
+        assert_eq!(
+            threat.values.get(&source),
+            Some(&35.0)
+        );
+    }
+
+    #[test]
+    fn threat_execution_removes_entry_when_threat_reaches_zero() {
+        let database = database_with_school(
+            DamageSchoolMitigation::Unmitigated,
+        );
+
+        let source = Entity::from_bits(1);
+        let target = Entity::from_bits(2);
+        let effect = threat_effect(
+            Some(source),
+            target,
+            -50.0,
+        );
+
+        let mut threat = EnemyThreat::default();
+        threat.values.insert(source, 30.0);
+
+        execute_resolved_effect(
+            &effect,
+            execution_context_with_threat(
+                &database,
+                None,
+                None,
+                None,
+                None,
+                Some(&mut threat),
+            ),
+        )
+        .unwrap();
+
+        assert!(
+            !threat.values.contains_key(&source)
+        );
+    }
+
+    #[test]
+    fn threat_execution_requires_source() {
+        let database = database_with_school(
+            DamageSchoolMitigation::Unmitigated,
+        );
+
+        let target = Entity::from_bits(2);
+        let effect = threat_effect(
+            None,
+            target,
+            40.0,
+        );
+
+        let mut threat = EnemyThreat::default();
+
+        let result = execute_resolved_effect(
+            &effect,
+            execution_context_with_threat(
+                &database,
+                None,
+                None,
+                None,
+                None,
+                Some(&mut threat),
+            ),
+        );
+
+        assert_eq!(
+            result,
+            Err(
+                EffectExecutionError::MissingSourceForThreatModification
+            )
+        );
+
+        assert!(threat.values.is_empty());
+    }
+
+    #[test]
+    fn threat_execution_requires_target_threat_component() {
+        let database = database_with_school(
+            DamageSchoolMitigation::Unmitigated,
+        );
+
+        let source = Entity::from_bits(1);
+        let target = Entity::from_bits(2);
+        let effect = threat_effect(
+            Some(source),
+            target,
+            40.0,
+        );
+
+        let result = execute_resolved_effect(
+            &effect,
+            execution_context(
+                &database,
+                None,
+                None,
+                None,
+                None,
+            ),
+        );
+
+        assert_eq!(
+            result,
+            Err(EffectExecutionError::MissingTargetThreat)
+        );
+    }
+
+    #[test]
+    fn threat_execution_rejects_non_finite_amounts() {
+        let database = database_with_school(
+            DamageSchoolMitigation::Unmitigated,
+        );
+
+        let source = Entity::from_bits(1);
+        let target = Entity::from_bits(2);
+        let effect = threat_effect(
+            Some(source),
+            target,
+            f32::NAN,
+        );
+
+        let mut threat = EnemyThreat::default();
+
+        let result = execute_resolved_effect(
+            &effect,
+            execution_context_with_threat(
+                &database,
+                None,
+                None,
+                None,
+                None,
+                Some(&mut threat),
+            ),
+        );
+
+        assert_eq!(
+            result,
+            Err(EffectExecutionError::InvalidThreatAmount)
+        );
+
+        assert!(threat.values.is_empty());
     }
 }
