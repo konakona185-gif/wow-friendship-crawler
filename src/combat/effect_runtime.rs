@@ -441,7 +441,7 @@ pub(super) fn execute_pending_effects(
     mut pending: ResMut<PendingCombatEffects>,
     mut event_queue: ResMut<CombatEventQueue>,
     database: Res<ContentDatabase>,
-    custom_handlers: Res<CustomEffectHandlers>,
+    custom_handlers: Option<Res<CustomEffectHandlers>>,
     attacker_levels: Query<&CombatLevel>,
     mut target_query: Query<(
         Option<&CombatAttributes>,
@@ -520,7 +520,10 @@ pub(super) fn execute_pending_effects(
 
         if let ResolvedEffectOperation::Custom { handler } = &effect.operation {
             let execution_result = {
-                let Some(custom_handler) = custom_handlers.get(handler) else {
+                let Some(custom_handler) = custom_handlers
+                    .as_deref()
+                    .and_then(|handlers| handlers.get(handler))
+                else {
                     warn!(
                         effect = ?effect.effect,
                         target = ?effect.target,
