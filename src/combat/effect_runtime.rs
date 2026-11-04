@@ -1,3 +1,4 @@
+
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
@@ -36,6 +37,7 @@ use super::{
     ResolvedEffectOperation,
     ResourceOperation,
     MAX_REACTIVE_EFFECT_GENERATIONS,
+    PendingDisplacement,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -443,6 +445,7 @@ pub(super) fn execute_pending_effects(
     database: Res<ContentDatabase>,
     custom_handlers: Option<Res<CustomEffectHandlers>>,
     attacker_levels: Query<&CombatLevel>,
+    transforms: Query<&Transform>,
     mut target_query: Query<(
         Option<&CombatAttributes>,
         Option<&mut CombatStats>,
@@ -450,6 +453,7 @@ pub(super) fn execute_pending_effects(
         Option<&mut CombatResources>,
         Option<&mut ActiveAuras>,
         Option<&mut EnemyThreat>,
+        Option<&mut PendingDisplacement>,
     )>,
 ) {
     let effects = std::mem::take(&mut pending.pending);
@@ -470,6 +474,7 @@ pub(super) fn execute_pending_effects(
             mut target_resources,
             mut target_auras,
             mut target_threat,
+            mut target_displacement,
         )) = target_query.get_mut(effect.target)
         else {
             warn!(
@@ -478,6 +483,87 @@ pub(super) fn execute_pending_effects(
             );
             continue;
         };
+
+        if let ResolvedEffectOperation::Displacement { distance } = &effect.operation {
+            let Some(source) = effect.source else {
+                warn!(
+                    effect = ?effect.effect,
+                    target = ?effect.target,
+                    "L'effetto displacement richiede una sorgente."
+                );
+                continue;
+            };
+
+            let (Ok(source_transform), Ok(target_transform)) = (
+                transforms.get(source),
+                transforms.get(effect.target),
+            ) else {
+                warn!(
+                    effect = ?effect.effect,
+                    source = ?source,
+                    target = ?effect.target,
+                    "Impossibile calcolare il displacement: trasformazione sorgente o bersaglio mancante."
+                );
+                continue;
+            };
+
+            let direction = (
+                target_transform.translation
+                    - source_transform.translation
+            )
+                .normalize_or_zero();
+
+            if direction == Vec3::ZERO
+                || !distance.is_finite()
+                || *distance <= 0.0
+            {
+                warn!(
+                    effect = ?effect.effect,
+                    source = ?source,
+                    target = ?effect.target,
+                    distance,
+                    "Impossibile calcolare un displacement valido."
+                );
+                continue;
+            }
+
+            let Some(displacement) =
+                target_displacement.as_deref_mut()
+            else {
+                warn!(
+                    effect = ?effect.effect,
+                    target = ?effect.target,
+                    "Il bersaglio non possiede PendingDisplacement."
+                );
+                continue;
+            };
+
+            let translation = direction * *distance;
+
+            match displacement.accumulate(translation) {
+                Ok(()) => {
+                    debug!(
+                        effect = ?effect.effect,
+                        source = ?source,
+                        target = ?effect.target,
+                        distance,
+                        translation = ?translation,
+                        generation,
+                        "Displacement accodato per il movimento fisico."
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        effect = ?effect.effect,
+                        target = ?effect.target,
+                        %error,
+                        "Impossibile accodare il displacement."
+                    );
+                }
+            }
+
+            continue;
+        }
 
         if matches!(
             &effect.operation,
