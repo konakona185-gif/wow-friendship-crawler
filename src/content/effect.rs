@@ -1,3 +1,4 @@
+
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
@@ -92,6 +93,8 @@ pub enum EffectTrigger {
     OnDodge,
     OnBlock,
     OnExpire,
+    OnAuraApplied,
+    OnAuraRemoved,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -396,6 +399,20 @@ mod tests {
             EffectTrigger::OnHealTaken,
             EffectTrigger::OnResourceGained,
             EffectTrigger::OnResourceSpent,
+        ] {
+            let serialized = ron::to_string(&trigger).unwrap();
+            let restored: EffectTrigger =
+                ron::from_str(&serialized).unwrap();
+
+            assert_eq!(restored, trigger);
+        }
+    }
+
+    #[test]
+    fn aura_triggers_support_ron_serialization() {
+        for trigger in [
+            EffectTrigger::OnAuraApplied,
+            EffectTrigger::OnAuraRemoved,
         ] {
             let serialized = ron::to_string(&trigger).unwrap();
             let restored: EffectTrigger =
