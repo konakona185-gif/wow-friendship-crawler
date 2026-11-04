@@ -663,3 +663,335 @@ fn pending_apply_handles_missing_target_component() {
             .is_empty()
     );
 }
+
+fn aura_reactive_effect_id() -> ContentId {
+    ContentId::new(
+        "classic_1_12_1:effect.aura_reactive",
+    )
+    .unwrap()
+}
+
+fn resolved_aura_effect_from(
+    source_entity: Entity,
+    target: Entity,
+    operation: ResolvedEffectOperation,
+) -> ResolvedEffect {
+    ResolvedEffect {
+        effect: ContentId::new(
+            "classic_1_12_1:effect.aura_test",
+        )
+        .unwrap(),
+        trigger: EffectTrigger::OnCast,
+        source: Some(source_entity),
+        target,
+        operation,
+    }
+}
+
+fn aura_reactive_runtime_app(
+    trigger: EffectTrigger,
+) -> App {
+    let pack_id = ContentId::new(
+        "pack:classic_1_12_1",
+    )
+    .unwrap();
+
+    let effect_id = aura_reactive_effect_id();
+
+    let mut database = ContentDatabase::new();
+
+    database
+        .register_pack(ContentPackManifest {
+            id: pack_id.clone(),
+            name: "Classic 1.12.1".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            dependencies: Vec::new(),
+        })
+        .unwrap();
+
+    database
+        .register_aura(aura_definition())
+        .unwrap();
+
+    database
+        .register_effect(EffectDefinition {
+            metadata: ContentMetadata {
+                id: effect_id,
+                pack_id,
+                name: "Aura Reactive Heal".to_string(),
+                description: String::new(),
+                icon: None,
+                tags: Vec::new(),
+            },
+            trigger,
+            target: EffectTarget::SelectedTarget,
+            kind: EffectKind::Heal {
+                amount: EffectMagnitude {
+                    base: 10.0,
+                    scaling: Vec::new(),
+                },
+            },
+        })
+        .unwrap();
+
+    database.validate().unwrap();
+
+    let mut app = App::new();
+
+    app.insert_resource(database)
+        .init_resource::<PendingCombatEffects>()
+        .init_resource::<CombatEventQueue>()
+        .add_systems(
+            Update,
+            (
+                execute_pending_effects,
+                crate::combat::effect_dispatcher::dispatch_combat_events,
+            )
+                .chain(),
+        );
+
+    app
+}
+
+#[test]
+fn aura_application_dispatches_reactive_effect_to_original_applier() {
+    let mut app = aura_reactive_runtime_app(
+        EffectTrigger::OnAuraApplied,
+    );
+
+    let applier = app
+        .world_mut()
+        .spawn((
+            CombatAttributes::default(),
+            CombatStats {
+                current_health: 50.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            HealthPool::new(50.0, 100.0).unwrap(),
+        ))
+        .id();
+
+    let mut subscriptions =
+        CombatEffectSubscriptions::default();
+
+    subscriptions.subscribe(aura_reactive_effect_id());
+
+    let aura_owner = app
+        .world_mut()
+        .spawn((
+            ActiveAuras::default(),
+            subscriptions,
+            CombatAttributes::default(),
+        ))
+        .id();
+
+    enqueue(
+        &mut app,
+        resolved_aura_effect_from(
+            applier,
+            aura_owner,
+            ResolvedEffectOperation::ApplyAura {
+                aura: aura_id(),
+                stacks: 2,
+                duration_seconds: Some(15.0),
+            },
+        ),
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(applier)
+            .unwrap()
+            .current(),
+        50.0
+    );
+
+    assert_eq!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .len(),
+        1
+    );
+
+    assert!(
+        app.world()
+            .resource::<CombatEventQueue>()
+            .is_empty()
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(applier)
+            .unwrap()
+            .current(),
+        60.0
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<CombatStats>(applier)
+            .unwrap()
+            .current_health,
+        60.0
+    );
+
+    assert!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
+}
+
+#[test]
+fn aura_removal_dispatches_reactive_effect_to_remover() {
+    let mut app = aura_reactive_runtime_app(
+        EffectTrigger::OnAuraRemoved,
+    );
+
+    let remover = app
+        .world_mut()
+        .spawn((
+            CombatAttributes::default(),
+            CombatStats {
+                current_health: 50.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            HealthPool::new(50.0, 100.0).unwrap(),
+        ))
+        .id();
+
+    let mut subscriptions =
+        CombatEffectSubscriptions::default();
+
+    subscriptions.subscribe(aura_reactive_effect_id());
+
+    let mut active_auras = ActiveAuras::default();
+
+    active_auras
+        .apply(
+            &aura_definition(),
+            Some(remover),
+            2,
+            Some(20.0),
+        )
+        .unwrap();
+
+    let aura_owner = app
+        .world_mut()
+        .spawn((
+            active_auras,
+            subscriptions,
+            CombatAttributes::default(),
+        ))
+        .id();
+
+    enqueue(
+        &mut app,
+        resolved_aura_effect_from(
+            remover,
+            aura_owner,
+            ResolvedEffectOperation::RemoveAura {
+                aura: aura_id(),
+                stacks: Some(1),
+            },
+        ),
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<ActiveAuras>(aura_owner)
+            .unwrap()
+            .stacks(&aura_id()),
+        1
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(remover)
+            .unwrap()
+            .current(),
+        50.0
+    );
+
+    assert_eq!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .len(),
+        1
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(remover)
+            .unwrap()
+            .current(),
+        60.0
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<CombatStats>(remover)
+            .unwrap()
+            .current_health,
+        60.0
+    );
+
+    assert!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
+}
+
+#[test]
+fn removing_nonexistent_aura_does_not_enqueue_reactive_event() {
+    let mut app = runtime_app(true);
+
+    let target = app
+        .world_mut()
+        .spawn(ActiveAuras::default())
+        .id();
+
+    enqueue(
+        &mut app,
+        resolved_aura_effect(
+            target,
+            ResolvedEffectOperation::RemoveAura {
+                aura: aura_id(),
+                stacks: Some(1),
+            },
+        ),
+    );
+
+    app.update();
+
+    assert!(
+        app.world()
+            .resource::<CombatEventQueue>()
+            .is_empty()
+    );
+
+    assert!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
+
+    assert!(
+        app.world()
+            .get::<ActiveAuras>(target)
+            .unwrap()
+            .is_empty()
+    );
+}
