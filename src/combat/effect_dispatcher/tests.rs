@@ -815,6 +815,100 @@ fn periodic_tick_scales_effect_by_stack_count() {
     );
 }
 
+#[test]
+fn aura_application_and_removal_events_use_owner_as_subscriber() {
+    for trigger in [
+        EffectTrigger::OnAuraApplied,
+        EffectTrigger::OnAuraRemoved,
+    ] {
+        assert_eq!(
+            event_participants(&event(
+                trigger,
+                Some(source()),
+                Some(target()),
+            )),
+            Some((target(), Some(source())))
+        );
+
+        assert_eq!(
+            event_participants(&event(
+                trigger,
+                None,
+                Some(target()),
+            )),
+            Some((target(), None))
+        );
+
+        assert_eq!(
+            event_participants(&event(
+                trigger,
+                Some(source()),
+                None,
+            )),
+            None
+        );
+    }
+}
+
+#[test]
+fn aura_application_and_removal_events_enqueue_reactive_effects() {
+    let test_cases = [
+        (
+            EffectTrigger::OnAuraApplied,
+            CombatEventOutcome::AuraApplied {
+                aura: classic_content_id("aura.test"),
+                total_stacks: 2,
+            },
+        ),
+        (
+            EffectTrigger::OnAuraRemoved,
+            CombatEventOutcome::AuraRemoved {
+                aura: classic_content_id("aura.test"),
+                removed_stacks: 1,
+            },
+        ),
+    ];
+
+    for (trigger, outcome) in test_cases {
+        let (mut app, effect_id) = test_application(
+            trigger,
+            EffectTarget::SelectedTarget,
+        );
+
+        let owner = spawn_subscriber(&mut app, effect_id);
+        let other = app.world_mut().spawn_empty().id();
+
+        let mut aura_event = event(
+            trigger,
+            Some(other),
+            Some(owner),
+        );
+
+        aura_event.outcome = Some(outcome);
+
+        app.world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .enqueue(aura_event)
+            .unwrap();
+
+        app.update();
+
+        assert_eq!(
+            app.world()
+                .resource::<PendingCombatEffects>()
+                .len(),
+            1,
+            "Il trigger {trigger:?} non ha accodato l'effetto reattivo"
+        );
+
+        assert!(
+            app.world()
+                .resource::<CombatEventQueue>()
+                .is_empty()
+        );
+    }
+}
+
 #[cfg(test)]
 #[path = "tests/area_tests.rs"]
 mod area_tests;
