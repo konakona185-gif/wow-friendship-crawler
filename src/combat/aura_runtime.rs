@@ -4,6 +4,7 @@ use bevy::prelude::{Component, Entity};
 use crate::content::{
     AuraDefinition,
     AuraStackingPolicy,
+    AuraStackingScope,
     AuraValidationError,
     ContentId,
     PeriodicEffectStackScaling,
@@ -98,7 +99,11 @@ impl ActiveAuras {
 
         match definition.stacking_policy {
             AuraStackingPolicy::RefreshDuration => {
-                if let Some(existing) = self.find_mut(aura_id) {
+                if let Some(existing) = self.find_mut(
+                    aura_id,
+                    source,
+                    definition.stacking_scope,
+                ) {
                     existing.remaining_duration = duration_seconds;
                 } else {
                     self.instances.push(ActiveAura {
@@ -111,7 +116,11 @@ impl ActiveAuras {
                 }
             }
             AuraStackingPolicy::AddStacks => {
-                if let Some(existing) = self.find_mut(aura_id) {
+                if let Some(existing) = self.find_mut(
+                    aura_id,
+                    source,
+                    definition.stacking_scope,
+                ) {
                     existing.stacks = existing
                         .stacks
                         .saturating_add(applied_stacks)
@@ -129,7 +138,11 @@ impl ActiveAuras {
                 }
             }
             AuraStackingPolicy::Replace => {
-                if let Some(existing) = self.find_mut(aura_id) {
+                if let Some(existing) = self.find_mut(
+                    aura_id,
+                    source,
+                    definition.stacking_scope,
+                ) {
                     existing.source = source;
                     existing.stacks = applied_stacks;
                     existing.remaining_duration = duration_seconds;
@@ -309,10 +322,21 @@ impl ActiveAuras {
     fn find_mut(
         &mut self,
         aura_id: &ContentId,
+        source: Option<Entity>,
+        stacking_scope: AuraStackingScope,
     ) -> Option<&mut ActiveAura> {
-        self.instances
-            .iter_mut()
-            .find(|instance| instance.aura == *aura_id)
+        self.instances.iter_mut().find(|instance| {
+            if instance.aura != *aura_id {
+                return false;
+            }
+
+            match stacking_scope {
+                AuraStackingScope::Shared => true,
+                AuraStackingScope::PerCaster => {
+                    instance.source == source
+                }
+            }
+        })
     }
 }
 
@@ -344,7 +368,6 @@ mod tests {
 
     use crate::content::{
         AuraRefreshPolicy,
-        AuraStackingScope,
         ContentMetadata,
         PeriodicAuraEffect,
     };
@@ -401,6 +424,10 @@ mod tests {
 
     fn other_source() -> Entity {
         Entity::from_bits(2)
+    }
+
+    fn third_source() -> Entity {
+        Entity::from_bits(3)
     }
 
     #[test]
@@ -544,6 +571,142 @@ mod tests {
 
         assert_eq!(instances[1].source(), Some(other_source()));
         assert_eq!(instances[1].remaining_duration(), Some(20.0));
+    }
+
+    #[test]
+    fn per_caster_add_stacks_are_isolated_between_sources() {
+        let mut definition = aura_definition(
+            AuraStackingPolicy::AddStacks,
+            5,
+        );
+
+        definition.stacking_scope = AuraStackingScope::PerCaster;
+
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(&definition, Some(source()), 2, Some(10.0))
+            .unwrap();
+
+        active
+            .apply(&definition, Some(other_source()), 3, Some(20.0))
+            .unwrap();
+
+        active
+            .apply(&definition, Some(source()), 1, Some(30.0))
+            .unwrap();
+
+        let instances: Vec<&ActiveAura> = active.iter().collect();
+
+        assert_eq!(active.len(), 2);
+        assert_eq!(active.stacks(&aura_id()), 6);
+
+        assert_eq!(instances[0].source(), Some(source()));
+        assert_eq!(instances[0].stacks(), 3);
+        assert_eq!(instances[0].remaining_duration(), Some(30.0));
+
+        assert_eq!(instances[1].source(), Some(other_source()));
+        assert_eq!(instances[1].stacks(), 3);
+        assert_eq!(instances[1].remaining_duration(), Some(20.0));
+    }
+
+    #[test]
+    fn per_caster_refresh_duration_affects_only_matching_source() {
+        let mut definition = aura_definition(
+            AuraStackingPolicy::RefreshDuration,
+            5,
+        );
+
+        definition.stacking_scope = AuraStackingScope::PerCaster;
+
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(&definition, Some(source()), 3, Some(10.0))
+            .unwrap();
+
+        active
+            .apply(&definition, Some(other_source()), 2, Some(20.0))
+            .unwrap();
+
+        active
+            .apply(&definition, Some(source()), 1, Some(30.0))
+            .unwrap();
+
+        let instances: Vec<&ActiveAura> = active.iter().collect();
+
+        assert_eq!(active.len(), 2);
+
+        assert_eq!(instances[0].source(), Some(source()));
+        assert_eq!(instances[0].stacks(), 3);
+        assert_eq!(instances[0].remaining_duration(), Some(30.0));
+
+        assert_eq!(instances[1].source(), Some(other_source()));
+        assert_eq!(instances[1].stacks(), 2);
+        assert_eq!(instances[1].remaining_duration(), Some(20.0));
+    }
+
+    #[test]
+    fn per_caster_replace_affects_only_matching_source() {
+        let mut definition = aura_definition(
+            AuraStackingPolicy::Replace,
+            5,
+        );
+
+        definition.stacking_scope = AuraStackingScope::PerCaster;
+
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(&definition, Some(source()), 4, Some(10.0))
+            .unwrap();
+
+        active
+            .apply(&definition, Some(other_source()), 2, Some(20.0))
+            .unwrap();
+
+        active
+            .apply(&definition, Some(third_source()), 1, Some(30.0))
+            .unwrap();
+
+        let instances: Vec<&ActiveAura> = active.iter().collect();
+
+        assert_eq!(active.len(), 3);
+
+        assert_eq!(instances[0].source(), Some(source()));
+        assert_eq!(instances[0].stacks(), 4);
+        assert_eq!(instances[0].remaining_duration(), Some(10.0));
+
+        assert_eq!(instances[1].source(), Some(other_source()));
+        assert_eq!(instances[1].stacks(), 2);
+        assert_eq!(instances[1].remaining_duration(), Some(20.0));
+
+        assert_eq!(instances[2].source(), Some(third_source()));
+        assert_eq!(instances[2].stacks(), 1);
+        assert_eq!(instances[2].remaining_duration(), Some(30.0));
+    }
+
+    #[test]
+    fn independent_policy_creates_separate_instances_for_same_caster() {
+        let mut definition = aura_definition(
+            AuraStackingPolicy::Independent,
+            5,
+        );
+
+        definition.stacking_scope = AuraStackingScope::PerCaster;
+
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(&definition, Some(source()), 1, Some(10.0))
+            .unwrap();
+
+        active
+            .apply(&definition, Some(source()), 1, Some(20.0))
+            .unwrap();
+
+        assert_eq!(active.len(), 2);
+        assert_eq!(active.stacks(&aura_id()), 2);
     }
 
     #[test]
