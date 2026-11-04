@@ -363,7 +363,7 @@ mod tests {
             base: f32::MAX,
             scaling: vec![EffectScaling {
                 stat: stat_id("spell_power"),
-                coefficient: -2.0,
+               coefficient: -3.0,
             }],
         };
 
