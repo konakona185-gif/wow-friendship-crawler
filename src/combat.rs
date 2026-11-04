@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -64,6 +63,7 @@ pub use effect_execution::{
 };
 pub use effect_magnitude::{
     calculate_effect_magnitude,
+    calculate_signed_effect_magnitude,
     EffectMagnitudeError,
 };
 pub use effect_resolution::{
