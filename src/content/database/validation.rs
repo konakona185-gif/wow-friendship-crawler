@@ -4,6 +4,7 @@ use super::super::{
     AuraValidationError,
     CombatAttributeValidationError,
     ContentPackRegistryError,
+    CreatureValidationError,
     DamageSchoolMitigation,
     DamageSchoolValidationError,
     EffectKind,
@@ -20,6 +21,7 @@ impl ContentDatabase {
         self.pack_load_order()?;
 
         self.validate_damage_school_references()?;
+        self.validate_creature_definitions()?;
         self.validate_aura_definitions()?;
         self.validate_effect_references()?;
         self.validate_ability_references()?;
@@ -50,6 +52,18 @@ impl ContentDatabase {
                     }
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    fn validate_creature_definitions(
+        &self,
+    ) -> Result<(), ContentDatabaseError> {
+        for creature in self.creatures.values() {
+            creature
+                .validate()
+                .map_err(ContentDatabaseError::InvalidCreature)?;
         }
 
         Ok(())
@@ -111,6 +125,14 @@ impl ContentDatabase {
                         return Err(ContentDatabaseError::MissingReference {
                             owner: id.clone(),
                             reference: aura.clone(),
+                        });
+                    }
+                }
+                EffectKind::Summon { creature, .. } => {
+                    if !self.creatures.contains_key(creature) {
+                        return Err(ContentDatabaseError::MissingReference {
+                            owner: id.clone(),
+                            reference: creature.clone(),
                         });
                     }
                 }
@@ -318,6 +340,7 @@ pub enum ContentDatabaseError {
     InvalidPackRegistry(ContentPackRegistryError),
     InvalidEffect(EffectValidationError),
     InvalidAura(AuraValidationError),
+    InvalidCreature(CreatureValidationError),
     InvalidDamageSchool(DamageSchoolValidationError),
     InvalidCombatAttribute(CombatAttributeValidationError),
     InvalidResource(ResourceValidationError),
@@ -354,6 +377,9 @@ impl Display for ContentDatabaseError {
             }
             Self::InvalidAura(error) => {
                 write!(formatter, "Aura non valida: {error}")
+            }
+            Self::InvalidCreature(error) => {
+                write!(formatter, "Creatura non valida: {error}")
             }
             Self::InvalidDamageSchool(error) => {
                 write!(formatter, "Scuola di danno non valida: {error}")
