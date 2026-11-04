@@ -1,3 +1,4 @@
+
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -31,6 +32,7 @@ mod healing;
 mod player_attacks;
 mod resources;
 mod stats;
+mod summons;
 mod target_indicator;
 mod target_selection;
 
@@ -120,6 +122,11 @@ pub use stats::{
     CombatLevel,
     CombatLevelError,
     CombatStats,
+};
+pub use summons::{
+    AllySummon,
+    SummonFaction,
+    SummonedCreature,
 };
 
 const DEFAULT_ENEMY_AGGRO_RANGE: f32 = 20.0;
@@ -218,6 +225,7 @@ impl Plugin for CombatPlugin {
         app.init_resource::<PendingCombatEffects>()
             .init_resource::<CombatEventQueue>()
             .init_resource::<CustomEffectHandlers>()
+            .init_resource::<summons::PendingSummons>()
             .add_systems(
                 Update,
                 (
