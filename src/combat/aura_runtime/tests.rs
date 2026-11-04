@@ -635,3 +635,164 @@ fn invalid_tick_deltas_do_not_change_durations() {
         Some(10.0)
     );
 }
+
+#[test]
+fn pandemic_add_stacks_preserves_remaining_duration() {
+    let mut definition = aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+    );
+
+    definition.refresh_policy = AuraRefreshPolicy::Pandemic;
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 2, Some(10.0))
+        .unwrap();
+
+    active.advance(8.0);
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    let aura = active.get(&aura_id()).unwrap();
+
+    assert_eq!(aura.stacks(), 3);
+    assert_eq!(aura.remaining_duration(), Some(12.0));
+}
+
+#[test]
+fn pandemic_refresh_duration_respects_thirty_percent_cap() {
+    let mut definition = aura_definition(
+        AuraStackingPolicy::RefreshDuration,
+        5,
+    );
+
+    definition.refresh_policy = AuraRefreshPolicy::Pandemic;
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 3, Some(10.0))
+        .unwrap();
+
+    active.advance(1.0);
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    let aura = active.get(&aura_id()).unwrap();
+
+    assert_eq!(aura.stacks(), 3);
+    assert_eq!(aura.remaining_duration(), Some(13.0));
+}
+
+#[test]
+fn pandemic_replace_preserves_duration_and_resets_periodic_progress() {
+    let mut definition = periodic_aura_definition(
+        AuraStackingPolicy::Replace,
+        5,
+        5.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    definition.refresh_policy = AuraRefreshPolicy::Pandemic;
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 4, Some(10.0))
+        .unwrap();
+
+    active.advance(4.0);
+
+    active
+        .apply(&definition, Some(other_source()), 2, Some(10.0))
+        .unwrap();
+
+    let aura = active.get(&aura_id()).unwrap();
+
+    assert_eq!(aura.source(), Some(other_source()));
+    assert_eq!(aura.stacks(), 2);
+    assert_eq!(aura.remaining_duration(), Some(13.0));
+
+    assert!(
+        active.advance(2.0).periodic_ticks.is_empty()
+    );
+
+    let result = active.advance(3.0);
+
+    assert_eq!(result.periodic_ticks.len(), 1);
+    assert_eq!(result.periodic_ticks[0].source, Some(other_source()));
+    assert_eq!(result.periodic_ticks[0].stacks, 2);
+}
+
+#[test]
+fn pandemic_per_caster_refresh_only_preserves_matching_source_duration() {
+    let mut definition = aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+    );
+
+    definition.stacking_scope = AuraStackingScope::PerCaster;
+    definition.refresh_policy = AuraRefreshPolicy::Pandemic;
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 2, Some(10.0))
+        .unwrap();
+
+    active
+        .apply(&definition, Some(other_source()), 3, Some(14.0))
+        .unwrap();
+
+    active.advance(8.0);
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    let instances: Vec<&ActiveAura> = active.iter().collect();
+
+    assert_eq!(instances.len(), 2);
+
+    assert_eq!(instances[0].source(), Some(source()));
+    assert_eq!(instances[0].stacks(), 3);
+    assert_eq!(instances[0].remaining_duration(), Some(12.0));
+
+    assert_eq!(instances[1].source(), Some(other_source()));
+    assert_eq!(instances[1].stacks(), 3);
+    assert_eq!(instances[1].remaining_duration(), Some(6.0));
+}
+
+#[test]
+fn pandemic_does_not_carry_duration_between_independent_instances() {
+    let mut definition = aura_definition(
+        AuraStackingPolicy::Independent,
+        5,
+    );
+
+    definition.refresh_policy = AuraRefreshPolicy::Pandemic;
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    active.advance(8.0);
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    let instances: Vec<&ActiveAura> = active.iter().collect();
+
+    assert_eq!(instances.len(), 2);
+    assert_eq!(instances[0].remaining_duration(), Some(2.0));
+    assert_eq!(instances[1].remaining_duration(), Some(10.0));
+}
