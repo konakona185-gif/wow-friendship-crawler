@@ -1,4 +1,3 @@
-
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
@@ -726,3 +725,7 @@ mod tests;
 #[cfg(test)]
 #[path = "effect_runtime/custom_effect_tests.rs"]
 mod custom_effect_tests;
+
+#[cfg(test)]
+#[path = "effect_runtime/displacement_tests.rs"]
+mod displacement_tests;
