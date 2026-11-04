@@ -8,7 +8,6 @@ use crate::content::ContentId;
 use super::effect_execution::{
     EffectExecutionContext,
     EffectExecutionError,
-    EffectExecutionResult,
 };
 use super::ResolvedEffect;
 
@@ -17,7 +16,7 @@ pub trait CustomEffectHandler: Send + Sync + 'static {
         &self,
         effect: &ResolvedEffect,
         context: &mut EffectExecutionContext<'_>,
-    ) -> Result<EffectExecutionResult, EffectExecutionError>;
+    ) -> Result<(), EffectExecutionError>;
 }
 
 impl<F> CustomEffectHandler for F
@@ -25,7 +24,7 @@ where
     F: for<'a> Fn(
             &ResolvedEffect,
             &mut EffectExecutionContext<'a>,
-        ) -> Result<EffectExecutionResult, EffectExecutionError>
+        ) -> Result<(), EffectExecutionError>
         + Send
         + Sync
         + 'static,
@@ -34,7 +33,7 @@ where
         &self,
         effect: &ResolvedEffect,
         context: &mut EffectExecutionContext<'_>,
-    ) -> Result<EffectExecutionResult, EffectExecutionError> {
+    ) -> Result<(), EffectExecutionError> {
         self(effect, context)
     }
 }
@@ -128,7 +127,7 @@ mod tests {
             &self,
             _effect: &ResolvedEffect,
             _context: &mut EffectExecutionContext<'_>,
-        ) -> Result<EffectExecutionResult, EffectExecutionError> {
+        ) -> Result<(), EffectExecutionError> {
             Err(EffectExecutionError::UnsupportedOperation)
         }
     }
@@ -217,5 +216,21 @@ mod tests {
 
         assert!(handlers.register(id.clone(), handler).is_ok());
         assert!(handlers.contains(&id));
+    }
+
+    #[test]
+    fn closure_handler_can_return_success() {
+        let mut handlers = CustomEffectHandlers::default();
+        let id = handler_id();
+
+        let handler = |
+            _effect: &ResolvedEffect,
+            _context: &mut EffectExecutionContext<'_>,
+        | {
+            Ok(())
+        };
+
+        assert!(handlers.register(id.clone(), handler).is_ok());
+        assert!(handlers.get(&id).is_some());
     }
 }
