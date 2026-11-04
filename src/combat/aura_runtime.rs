@@ -1,4 +1,6 @@
 
+mod refresh;
+
 use bevy::prelude::{Component, Entity};
 
 use crate::content::{
@@ -104,7 +106,12 @@ impl ActiveAuras {
                     source,
                     definition.stacking_scope,
                 ) {
-                    existing.remaining_duration = duration_seconds;
+                    existing.remaining_duration =
+                        refresh::refreshed_duration(
+                            existing.remaining_duration,
+                            duration_seconds,
+                            definition.refresh_policy,
+                        )?;
                 } else {
                     self.instances.push(ActiveAura {
                         aura: aura_id.clone(),
@@ -126,7 +133,12 @@ impl ActiveAuras {
                         .saturating_add(applied_stacks)
                         .min(definition.max_stacks);
 
-                    existing.remaining_duration = duration_seconds;
+                    existing.remaining_duration =
+                        refresh::refreshed_duration(
+                            existing.remaining_duration,
+                            duration_seconds,
+                            definition.refresh_policy,
+                        )?;
                 } else {
                     self.instances.push(ActiveAura {
                         aura: aura_id.clone(),
@@ -143,9 +155,16 @@ impl ActiveAuras {
                     source,
                     definition.stacking_scope,
                 ) {
+                    let refreshed_duration =
+                        refresh::refreshed_duration(
+                            existing.remaining_duration,
+                            duration_seconds,
+                            definition.refresh_policy,
+                        )?;
+
                     existing.source = source;
                     existing.stacks = applied_stacks;
-                    existing.remaining_duration = duration_seconds;
+                    existing.remaining_duration = refreshed_duration;
                     existing.periodic_effects =
                         periodic_effect_states(definition);
                 } else {
