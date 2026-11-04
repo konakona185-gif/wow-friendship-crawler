@@ -498,4 +498,7 @@ pub(super) fn execute_pending_effects(
 mod aura_tests;
 
 #[cfg(test)]
+mod periodic_tests;
+
+#[cfg(test)]
 mod tests;
