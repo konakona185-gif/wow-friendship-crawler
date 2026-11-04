@@ -12,6 +12,7 @@ use crate::content::{
     EffectValidationError,
 };
 
+use super::effect_magnitude::calculate_signed_effect_magnitude;
 use super::{
     calculate_effect_magnitude,
     CombatAttributes,
@@ -236,7 +237,7 @@ fn resolve_operation(
             duration_seconds: *duration_seconds,
         }),
         EffectKind::ModifyThreat { amount } => {
-            let amount = calculate_effect_magnitude(
+            let amount = calculate_signed_effect_magnitude(
                 amount,
                 source_attributes,
             )
@@ -705,6 +706,37 @@ mod tests {
             result[0].operation,
             ResolvedEffectOperation::ModifyThreat {
                 amount: 60.0,
+            }
+        );
+    }
+
+    #[test]
+    fn threat_effect_resolves_negative_scaled_magnitude() {
+        let definition = valid_effect(
+            EffectTarget::SelectedTarget,
+            EffectKind::ModifyThreat {
+                amount: EffectMagnitude {
+                    base: -10.0,
+                    scaling: vec![EffectScaling {
+                        stat: content_id("stat.spell_power"),
+                        coefficient: -0.5,
+                    }],
+                },
+            },
+        );
+
+        let result = resolve_effect(
+            &definition,
+            Some(source()),
+            EffectTargetSelection::Selected(target()),
+            &attributes_with_spell_power(100.0),
+        )
+        .unwrap();
+
+        assert_eq!(
+            result[0].operation,
+            ResolvedEffectOperation::ModifyThreat {
+                amount: -60.0,
             }
         );
     }
