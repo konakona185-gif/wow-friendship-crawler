@@ -66,7 +66,7 @@ impl SummonedCreature {
 )]
 pub struct AllySummon;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct PendingSummon {
     pub owner: Entity,
     pub creature: ContentId,
