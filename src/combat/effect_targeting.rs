@@ -1,11 +1,24 @@
 
 use std::collections::HashSet;
 
-use bevy::prelude::{Entity, Vec3};
+use bevy::prelude::{
+    Entity,
+    Or,
+    Query,
+    Transform,
+    Vec3,
+    With,
+};
 
 use crate::content::EffectTarget;
 
-use super::effect_resolution::EffectTargetSelection;
+use super::{
+    effect_resolution::EffectTargetSelection,
+    Character,
+    CombatStats,
+    Enemy,
+    HealthPool,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CombatSide {
@@ -26,6 +39,8 @@ pub(super) enum AreaTargetingError {
     UnsupportedTarget,
     InvalidRadius,
     InvalidCenter,
+    MissingSource,
+    InvalidSourceSide,
 }
 
 pub(super) fn acquire_area_targets(
@@ -104,6 +119,78 @@ pub(super) fn acquire_area_targets(
     targets.sort_by_key(|entity| entity.to_bits());
 
     Ok(EffectTargetSelection::Area(targets))
+}
+
+pub(super) fn acquire_area_targets_from_world(
+    effect_target: &EffectTarget,
+    source: Entity,
+    combatants: &Query<(
+        Entity,
+        &Transform,
+        Option<&CombatStats>,
+        Option<&HealthPool>,
+        Option<&Character>,
+        Option<&Enemy>,
+    ), Or<(With<Character>, With<Enemy>)>>,
+) -> Result<EffectTargetSelection, AreaTargetingError> {
+    let (
+        _,
+        source_transform,
+        _,
+        _,
+        source_character,
+        source_enemy,
+    ) = combatants
+        .get(source)
+        .map_err(|_| AreaTargetingError::MissingSource)?;
+
+    let source_side = combat_side(
+        source_character,
+        source_enemy,
+    )
+    .ok_or(AreaTargetingError::InvalidSourceSide)?;
+
+    let candidates = combatants.iter().filter_map(
+        |(entity, transform, stats, health_pool, character, enemy)| {
+            let side = combat_side(character, enemy)?;
+
+            let current_health = health_pool
+                .map(|pool| pool.current())
+                .or_else(|| {
+                    stats.map(|stats| stats.current_health)
+                });
+
+            let alive = current_health.map_or(
+                true,
+                |health| health.is_finite() && health > 0.0,
+            );
+
+            Some(AreaTargetCandidate {
+                entity,
+                position: transform.translation,
+                side,
+                alive,
+            })
+        },
+    );
+
+    acquire_area_targets(
+        effect_target,
+        source_transform.translation,
+        source_side,
+        candidates,
+    )
+}
+
+fn combat_side(
+    character: Option<&Character>,
+    enemy: Option<&Enemy>,
+) -> Option<CombatSide> {
+    match (character.is_some(), enemy.is_some()) {
+        (true, false) => Some(CombatSide::Characters),
+        (false, true) => Some(CombatSide::Enemies),
+        _ => None,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -295,6 +382,28 @@ mod tests {
                 Vec::new(),
             ),
             Err(AreaTargetingError::UnsupportedTarget)
+        );
+    }
+
+    #[test]
+    fn combat_side_requires_exactly_one_team_component() {
+        let character = Character;
+        let enemy = Enemy;
+
+        assert_eq!(
+            combat_side(Some(&character), None),
+            Some(CombatSide::Characters)
+        );
+
+        assert_eq!(
+            combat_side(None, Some(&enemy)),
+            Some(CombatSide::Enemies)
+        );
+
+        assert_eq!(combat_side(None, None), None);
+        assert_eq!(
+            combat_side(Some(&character), Some(&enemy)),
+            None
         );
     }
 }
