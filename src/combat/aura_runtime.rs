@@ -1,3 +1,4 @@
+
 use bevy::prelude::{Component, Entity};
 
 use crate::content::{
@@ -5,6 +6,7 @@ use crate::content::{
     AuraStackingPolicy,
     AuraValidationError,
     ContentId,
+    PeriodicEffectStackScaling,
 };
 
 #[derive(Component, Clone, Debug, Default, PartialEq)]
@@ -18,6 +20,30 @@ pub struct ActiveAura {
     source: Option<Entity>,
     stacks: u32,
     remaining_duration: Option<f32>,
+    periodic_effects: Vec<ActivePeriodicEffect>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ActivePeriodicEffect {
+    effect: ContentId,
+    interval_seconds: f64,
+    elapsed_seconds: f64,
+    stack_scaling: PeriodicEffectStackScaling,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PeriodicAuraTick {
+    pub aura: ContentId,
+    pub effect: ContentId,
+    pub source: Option<Entity>,
+    pub stacks: u32,
+    pub stack_scaling: PeriodicEffectStackScaling,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct AuraAdvance {
+    pub periodic_ticks: Vec<PeriodicAuraTick>,
+    pub expired: Vec<ExpiredAura>,
 }
 
 impl ActiveAura {
@@ -80,6 +106,7 @@ impl ActiveAuras {
                         source,
                         stacks: applied_stacks,
                         remaining_duration: duration_seconds,
+                        periodic_effects: periodic_effect_states(definition),
                     });
                 }
             }
@@ -97,6 +124,7 @@ impl ActiveAuras {
                         source,
                         stacks: applied_stacks,
                         remaining_duration: duration_seconds,
+                        periodic_effects: periodic_effect_states(definition),
                     });
                 }
             }
@@ -105,12 +133,15 @@ impl ActiveAuras {
                     existing.source = source;
                     existing.stacks = applied_stacks;
                     existing.remaining_duration = duration_seconds;
+                    existing.periodic_effects =
+                        periodic_effect_states(definition);
                 } else {
                     self.instances.push(ActiveAura {
                         aura: aura_id.clone(),
                         source,
                         stacks: applied_stacks,
                         remaining_duration: duration_seconds,
+                        periodic_effects: periodic_effect_states(definition),
                     });
                 }
             }
@@ -120,6 +151,7 @@ impl ActiveAuras {
                     source,
                     stacks: applied_stacks,
                     remaining_duration: duration_seconds,
+                    periodic_effects: periodic_effect_states(definition),
                 });
             }
         }
@@ -175,24 +207,61 @@ impl ActiveAuras {
         &mut self,
         delta_seconds: f32,
     ) -> Vec<ExpiredAura> {
+        self.advance(delta_seconds).expired
+    }
+
+    pub fn advance(
+        &mut self,
+        delta_seconds: f32,
+    ) -> AuraAdvance {
         if !delta_seconds.is_finite() || delta_seconds <= 0.0 {
-            return Vec::new();
+            return AuraAdvance::default();
         }
 
+        let mut result = AuraAdvance::default();
+
         for instance in &mut self.instances {
+            let active_delta = instance
+                .remaining_duration
+                .map(|remaining| delta_seconds.min(remaining.max(0.0)))
+                .unwrap_or(delta_seconds) as f64;
+
+            for periodic_effect in &mut instance.periodic_effects {
+                periodic_effect.elapsed_seconds += active_delta;
+
+                let tolerance =
+                    periodic_effect.interval_seconds * 0.000001;
+
+                while periodic_effect.elapsed_seconds + tolerance
+                    >= periodic_effect.interval_seconds
+                {
+                    periodic_effect.elapsed_seconds = (
+                        periodic_effect.elapsed_seconds
+                            - periodic_effect.interval_seconds
+                    )
+                    .max(0.0);
+
+                    result.periodic_ticks.push(PeriodicAuraTick {
+                        aura: instance.aura.clone(),
+                        effect: periodic_effect.effect.clone(),
+                        source: instance.source,
+                        stacks: instance.stacks,
+                        stack_scaling: periodic_effect.stack_scaling,
+                    });
+                }
+            }
+
             if let Some(remaining) = &mut instance.remaining_duration {
                 *remaining -= delta_seconds;
             }
         }
-
-        let mut expired = Vec::new();
 
         self.instances.retain(|instance| {
             if instance
                 .remaining_duration
                 .is_some_and(|remaining| remaining <= 0.0)
             {
-                expired.push(ExpiredAura {
+                result.expired.push(ExpiredAura {
                     aura: instance.aura.clone(),
                     source: instance.source,
                     stacks: instance.stacks,
@@ -204,7 +273,7 @@ impl ActiveAuras {
             }
         });
 
-        expired
+        result
     }
 
     pub fn get(
@@ -247,6 +316,21 @@ impl ActiveAuras {
     }
 }
 
+fn periodic_effect_states(
+    definition: &AuraDefinition,
+) -> Vec<ActivePeriodicEffect> {
+    definition
+        .periodic_effects
+        .iter()
+        .map(|effect| ActivePeriodicEffect {
+            effect: effect.effect.clone(),
+            interval_seconds: effect.interval_seconds as f64,
+            elapsed_seconds: 0.0,
+            stack_scaling: effect.stack_scaling,
+        })
+        .collect()
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AuraRuntimeError {
     InvalidDefinition(AuraValidationError),
@@ -262,6 +346,7 @@ mod tests {
         AuraRefreshPolicy,
         AuraStackingScope,
         ContentMetadata,
+        PeriodicAuraEffect,
     };
 
     fn aura_definition(
@@ -285,8 +370,29 @@ mod tests {
         }
     }
 
+    fn periodic_aura_definition(
+        policy: AuraStackingPolicy,
+        max_stacks: u32,
+        interval_seconds: f32,
+        stack_scaling: PeriodicEffectStackScaling,
+    ) -> AuraDefinition {
+        let mut definition = aura_definition(policy, max_stacks);
+
+        definition.periodic_effects.push(PeriodicAuraEffect {
+            effect: periodic_effect_id(),
+            interval_seconds,
+            stack_scaling,
+        });
+
+        definition
+    }
+
     fn aura_id() -> ContentId {
         ContentId::new("classic:aura.test").unwrap()
+    }
+
+    fn periodic_effect_id() -> ContentId {
+        ContentId::new("classic:effect.periodic_test").unwrap()
     }
 
     fn source() -> Entity {
@@ -517,6 +623,147 @@ mod tests {
         assert_eq!(expired[0].source, Some(source()));
         assert_eq!(expired[0].stacks, 2);
         assert!(active.is_empty());
+    }
+
+    #[test]
+    fn periodic_ticks_are_emitted_after_each_interval() {
+        let definition = periodic_aura_definition(
+            AuraStackingPolicy::AddStacks,
+            5,
+            2.0,
+            PeriodicEffectStackScaling::Linear,
+        );
+
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(&definition, Some(source()), 2, Some(10.0))
+            .unwrap();
+
+        let first = active.advance(1.5);
+
+        assert!(first.periodic_ticks.is_empty());
+        assert!(first.expired.is_empty());
+
+        let second = active.advance(0.5);
+
+        assert_eq!(second.periodic_ticks.len(), 1);
+        assert_eq!(
+            second.periodic_ticks[0],
+            PeriodicAuraTick {
+                aura: aura_id(),
+                effect: periodic_effect_id(),
+                source: Some(source()),
+                stacks: 2,
+                stack_scaling: PeriodicEffectStackScaling::Linear,
+            }
+        );
+
+        let third = active.advance(2.0);
+
+        assert_eq!(third.periodic_ticks.len(), 1);
+        assert!(third.expired.is_empty());
+    }
+
+    #[test]
+    fn periodic_ticks_are_limited_by_aura_duration() {
+        let definition = periodic_aura_definition(
+            AuraStackingPolicy::AddStacks,
+            5,
+            2.0,
+            PeriodicEffectStackScaling::None,
+        );
+
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(&definition, Some(source()), 1, Some(3.0))
+            .unwrap();
+
+        let result = active.advance(5.0);
+
+        assert_eq!(result.periodic_ticks.len(), 1);
+        assert_eq!(result.expired.len(), 1);
+        assert!(active.is_empty());
+    }
+
+    #[test]
+    fn periodic_tick_aligned_with_expiration_is_emitted() {
+        let definition = periodic_aura_definition(
+            AuraStackingPolicy::AddStacks,
+            5,
+            5.0,
+            PeriodicEffectStackScaling::None,
+        );
+
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(&definition, Some(source()), 1, Some(5.0))
+            .unwrap();
+
+        let result = active.advance(5.0);
+
+        assert_eq!(result.periodic_ticks.len(), 1);
+        assert_eq!(result.expired.len(), 1);
+        assert!(active.is_empty());
+    }
+
+    #[test]
+    fn adding_stacks_preserves_periodic_tick_progress() {
+        let definition = periodic_aura_definition(
+            AuraStackingPolicy::AddStacks,
+            5,
+            5.0,
+            PeriodicEffectStackScaling::None,
+        );
+
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(&definition, Some(source()), 1, Some(10.0))
+            .unwrap();
+
+        assert!(active.advance(3.0).periodic_ticks.is_empty());
+
+        active
+            .apply(&definition, Some(source()), 2, Some(10.0))
+            .unwrap();
+
+        let result = active.advance(2.0);
+
+        assert_eq!(result.periodic_ticks.len(), 1);
+        assert_eq!(result.periodic_ticks[0].stacks, 3);
+    }
+
+    #[test]
+    fn replacing_aura_restarts_periodic_tick_progress() {
+        let definition = periodic_aura_definition(
+            AuraStackingPolicy::Replace,
+            5,
+            5.0,
+            PeriodicEffectStackScaling::None,
+        );
+
+        let mut active = ActiveAuras::default();
+
+        active
+            .apply(&definition, Some(source()), 1, Some(10.0))
+            .unwrap();
+
+        assert!(active.advance(3.0).periodic_ticks.is_empty());
+
+        active
+            .apply(&definition, Some(other_source()), 2, Some(10.0))
+            .unwrap();
+
+        assert!(active.advance(2.0).periodic_ticks.is_empty());
+
+        let result = active.advance(3.0);
+
+        assert_eq!(result.periodic_ticks.len(), 1);
+        assert_eq!(result.periodic_ticks[0].source, Some(other_source()));
+        assert_eq!(result.periodic_ticks[0].stacks, 2);
     }
 
     #[test]
