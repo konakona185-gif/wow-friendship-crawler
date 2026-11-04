@@ -1,4 +1,3 @@
-
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
@@ -25,6 +24,7 @@ use super::{
     CombatLevel,
     CombatResources,
     CombatStats,
+    CustomEffectHandlers,
     EffectExecutionContext,
     EffectExecutionResult,
     EffectResolutionError,
@@ -441,6 +441,7 @@ pub(super) fn execute_pending_effects(
     mut pending: ResMut<PendingCombatEffects>,
     mut event_queue: ResMut<CombatEventQueue>,
     database: Res<ContentDatabase>,
+    custom_handlers: Res<CustomEffectHandlers>,
     attacker_levels: Query<&CombatLevel>,
     mut target_query: Query<(
         Option<&CombatAttributes>,
@@ -510,6 +511,62 @@ pub(super) fn execute_pending_effects(
                         target = ?effect.target,
                         %error,
                         "Esecuzione dell'effetto aura non riuscita."
+                    );
+                }
+            }
+
+            continue;
+        }
+
+        if let ResolvedEffectOperation::Custom { handler } = &effect.operation {
+            let execution_result = {
+                let Some(custom_handler) = custom_handlers.get(handler) else {
+                    warn!(
+                        effect = ?effect.effect,
+                        target = ?effect.target,
+                        handler = %handler.as_str(),
+                        "Handler personalizzato non registrato."
+                    );
+                    continue;
+                };
+
+                let mut context = EffectExecutionContext {
+                    database: &database,
+                    attacker_level: attacker_level.as_ref(),
+                    target_attributes,
+                    target_health: target_health.as_deref_mut(),
+                    target_resources: target_resources.as_deref_mut(),
+                    target_threat: target_threat.as_deref_mut(),
+                };
+
+                custom_handler.execute(&effect, &mut context)
+            };
+
+            if let (Some(pool), Some(stats)) = (
+                target_health.as_deref(),
+                target_stats.as_deref_mut(),
+            ) {
+                stats.current_health = pool.current();
+                stats.max_health = pool.maximum();
+            }
+
+            match execution_result {
+                Ok(()) => {
+                    debug!(
+                        effect = ?effect.effect,
+                        target = ?effect.target,
+                        handler = %handler.as_str(),
+                        generation,
+                        "Handler personalizzato eseguito."
+                    );
+                }
+                Err(error) => {
+                    warn!(
+                        effect = ?effect.effect,
+                        target = ?effect.target,
+                        handler = %handler.as_str(),
+                        %error,
+                        "Esecuzione dell'handler personalizzato non riuscita."
                     );
                 }
             }
