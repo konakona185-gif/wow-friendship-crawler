@@ -1,3 +1,4 @@
+
 use bevy::prelude::*;
 
 use crate::content::{
@@ -34,6 +35,20 @@ fn event_participants(
         }
         _ => None,
     }
+}
+
+fn event_matches_effect(
+    event: &CombatEventContext,
+    effect_id: &crate::content::ContentId,
+) -> bool {
+    if event.trigger != EffectTrigger::OnPeriodicTick {
+        return true;
+    }
+
+    event
+        .effect
+        .as_ref()
+        .is_none_or(|triggered_effect| triggered_effect == effect_id)
 }
 
 pub(super) fn dispatch_combat_events(
@@ -76,7 +91,9 @@ pub(super) fn dispatch_combat_events(
                 continue;
             };
 
-            if definition.trigger != event.trigger {
+            if definition.trigger != event.trigger
+                || !event_matches_effect(&event, effect_id)
+            {
                 continue;
             }
 
@@ -425,6 +442,44 @@ mod tests {
     }
 
     #[test]
+    fn periodic_tick_events_match_their_declared_effect() {
+        let matching_effect = content_id("effect.periodic");
+        let other_effect = content_id("effect.other");
+
+        let mut matching_event = event(
+            EffectTrigger::OnPeriodicTick,
+            Some(source()),
+            Some(target()),
+        );
+
+        matching_event.effect = Some(matching_effect.clone());
+
+        let mut other_event = matching_event.clone();
+        other_event.effect = Some(other_effect);
+
+        assert!(event_matches_effect(
+            &matching_event,
+            &matching_effect
+        ));
+
+        assert!(!event_matches_effect(
+            &other_event,
+            &matching_effect
+        ));
+
+        let event_without_effect = event(
+            EffectTrigger::OnPeriodicTick,
+            Some(source()),
+            Some(target()),
+        );
+
+        assert!(event_matches_effect(
+            &event_without_effect,
+            &matching_effect
+        ));
+    }
+
+    #[test]
     fn aura_expiration_events_use_owner_as_subscriber() {
         assert_eq!(
             event_participants(&event(
@@ -571,16 +626,20 @@ mod tests {
             EffectTarget::SelectedTarget,
         );
 
-        let owner = spawn_subscriber(&mut app, effect_id);
+        let owner = spawn_subscriber(&mut app, effect_id.clone());
         let affected_target = app.world_mut().spawn_empty().id();
+
+        let mut periodic_event = event(
+            EffectTrigger::OnPeriodicTick,
+            Some(owner),
+            Some(affected_target),
+        );
+
+        periodic_event.effect = Some(effect_id);
 
         app.world_mut()
             .resource_mut::<CombatEventQueue>()
-            .enqueue(event(
-                EffectTrigger::OnPeriodicTick,
-                Some(owner),
-                Some(affected_target),
-            ))
+            .enqueue(periodic_event)
             .unwrap();
 
         app.update();
@@ -592,6 +651,37 @@ mod tests {
 
         assert!(
             app.world().resource::<CombatEventQueue>().is_empty()
+        );
+    }
+
+    #[test]
+    fn periodic_tick_event_does_not_enqueue_another_effect() {
+        let (mut app, effect_id) = test_application(
+            EffectTrigger::OnPeriodicTick,
+            EffectTarget::SelectedTarget,
+        );
+
+        let owner = spawn_subscriber(&mut app, effect_id);
+        let affected_target = app.world_mut().spawn_empty().id();
+
+        let mut periodic_event = event(
+            EffectTrigger::OnPeriodicTick,
+            Some(owner),
+            Some(affected_target),
+        );
+
+        periodic_event.effect = Some(content_id("effect.other"));
+
+        app.world_mut()
+            .resource_mut::<CombatEventQueue>()
+            .enqueue(periodic_event)
+            .unwrap();
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<PendingCombatEffects>().len(),
+            0
         );
     }
 
