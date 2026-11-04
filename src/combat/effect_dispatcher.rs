@@ -36,7 +36,9 @@ fn event_participants(
         | EffectTrigger::OnHealTaken
         | EffectTrigger::OnResourceGained
         | EffectTrigger::OnResourceSpent
-        | EffectTrigger::OnExpire => {
+        | EffectTrigger::OnExpire
+        | EffectTrigger::OnAuraApplied
+        | EffectTrigger::OnAuraRemoved => {
             Some((event.target?, event.source))
         }
         _ => None,
