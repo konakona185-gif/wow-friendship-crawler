@@ -1,9 +1,14 @@
+
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
 use bevy::prelude::{Component, Entity, Resource};
 
-use crate::content::{ContentId, EffectTrigger};
+use crate::content::{
+    ContentId,
+    EffectTrigger,
+    PeriodicEffectStackScaling,
+};
 
 use super::{
     DamageResolution,
@@ -24,6 +29,11 @@ pub enum CombatEventOutcome {
     AuraExpired {
         aura: ContentId,
         stacks: u32,
+    },
+    PeriodicTick {
+        aura: ContentId,
+        stacks: u32,
+        stack_scaling: PeriodicEffectStackScaling,
     },
 }
 
@@ -80,6 +90,31 @@ impl CombatEventContext {
                 if self.target.is_none() {
                     return Err(
                         CombatEventContextError::MissingAuraExpirationTarget,
+                    );
+                }
+            }
+            Some(CombatEventOutcome::PeriodicTick { stacks, .. }) => {
+                if self.trigger != EffectTrigger::OnPeriodicTick {
+                    return Err(
+                        CombatEventContextError::PeriodicTickTriggerMismatch,
+                    );
+                }
+
+                if *stacks == 0 {
+                    return Err(
+                        CombatEventContextError::ZeroPeriodicTickStacks,
+                    );
+                }
+
+                if self.target.is_none() {
+                    return Err(
+                        CombatEventContextError::MissingPeriodicTickTarget,
+                    );
+                }
+
+                if self.effect.is_none() {
+                    return Err(
+                        CombatEventContextError::MissingPeriodicTickEffect,
                     );
                 }
             }
@@ -219,6 +254,10 @@ pub enum CombatEventContextError {
     TargetMismatch,
     ZeroExpiredAuraStacks,
     MissingAuraExpirationTarget,
+    PeriodicTickTriggerMismatch,
+    ZeroPeriodicTickStacks,
+    MissingPeriodicTickTarget,
+    MissingPeriodicTickEffect,
 }
 
 impl Display for CombatEventContextError {
@@ -251,6 +290,26 @@ impl Display for CombatEventContextError {
             Self::MissingAuraExpirationTarget => {
                 formatter.write_str(
                     "Un evento di scadenza richiede il bersaglio dell'aura",
+                )
+            }
+            Self::PeriodicTickTriggerMismatch => {
+                formatter.write_str(
+                    "Un evento periodico richiede il trigger OnPeriodicTick",
+                )
+            }
+            Self::ZeroPeriodicTickStacks => {
+                formatter.write_str(
+                    "Un tick periodico deve contenere almeno uno stack",
+                )
+            }
+            Self::MissingPeriodicTickTarget => {
+                formatter.write_str(
+                    "Un tick periodico richiede il bersaglio dell'aura",
+                )
+            }
+            Self::MissingPeriodicTickEffect => {
+                formatter.write_str(
+                    "Un tick periodico richiede l'ID del suo effetto",
                 )
             }
         }
@@ -345,6 +404,23 @@ mod tests {
         }
     }
 
+    fn periodic_tick_outcome(stacks: u32) -> CombatEventOutcome {
+        CombatEventOutcome::PeriodicTick {
+            aura: content_id("aura.test"),
+            stacks,
+            stack_scaling: PeriodicEffectStackScaling::Linear,
+        }
+    }
+
+    fn valid_periodic_tick_context() -> CombatEventContext {
+        let mut context = valid_context(EffectTrigger::OnPeriodicTick);
+
+        context.effect = Some(content_id("effect.periodic_test"));
+        context.outcome = Some(periodic_tick_outcome(2));
+
+        context
+    }
+
     #[test]
     fn event_context_without_outcome_passes_validation() {
         let context = valid_context(EffectTrigger::OnCast);
@@ -385,6 +461,13 @@ mod tests {
     }
 
     #[test]
+    fn event_context_validates_periodic_tick_outcomes() {
+        let context = valid_periodic_tick_context();
+
+        assert!(context.validate().is_ok());
+    }
+
+    #[test]
     fn event_context_rejects_zero_expired_aura_stacks() {
         let mut context = valid_context(EffectTrigger::OnExpire);
         context.outcome = Some(aura_expired_outcome(0));
@@ -406,6 +489,50 @@ mod tests {
             Err(
                 CombatEventContextError::MissingAuraExpirationTarget
             )
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_zero_periodic_tick_stacks() {
+        let mut context = valid_periodic_tick_context();
+        context.outcome = Some(periodic_tick_outcome(0));
+
+        assert_eq!(
+            context.validate(),
+            Err(CombatEventContextError::ZeroPeriodicTickStacks)
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_periodic_tick_with_wrong_trigger() {
+        let mut context = valid_periodic_tick_context();
+        context.trigger = EffectTrigger::OnCast;
+
+        assert_eq!(
+            context.validate(),
+            Err(CombatEventContextError::PeriodicTickTriggerMismatch)
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_periodic_tick_without_target() {
+        let mut context = valid_periodic_tick_context();
+        context.target = None;
+
+        assert_eq!(
+            context.validate(),
+            Err(CombatEventContextError::MissingPeriodicTickTarget)
+        );
+    }
+
+    #[test]
+    fn event_context_rejects_periodic_tick_without_effect() {
+        let mut context = valid_periodic_tick_context();
+        context.effect = None;
+
+        assert_eq!(
+            context.validate(),
+            Err(CombatEventContextError::MissingPeriodicTickEffect)
         );
     }
 
