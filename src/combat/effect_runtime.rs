@@ -30,6 +30,7 @@ use super::{
     EffectResolutionError,
     EffectTargetSelection,
     EffectTrigger,
+    EnemyThreat,
     HealthPool,
     ResolvedEffect,
     ResolvedEffectOperation,
@@ -350,6 +351,9 @@ fn enqueue_execution_events(
                 CombatEventOutcome::Resource(resolution.clone()),
             )
         }
+        EffectExecutionResult::Threat { .. } => {
+            return;
+        }
     };
 
     for trigger in triggers {
@@ -444,6 +448,7 @@ pub(super) fn execute_pending_effects(
         Option<&mut HealthPool>,
         Option<&mut CombatResources>,
         Option<&mut ActiveAuras>,
+        Option<&mut EnemyThreat>,
     )>,
 ) {
     let effects = std::mem::take(&mut pending.pending);
@@ -463,6 +468,7 @@ pub(super) fn execute_pending_effects(
             mut target_health,
             mut target_resources,
             mut target_auras,
+            mut target_threat,
         )) = target_query.get_mut(effect.target)
         else {
             warn!(
@@ -518,6 +524,7 @@ pub(super) fn execute_pending_effects(
                 target_attributes,
                 target_health: target_health.as_deref_mut(),
                 target_resources: target_resources.as_deref_mut(),
+                target_threat: target_threat.as_deref_mut(),
             };
 
             execute_resolved_effect(&effect, context)
