@@ -37,6 +37,7 @@ use super::{
     ResourceOperation,
     MAX_REACTIVE_EFFECT_GENERATIONS,
     PendingDisplacement,
+    summons::{PendingSummon, PendingSummons},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -441,6 +442,7 @@ fn enqueue_aura_execution_event(
 pub(super) fn execute_pending_effects(
     mut pending: ResMut<PendingCombatEffects>,
     mut event_queue: ResMut<CombatEventQueue>,
+    mut pending_summons: Option<ResMut<PendingSummons>>,
     database: Res<ContentDatabase>,
     custom_handlers: Option<Res<CustomEffectHandlers>>,
     attacker_levels: Query<&CombatLevel>,
@@ -460,6 +462,100 @@ pub(super) fn execute_pending_effects(
     for queued_effect in effects {
         let effect = queued_effect.effect;
         let generation = queued_effect.generation;
+
+        if let ResolvedEffectOperation::Summon {
+            creature,
+            count,
+            duration_seconds,
+        } = &effect.operation
+        {
+            let Some(owner) = effect.source else {
+                warn!(
+                    effect = ?effect.effect,
+                    target = ?effect.target,
+                    "Un effetto summon richiede una sorgente."
+                );
+                continue;
+            };
+
+            if transforms.get(owner).is_err() {
+                warn!(
+                    effect = ?effect.effect,
+                    owner = ?owner,
+                    "Impossibile evocare: proprietario ECS non trovato o privo di Transform."
+                );
+                continue;
+            }
+
+            let Ok(spawn_transform) = transforms.get(effect.target) else {
+                warn!(
+                    effect = ?effect.effect,
+                    owner = ?owner,
+                    target = ?effect.target,
+                    "Impossibile evocare: trasformazione del punto di spawn non trovata."
+                );
+                continue;
+            };
+
+            let spawn_position = spawn_transform.translation;
+
+            if database.creature(creature).is_none() {
+                warn!(
+                    effect = ?effect.effect,
+                    creature = %creature.as_str(),
+                    "Impossibile evocare: creatura non registrata nel database dei contenuti."
+                );
+                continue;
+            }
+
+            if *count == 0
+                || (*duration_seconds).is_some_and(|duration| {
+                    !duration.is_finite() || duration <= 0.0
+                })
+                || !spawn_position.is_finite()
+            {
+                warn!(
+                    effect = ?effect.effect,
+                    owner = ?owner,
+                    target = ?effect.target,
+                    count,
+                    duration_seconds = ?duration_seconds,
+                    spawn_position = ?spawn_position,
+                    "Impossibile evocare: parametri o posizione di spawn non validi."
+                );
+                continue;
+            }
+
+            let Some(pending_summons) = pending_summons.as_deref_mut() else {
+                warn!(
+                    effect = ?effect.effect,
+                    "Impossibile accodare l'evocazione: risorsa PendingSummons non inizializzata."
+                );
+                continue;
+            };
+
+            pending_summons.enqueue(PendingSummon {
+                owner,
+                creature: creature.clone(),
+                spawn_position,
+                count: *count,
+                duration_seconds: *duration_seconds,
+            });
+
+            debug!(
+                effect = ?effect.effect,
+                owner = ?owner,
+                target = ?effect.target,
+                creature = %creature.as_str(),
+                count,
+                duration_seconds = ?duration_seconds,
+                spawn_position = ?spawn_position,
+                generation,
+                "Richiesta summon accodata."
+            );
+
+            continue;
+        }
 
         let attacker_level = effect
             .source
