@@ -77,6 +77,21 @@ impl SummonedCreature {
 )]
 pub struct AllySummon;
 
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct AllySummonAi {
+    pub target: Option<Entity>,
+    pub aggro_range: f32,
+}
+
+impl AllySummonAi {
+    pub fn new(aggro_range: f32) -> Self {
+        Self {
+            target: None,
+            aggro_range,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct PendingSummon {
     pub owner: Entity,
@@ -205,6 +220,7 @@ pub(super) fn spawn_pending_summons(
         };
 
         let level = *owner_level;
+
         let combat_profile = SummonCombatProfile {
             attack_damage: creature.attack_damage,
             attack_interval_seconds: creature.attack_interval_seconds,
@@ -236,7 +252,10 @@ pub(super) fn spawn_pending_summons(
 
             match faction {
                 SummonFaction::Allies => {
-                    entity_commands.insert(AllySummon);
+                    entity_commands.insert((
+                        AllySummon,
+                        AllySummonAi::new(creature.aggro_range),
+                    ));
                 }
                 SummonFaction::Enemies => {
                     entity_commands.insert((
@@ -440,6 +459,14 @@ mod tests {
             SummonFaction::Enemies.opposing(),
             SummonFaction::Allies
         );
+    }
+
+    #[test]
+    fn ally_summon_ai_starts_without_a_target() {
+        let ai = AllySummonAi::new(15.0);
+
+        assert_eq!(ai.target, None);
+        assert_eq!(ai.aggro_range, 15.0);
     }
 
     #[test]
@@ -767,6 +794,7 @@ mod tests {
             let health = world.get::<HealthPool>(entity).unwrap();
             let stats = world.get::<CombatStats>(entity).unwrap();
             let profile = world.get::<SummonCombatProfile>(entity).unwrap();
+            let ai = world.get::<AllySummonAi>(entity).unwrap();
             let transform = world.get::<Transform>(entity).unwrap();
 
             assert_eq!(summon.owner, owner);
@@ -784,6 +812,8 @@ mod tests {
             assert_eq!(profile.aggro_range, 15.0);
             assert_eq!(profile.leash_range, 40.0);
             assert_eq!(profile.movement_speed, 5.0);
+            assert_eq!(ai.target, None);
+            assert_eq!(ai.aggro_range, 15.0);
             assert_eq!(
                 transform.translation,
                 Vec3::new(4.0, 2.0, -3.0)
@@ -834,6 +864,7 @@ mod tests {
         assert_eq!(ai.leash_range, 40.0);
         assert_eq!(home.0, Vec3::new(4.0, 2.0, -3.0));
         assert!(world.get::<AllySummon>(entity).is_none());
+        assert!(world.get::<AllySummonAi>(entity).is_none());
     }
 
     #[test]
@@ -873,6 +904,7 @@ mod tests {
         assert_eq!(child_summon.faction, SummonFaction::Enemies);
         assert!(world.get::<Enemy>(child).is_some());
         assert!(world.get::<AllySummon>(child).is_none());
+        assert!(world.get::<AllySummonAi>(child).is_none());
     }
 
     #[test]
