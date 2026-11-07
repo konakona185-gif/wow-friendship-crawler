@@ -1,3 +1,4 @@
+
 use bevy::prelude::*;
 use bevy_landmass::prelude::AgentTarget3d;
 
@@ -316,6 +317,61 @@ mod tests {
         assert!(!navigation_target_matches(
             &AgentTarget3d::Point(Vec3::ZERO),
             &AgentTarget3d::None,
+        ));
+    }
+
+    #[test]
+    fn ally_summon_navigation_system_switches_between_owner_and_enemy() {
+        let mut app = App::new();
+
+        app.add_systems(
+            Update,
+            sync_enemy_navigation_targets,
+        );
+
+        let owner = app.world_mut().spawn_empty().id();
+        let enemy = app.world_mut().spawn_empty().id();
+
+        let summon = app
+            .world_mut()
+            .spawn((
+                AllySummon,
+                super::super::movement::AllySummonNavigationAgent,
+                AllySummonAi::new(15.0),
+                test_summoned_creature(owner),
+                AgentTarget3d::None,
+            ))
+            .id();
+
+        app.update();
+
+        assert!(matches!(
+            app.world().get::<AgentTarget3d>(summon).unwrap(),
+            AgentTarget3d::Entity(target) if *target == owner
+        ));
+
+        app.world_mut()
+            .get_mut::<AllySummonAi>(summon)
+            .unwrap()
+            .target = Some(enemy);
+
+        app.update();
+
+        assert!(matches!(
+            app.world().get::<AgentTarget3d>(summon).unwrap(),
+            AgentTarget3d::Entity(target) if *target == enemy
+        ));
+
+        app.world_mut()
+            .get_mut::<AllySummonAi>(summon)
+            .unwrap()
+            .target = None;
+
+        app.update();
+
+        assert!(matches!(
+            app.world().get::<AgentTarget3d>(summon).unwrap(),
+            AgentTarget3d::Entity(target) if *target == owner
         ));
     }
 }
