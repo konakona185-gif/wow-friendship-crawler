@@ -1,4 +1,3 @@
-
 use bevy::prelude::*;
 
 use super::*;
@@ -21,9 +20,12 @@ pub(super) fn enemy_attack_system(
         ),
         With<Enemy>,
     >,
-    mut player_query: Query<
+    mut ally_query: Query<
         (&Transform, Option<&mut CombatStats>, Option<&mut HealthPool>),
-        (With<Character>, Without<Enemy>),
+        (
+            Or<(With<Character>, With<AllySummon>)>,
+            Without<Enemy>,
+        ),
     >,
 ) {
     let melee_range_squared =
@@ -48,8 +50,8 @@ pub(super) fn enemy_attack_system(
             continue;
         };
 
-        let Ok((player_transform, mut player_stats, mut health_pool)) =
-            player_query.get_mut(target_entity)
+        let Ok((target_transform, mut target_stats, mut health_pool)) =
+            ally_query.get_mut(target_entity)
         else {
             continue;
         };
@@ -58,7 +60,7 @@ pub(super) fn enemy_attack_system(
             .as_deref()
             .map(|pool| pool.current())
             .or_else(|| {
-                player_stats
+                target_stats
                     .as_deref()
                     .map(|stats| stats.current_health)
             });
@@ -72,7 +74,7 @@ pub(super) fn enemy_attack_system(
         };
 
         if let (Some(pool), Some(stats)) =
-            (health_pool.as_deref(), player_stats.as_deref_mut())
+            (health_pool.as_deref(), target_stats.as_deref_mut())
         {
             stats.current_health = pool.current();
             stats.max_health = pool.maximum();
@@ -105,7 +107,7 @@ pub(super) fn enemy_attack_system(
 
         let distance_squared = enemy_transform
             .translation
-            .distance_squared(player_transform.translation);
+            .distance_squared(target_transform.translation);
 
         if distance_squared > melee_range_squared {
             state.cooldown.reset();
@@ -122,7 +124,7 @@ pub(super) fn enemy_attack_system(
                             let current_health = pool.current();
                             let max_health = pool.maximum();
 
-                            if let Some(stats) = player_stats.as_deref_mut() {
+                            if let Some(stats) = target_stats.as_deref_mut() {
                                 stats.current_health = current_health;
                                 stats.max_health = max_health;
                             }
@@ -131,12 +133,12 @@ pub(super) fn enemy_attack_system(
                         }
                         Err(error) => {
                             warn!(
-                                "Impossibile applicare il danno alla HealthPool del giocatore: {error}"
+                                "Impossibile applicare il danno alla HealthPool del bersaglio: {error}"
                             );
                             continue;
                         }
                     }
-                } else if let Some(stats) = player_stats.as_deref_mut() {
+                } else if let Some(stats) = target_stats.as_deref_mut() {
                     stats.current_health =
                         (stats.current_health - DEFAULT_ENEMY_ATTACK_DAMAGE)
                             .max(0.0);
@@ -147,7 +149,7 @@ pub(super) fn enemy_attack_system(
                 };
 
             info!(
-                "Nemico {:?} attacca il giocatore {:?}. Danno: {}. Vita giocatore: {}/{}",
+                "Nemico {:?} attacca il bersaglio alleato {:?}. Danno: {}. Vita: {}/{}",
                 enemy_entity,
                 target_entity,
                 DEFAULT_ENEMY_ATTACK_DAMAGE,
