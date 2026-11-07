@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::prelude::*;
 
 use crate::content::{
@@ -14,7 +16,10 @@ use crate::content::{
 use crate::player::Character;
 
 use super::{
+    enemy_ai,
     effect_runtime,
+    summon_ai,
+    summon_attacks,
     summons,
     AllySummon,
     CombatAttributes,
@@ -24,8 +29,12 @@ use super::{
     EffectTargetSelection,
     Enemy,
     EnemyAi,
+    EnemyThreat,
     HealthPool,
     PendingCombatEffects,
+    PendingDisplacement,
+    ResolvedEffect,
+    ResolvedEffectOperation,
     SummonCombatProfile,
     SummonFaction,
     SummonedCreature,
@@ -108,6 +117,7 @@ fn setup_summon_integration_app() -> App {
     let mut app = App::new();
 
     app.insert_resource(summon_test_database())
+        .insert_resource(Time::<()>::default())
         .init_resource::<PendingCombatEffects>()
         .init_resource::<CombatEventQueue>()
         .init_resource::<summons::PendingSummons>()
@@ -116,6 +126,9 @@ fn setup_summon_integration_app() -> App {
             (
                 effect_runtime::execute_pending_effects,
                 summons::spawn_pending_summons,
+                enemy_ai::enemy_aggro_system,
+                summon_ai::ally_summon_aggro_system,
+                summon_attacks::ally_summon_attack_system,
             )
                 .chain(),
         );
@@ -142,6 +155,37 @@ fn enqueue_summon_effect(
             &CombatAttributes::default(),
         )
         .unwrap();
+}
+
+fn enqueue_displacement_effect(
+    app: &mut App,
+    source: Entity,
+    target: Entity,
+    distance: f32,
+) {
+    app.world_mut()
+        .resource_mut::<PendingCombatEffects>()
+        .enqueue(ResolvedEffect {
+            effect: ContentId::new(
+                "classic_1_12_1:effect.displacement_test",
+            )
+            .unwrap(),
+            trigger: EffectTrigger::OnCast,
+            source: Some(source),
+            target,
+            operation: ResolvedEffectOperation::Displacement {
+                distance,
+            },
+        });
+}
+
+fn advance_test_time(
+    app: &mut App,
+    seconds: f32,
+) {
+    app.world_mut()
+        .resource_mut::<Time>()
+        .advance_by(Duration::from_secs_f32(seconds));
 }
 
 #[test]
@@ -285,5 +329,201 @@ fn summon_effect_creates_enemy_summons_end_to_end() {
         world
             .resource::<summons::PendingSummons>()
             .is_empty()
+    );
+}
+
+#[test]
+fn displacement_effect_supports_both_summon_factions() {
+    let mut app = setup_summon_integration_app();
+
+    let ally_owner = app
+        .world_mut()
+        .spawn((
+            Character,
+            CombatLevel::new(60).unwrap(),
+            Transform::from_xyz(5.0, 0.0, 0.0),
+        ))
+        .id();
+
+    let enemy_owner = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi::default(),
+            CombatLevel::new(42).unwrap(),
+            Transform::from_xyz(-5.0, 0.0, 0.0),
+        ))
+        .id();
+
+    enqueue_summon_effect(&mut app, ally_owner);
+    enqueue_summon_effect(&mut app, enemy_owner);
+
+    app.update();
+
+    let (ally_summons, enemy_summons) = {
+        let world = app.world_mut();
+
+        let mut ally_query =
+            world.query_filtered::<Entity, With<AllySummon>>();
+
+        let mut enemy_query = world.query_filtered::<
+            Entity,
+            (With<Enemy>, With<SummonedCreature>),
+        >();
+
+        (
+            ally_query.iter(world).collect::<Vec<_>>(),
+            enemy_query.iter(world).collect::<Vec<_>>(),
+        )
+    };
+
+    assert_eq!(ally_summons.len(), 2);
+    assert_eq!(enemy_summons.len(), 2);
+
+    for entity in ally_summons.iter().chain(enemy_summons.iter()) {
+        assert!(
+            app.world()
+                .get::<PendingDisplacement>(*entity)
+                .is_some()
+        );
+    }
+
+    let displacement_source = app
+        .world_mut()
+        .spawn(Transform::IDENTITY)
+        .id();
+
+    for entity in &ally_summons {
+        enqueue_displacement_effect(
+            &mut app,
+            displacement_source,
+            *entity,
+            3.0,
+        );
+    }
+
+    for entity in &enemy_summons {
+        enqueue_displacement_effect(
+            &mut app,
+            displacement_source,
+            *entity,
+            3.0,
+        );
+    }
+
+    app.update();
+
+    for entity in &ally_summons {
+        let displacement = app
+            .world()
+            .get::<PendingDisplacement>(*entity)
+            .unwrap();
+
+        assert_eq!(
+            displacement.pending_translation(),
+            Vec3::X * 3.0
+        );
+    }
+
+    for entity in &enemy_summons {
+        let displacement = app
+            .world()
+            .get::<PendingDisplacement>(*entity)
+            .unwrap();
+
+        assert_eq!(
+            displacement.pending_translation(),
+            Vec3::NEG_X * 3.0
+        );
+    }
+}
+
+#[test]
+fn allied_summon_attacks_generate_threat_against_the_enemy() {
+    let mut app = setup_summon_integration_app();
+
+    let owner = app
+        .world_mut()
+        .spawn((
+            Character,
+            CombatLevel::new(60).unwrap(),
+            Transform::IDENTITY,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            HealthPool::new(100.0, 100.0).unwrap(),
+        ))
+        .id();
+
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi::default(),
+            CombatLevel::new(60).unwrap(),
+            Transform::from_xyz(0.0, 0.0, 2.0),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            HealthPool::new(100.0, 100.0).unwrap(),
+        ))
+        .id();
+
+    enqueue_summon_effect(&mut app, owner);
+
+    app.update();
+
+    let summon_entities = {
+        let world = app.world_mut();
+        let mut summon_query =
+            world.query_filtered::<Entity, With<AllySummon>>();
+
+        summon_query.iter(world).collect::<Vec<_>>()
+    };
+
+    assert_eq!(summon_entities.len(), 2);
+
+    app.update();
+
+    advance_test_time(&mut app, 2.0);
+    app.update();
+
+    let threat = app.world().get::<EnemyThreat>(enemy).unwrap();
+
+    assert_eq!(threat.values.len(), summon_entities.len());
+
+    for summon in &summon_entities {
+        assert!(
+            threat
+                .values
+                .get(summon)
+                .is_some_and(|value| *value > 0.0)
+        );
+    }
+
+    assert!(
+        app.world()
+            .get::<HealthPool>(enemy)
+            .unwrap()
+            .current()
+            < 100.0
+    );
+
+    app.update();
+
+    let enemy_target = app
+        .world()
+        .get::<EnemyAi>(enemy)
+        .unwrap()
+        .target;
+
+    assert!(
+        enemy_target.is_some_and(|target| {
+            summon_entities.contains(&target)
+        })
     );
 }
