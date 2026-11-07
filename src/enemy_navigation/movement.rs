@@ -1,4 +1,3 @@
-
 use std::time::Duration;
 
 use avian3d::prelude::{
@@ -20,6 +19,7 @@ use benilla_assets::coords::bevy_to_wow;
 use benilla_world::collision::WorldCollision;
 
 use crate::combat::{
+    AllySummon,
     Enemy,
     EnemyAi,
     EnemyHomePosition,
@@ -30,6 +30,9 @@ use super::movement_helpers::*;
 
 #[derive(Component)]
 pub(super) struct EnemyNavigationAgent;
+
+#[derive(Component)]
+pub(super) struct AllySummonNavigationAgent;
 
 #[derive(Component, Default)]
 pub(super) struct EnemyVerticalMotion {
@@ -44,21 +47,27 @@ pub(super) struct EnemyGroundingState {
 pub(super) fn spawn_enemy_navigation_agents(
     mut commands: Commands,
     archipelago_query: Query<Entity, With<Archipelago3d>>,
-    enemy_query: Query<
-        (Entity, &Transform, Option<&EnemyHomePosition>),
-        (With<Enemy>, Without<EnemyNavigationAgent>),
+    combatant_query: Query<
+        (Entity, &Transform, Option<&EnemyHomePosition>, Has<Enemy>),
+        (
+            Or<(With<Enemy>, With<AllySummon>)>,
+            Without<EnemyNavigationAgent>,
+            Without<AllySummonNavigationAgent>,
+        ),
     >,
 ) {
     let Some(archipelago) = archipelago_query.iter().next() else {
         return;
     };
 
-    for (enemy_entity, transform, home_position) in &enemy_query {
+    for (combatant_entity, transform, home_position, is_enemy) in
+        &combatant_query
+    {
         let initial_position = transform.translation;
 
-        let mut enemy_commands = commands.entity(enemy_entity);
+        let mut combatant_commands = commands.entity(combatant_entity);
 
-        enemy_commands.insert((
+        combatant_commands.insert((
             Agent3dBundle {
                 agent: Default::default(),
                 settings: AgentSettings {
@@ -68,13 +77,18 @@ pub(super) fn spawn_enemy_navigation_agents(
                 },
                 archipelago_ref: ArchipelagoRef3d::new(archipelago),
             },
-            EnemyNavigationAgent,
             EnemyVerticalMotion::default(),
             EnemyGroundingState::default(),
         ));
 
+        if is_enemy {
+            combatant_commands.insert(EnemyNavigationAgent);
+        } else {
+            combatant_commands.insert(AllySummonNavigationAgent);
+        }
+
         if home_position.is_none() {
-            enemy_commands.insert(EnemyHomePosition(initial_position));
+            combatant_commands.insert(EnemyHomePosition(initial_position));
         }
     }
 }
@@ -82,7 +96,7 @@ pub(super) fn spawn_enemy_navigation_agents(
 pub(super) fn move_enemy_agents(
     time: Res<Time>,
     world: Option<WorldCollision<'_, '_>>,
-    mut enemy_query: Query<
+    mut combatant_query: Query<
         (
             &mut Transform,
             &mut Velocity3d,
@@ -91,7 +105,10 @@ pub(super) fn move_enemy_agents(
             &mut EnemyGroundingState,
             Option<&mut PendingDisplacement>,
         ),
-        (With<Enemy>, With<EnemyNavigationAgent>),
+        Or<(
+            With<EnemyNavigationAgent>,
+            With<AllySummonNavigationAgent>,
+        )>,
     >,
 ) {
     let delta = time.delta_secs();
@@ -117,7 +134,7 @@ pub(super) fn move_enemy_agents(
         mut vertical_motion,
         mut grounding_state,
         mut pending_displacement,
-    ) in &mut enemy_query
+    ) in &mut combatant_query
     {
         let mut move_direction = desired_velocity.velocity();
         move_direction.y = 0.0;
@@ -478,3 +495,6 @@ pub(super) fn move_enemy_agents(
             (transform.translation - start_position) / delta;
     }
 }
+
+#[cfg(test)]
+mod tests;
