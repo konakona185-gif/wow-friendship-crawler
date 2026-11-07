@@ -1,13 +1,11 @@
-
 # Pipeline dei contenuti e struttura del progetto
 
-Ultimo checkpoint: 4 novembre 2026  
+Ultimo checkpoint: 7 novembre 2026  
 Branch: `main`  
-Ultimo commit su `main`: `95a9a57ec2d161960a9d317cad26ee8690525851`  
-Ultimo commit che contiene modifiche al codice: `b0b727040bb31d2352dc928701450e945b55b79d`  
+Ultimo commit di codice verificato su `main`: `aabedbb03cc071857a19370006e6c3bff5ebf734` (`Update movement.rs`)  
 Fase attuale: Fase 3 — Sistema di esecuzione degli effetti  
-Sotto-attività attuale: completamento del sistema Summon e correzione della compilazione Rust.  
-Stato CI: **failure**, errore `E0432` in `src/player/movement.rs` (dettagli e correzione nella sezione 8).
+Sotto-attività attuale: integrazione runtime del sistema Summon (`ResolvedEffectOperation::Summon` → `PendingSummons`).  
+Stato CI: **success** — Run #450 sullo SHA `aabedbb03cc071857a19370006e6c3bff5ebf734`; controllo Rust, compilazione/test Linux e compilazione/test Windows superati.
 
 ---
 
@@ -261,38 +259,42 @@ Scuole fondamentali:
 - Arcane
 - Fire
 
-Sono previste scuole ibride e composite.
+Le scuole ibride e composite sono definite dalla composizione esplicita delle scuole fondamentali. L'ordine dei componenti non cambia la scuola: Physical + Nature e Nature + Physical identificano la stessa combinazione.
 
-Le 21 combinazioni ibride a due componenti sono:
-- Holystrike
-- Shadowstrike
-- Stormstrike
-- Icestrike
-- Spellstrike
-- Firestrike
-- Twilight
-- Anima
-- Holyfrost
-- Divine
-- Radiant
-- Plague
-- Entropy
-- Curse
-- Incantation
-- Rainstorm
-- Astral
-- Firestorm
-- Spellfrost
-- Freezerburn
-- Spellfire
+### Scuole ibride a due componenti
 
-Gruppi compositi:
-- Chaos
-- Cosmic
-- Elemental
-- Blood
-- Chi
-- Magical
+- `Holystrike` = Physical + Holy
+- `Shadowstrike` = Physical + Shadow
+- `Stormstrike` = Physical + Nature
+- `Icestrike` = Physical + Frost
+- `Spellstrike` = Physical + Arcane
+- `Firestrike` = Physical + Fire
+- `Twilight` = Holy + Shadow
+- `Anima` = Holy + Nature
+- `Holyfrost` = Holy + Frost
+- `Divine` = Holy + Arcane
+- `Radiant` = Holy + Fire
+- `Plague` = Shadow + Nature
+- `Shadowfrost` = Shadow + Frost
+- `Curse` = Shadow + Arcane
+- `Entropy` = Shadow + Fire
+- `Rainstorm` = Nature + Frost
+- `Astral` = Nature + Arcane
+- `Firestorm` = Nature + Fire
+- `Spellfrost` = Frost + Arcane
+- `Frostfire` = Frost + Fire
+- `Spellfire` = Arcane + Fire
+
+La combinazione `Nature + Physical` usa lo stesso nome `Stormstrike` della combinazione `Physical + Nature`: l'ordine dei componenti non cambia la scuola risultante.
+
+### Gruppi compositi
+
+- `Chaos` = Physical + Holy + Shadow + Nature + Frost + Arcane + Fire (tutte le scuole fondamentali)
+- `Cosmic` = Arcane + Holy + Nature + Shadow
+- `Elemental` = Fire + Frost + Nature
+- `Blood` = Physical + Nature + Shadow
+- `Chi` = Nature + Holy + Shadow
+- `Magical` = Arcane + Frost + Fire
 
 Per le scuole ibride e composite si applica soltanto la mitigazione più alta tra i componenti. Non si sommano le resistenze.
 
@@ -697,7 +699,6 @@ Le abilità dovranno essere data-driven quando supportate dal motore.
 **Stato: da iniziare**
 
 Inserimento progressivo delle abilità e dei contenuti originali di Classic 1.12.1 per tutte le classi.
-
 Dovranno essere rappresentati:
 - Abilità attive e passive.
 - Gradi delle abilità.
@@ -794,91 +795,57 @@ WoW Classic 1.12.1 deve rimanere il punto di partenza, non il limite del progett
 
 Performance ECS, allocazioni, risorse, UI, feedback audio/video, bilanciamento, regressioni e rifinitura cooperativa.
 
-## 8. CI — ultimo errore verificato e procedura di correzione
+## 8. CI — correzione `PendingDisplacement` e stato verificato
 
-### Run 446 — primo fallimento del codice
+### Errore compiler originario
 
-- Run: `41894159220`
-- Workflow number: `446`
-- Commit: `b0b727040bb31d2352dc928701450e945b55b79d` (`Update combat.rs`)
-- Esito: `failure`
-- Job fallito: `Controllo preliminare Rust`
-- Step fallito: `Controllo statico di tutti i target Rust`
-- Step di formattazione Rust: `success`
-
-### Run 447 — fallimento più recente
-
-- Run: `41895763705`
-- Workflow number: `447`
-- Commit: `95a9a57ec2d161960a9d317cad26ee8690525851` (`Update benilla-classic-pipeline.md`)
-- Esito: `failure`
-- Job fallito: `Controllo preliminare Rust`
-- Step fallito: `Controllo statico di tutti i target Rust`
-- Step di formattazione Rust: `success`
-- I job Linux e Windows di compilazione/test sono stati `skipped`, perché il controllo preliminare è fallito.
-
-La run 447 ha ripetuto lo stesso errore della 446: il commit conteneva l'aggiornamento della roadmap, ma il codice Rust sottostante era ancora non compilabile. Il fallimento non è causato dal file Markdown.
-
-### Errore compiler reale
+Le Run 446, 447 e 448 hanno registrato il fallimento del controllo preliminare Rust a causa dell'import non risolto `super::PendingDisplacement` in `src/player/movement.rs`.
 
 ```text
 error[E0432]: unresolved import `super::PendingDisplacement`
-  --> src/player/movement.rs:25:5
-   |
-25 |     PendingDisplacement,
-   |     ^^^^^^^^^^^^^^^^^^^ no `PendingDisplacement` in `player`
-   |
-help: consider importing this struct through its public re-export instead:
+  --> src/player/movement.rs
+help: consider importing this struct through its public re-export:
       crate::combat::PendingDisplacement
 ```
 
-Il compilatore conclude con `could not compile ... due to 1 previous error` ed exit code `101`.
-
 ### Diagnosi
 
-In `src/player/movement.rs`, il blocco `use super::{ ... }` cerca `PendingDisplacement` nel modulo padre `crate::player`.
+Il blocco `use super::{ ... }` cercava `PendingDisplacement` nel modulo padre `crate::player`. Il componente appartiene invece al sistema combat ed è esposto come `crate::combat::PendingDisplacement`.
 
-Il componente invece è definito nel sistema combat e pubblicamente riesportato da `src/combat.rs` come `crate::combat::PendingDisplacement`.
+### Correzione applicata
 
-`src/player.rs` non contiene un export `PendingDisplacement`, quindi `super::PendingDisplacement` non può essere risolto. La compilazione fallisce prima dei job di test Linux e Windows.
+Commit corretto: `aabedbb03cc071857a19370006e6c3bff5ebf734` (`Update movement.rs`).
 
-### Correzione prevista — da applicare
+In `src/player/movement.rs`:
+- `PendingDisplacement` è stato rimosso dall'elenco `use super::{...}`.
+- È stato aggiunto l'import indipendente `use crate::combat::PendingDisplacement;`.
+- La logica di movimento e displacement è rimasta invariata.
 
-File: `src/player/movement.rs`.
+Il commit intermedio `6d4739ac65b4ee76d8e72c5a12a74e1d39dd6b0b` aveva collocato l'import all'interno del blocco `use super` e non era corretto. La Run 449 associata a quel commit è stata `cancelled`. La correzione effettiva è quella del commit `aabedbb...`.
 
-Nel blocco di import esistente, rimuovere `PendingDisplacement` dall'elenco `use super::{...}`. Aggiungere un import separato:
+### Run 450 — CI superata
 
-```rust
-use crate::combat::PendingDisplacement;
-```
+- Run ID: `42356059517`.
+- Workflow number: `450`.
+- Commit: `aabedbb03cc071857a19370006e6c3bff5ebf734`.
+- Esito finale: **success**.
+- `Controllo preliminare Rust`: `success`, inclusi formattazione e controllo statico di tutti i target Rust.
+- `Compilazione e test Linux`: `success`, inclusi compilazione, test unitari e test headless.
+- `Compilazione e test Windows`: `success`, inclusi compilazione, test unitari e test headless.
 
-Il blocco `use super` deve quindi continuare a importare da `crate::player` soltanto i componenti che appartengono effettivamente a quel modulo (`Character`, `CharacterCommand`, `GroundingState`, `MovementSpeed`, `Velocity`).
+La correzione di `PendingDisplacement` è verificata e l'errore `E0432` è risolto sullo SHA indicato. La CI non è più un blocco per la prosecuzione della Fase 3.
 
-La correzione è coerente anche con il messaggio esplicito del compilatore. Non occorre spostare il componente in `player.rs` né creare un secondo componente: `crate::combat::PendingDisplacement` è già il re-export pubblico corretto.
+Run: https://github.com/konakona185-gif/wow-friendship-crawler/actions/runs/42356059517
 
-Procedura:
-1. Prima di modificare, recuperare il file completo `src/player/movement.rs` da `main`.
-2. Correggere solo l'import errato in quel file.
-3. Preservare il resto della logica di movimento e displacement.
-4. Far verificare `cargo fmt --check` e il controllo statico Rust.
-5. Dopo il commit, recuperare il file da `main` e controllare la modifica.
-6. Verificare la nuova run associata allo SHA del commit corretto.
-7. Considerare risolto l'errore soltanto quando il controllo preliminare passa e i job Linux/Windows vengono eseguiti; considerare CI verde solo con `conclusion = success`.
+### Storico delle run precedenti
 
-### Avvertenze sui warning
+- Run 446 (`41894159220`): `failure`, errore `E0432`.
+- Run 447 (`41895763705`): `failure`, stesso errore.
+- Run 448 (`41899879287`): `failure`, prima della correzione effettiva.
+- Run 449 (`42355965898`): `cancelled`, commit intermedio con import collocato nel blocco errato.
+- Run 450 (`42356059517`): `success`, correzione verificata su Linux e Windows.
 
-I log riportano anche warning di import non utilizzati e un `unused_mut`, ma non sono la causa del fallimento registrato. Il singolo errore che blocca la compilazione è `E0432` su `PendingDisplacement`.
-
-Non mischiare la correzione di questo errore con un refactoring generale degli import o con la pulizia di tutti i warning. Prima ripristinare la compilazione con una modifica mirata; gli eventuali warning potranno essere valutati successivamente, senza confonderli con l'errore bloccante.
-
-### Stato corrente CI da preservare
-
-- Run 446: `failure`, causa `E0432` sopra descritta.
-- Run 447: `failure`, stessa causa `E0432`; è la run più recente.
-- La run 445 sul commit `a93c7ce1939ad78575232d236b086653f3e28f5e` è stata `cancelled` dopo il push successivo.
-- La run 444 sul commit `b54e20abc4555624cc1046336c5965024a6c7d1c` è stata `cancelled`.
-
-Non segnare nessuno di questi commit come verde. La correzione di `PendingDisplacement` è ancora da applicare e verificare.
+Considerare una CI verde soltanto quando `conclusion = success` sulla run associata allo SHA esatto. Un workflow `cancelled`, `failure`, `in_progress` o `pending` non è verde.
 
 ## 9. Regole operative di sviluppo
 
@@ -897,7 +864,7 @@ Non segnare nessuno di questi commit come verde. La correzione di `PendingDispla
 
 ### Struttura e refactoring
 
-- I nomi di file e directory devono descriverne la responsabilità.
+- I nomi di file e directory devono descrivere la responsabilità.
 - Rinominare un file richiede di verificare e aggiornare moduli, import, test e riferimenti.
 - Durante l'implementazione non preoccuparsi del numero di righe, salvo file oltre circa 1.500 righe.
 - Dopo la stabilizzazione, suddividere i file grandi dove esistono responsabilità distinte.
@@ -932,19 +899,18 @@ Durante queste sessioni concentrarsi esclusivamente sul progetto WoW, non sul pr
 
 Ordine operativo alla data del checkpoint:
 
-1. Correggere l'import `PendingDisplacement` in `src/player/movement.rs` come descritto nella sezione 8.
-2. Verificare che la compilazione preliminare Rust passi sulla nuova revisione.
-3. Verificare il risultato finale della CI sulla revisione esatta; non considerarla verde prima di `success`.
-4. Riprendere la Fase 3: fetch completo di `src/combat/effect_runtime.rs` da `main`.
-5. Collegare `ResolvedEffectOperation::Summon` alla coda `PendingSummons`.
-6. Implementare spawn, eredità della fazione, runtime delle statistiche, durata e despawn.
-7. Integrare navigazione, IA, target selection, threat, attacchi e displacement per alleati e nemici.
-8. Gestire morte e cleanup dell'owner.
-9. Implementare test unitari e E2E Summon.
-10. Completare i dati concreti RON.
-11. Eseguire audit E2E della Fase 3 e regressioni.
-12. Completare la Fase 3 soltanto dopo che tutti i criteri della sezione 7 sono soddisfatti.
-13. Avviare la Fase 4 solo dopo la chiusura effettiva della Fase 3.
+1. Considerare chiusa la correzione CI di `PendingDisplacement`: Run 450 `success` sullo SHA `aabedbb03cc071857a19370006e6c3bff5ebf734`.
+2. Recuperare da `main` il file completo `src/combat/effect_runtime.rs` e verificare lo stato attuale del dispatcher degli effetti.
+3. Collegare `ResolvedEffectOperation::Summon` alla coda `PendingSummons`.
+4. Implementare spawn e eredità della fazione runtime dal proprietario.
+5. Implementare statistiche/runtime, durata e despawn.
+6. Integrare navigazione, IA, target acquisition, threat, attacchi e displacement per alleati e nemici.
+7. Gestire morte e cleanup dell'owner.
+8. Implementare test unitari e E2E Summon.
+9. Completare i dati concreti RON per le creature evocabili e gli effetti Summon.
+10. Eseguire audit E2E della Fase 3 e test di regressione.
+11. Completare la Fase 3 soltanto dopo che tutti i criteri della sezione 7 sono soddisfatti.
+12. Avviare la Fase 4 solo dopo la chiusura effettiva della Fase 3.
 
 ## 11. Fonte di verità e posizione della roadmap
 
