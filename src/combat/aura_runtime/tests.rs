@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::content::{
     AuraRefreshPolicy,
@@ -534,6 +533,41 @@ fn multiple_periodic_effects_keep_independent_intervals() {
         second.periodic_ticks
             .iter()
             .all(|tick| tick.stacks == 2)
+    );
+}
+
+#[test]
+fn periodic_effect_catches_up_all_ticks_after_large_delta() {
+    let definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        2.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    let result = active.advance(6.0);
+
+    assert_eq!(result.periodic_ticks.len(), 3);
+    assert!(
+        result.periodic_ticks
+            .iter()
+            .all(|tick| tick.effect == periodic_effect_id())
+    );
+
+    assert!(result.expired.is_empty());
+
+    let next = active.advance(2.0);
+
+    assert_eq!(next.periodic_ticks.len(), 1);
+    assert_eq!(
+        next.periodic_ticks[0].effect,
+        periodic_effect_id()
     );
 }
 
