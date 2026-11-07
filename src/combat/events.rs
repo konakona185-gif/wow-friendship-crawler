@@ -1,4 +1,3 @@
-
 use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 
@@ -133,6 +132,12 @@ impl CombatEventContext {
                 }
             }
             Some(CombatEventOutcome::AuraExpired { stacks, .. }) => {
+                if self.trigger != EffectTrigger::OnExpire {
+                    return Err(
+                        CombatEventContextError::AuraExpirationTriggerMismatch,
+                    );
+                }
+
                 if *stacks == 0 {
                     return Err(
                         CombatEventContextError::ZeroExpiredAuraStacks,
@@ -310,6 +315,7 @@ pub enum CombatEventContextError {
     AuraRemovalTriggerMismatch,
     ZeroRemovedAuraStacks,
     MissingAuraRemovalTarget,
+    AuraExpirationTriggerMismatch,
     ZeroExpiredAuraStacks,
     MissingAuraExpirationTarget,
     PeriodicTickTriggerMismatch,
@@ -368,6 +374,11 @@ impl Display for CombatEventContextError {
             Self::MissingAuraRemovalTarget => {
                 formatter.write_str(
                     "Un evento di rimozione richiede il bersaglio dell'aura",
+                )
+            }
+            Self::AuraExpirationTriggerMismatch => {
+                formatter.write_str(
+                    "Un evento di scadenza richiede il trigger OnExpire",
                 )
             }
             Self::ZeroExpiredAuraStacks => {
@@ -576,6 +587,19 @@ mod tests {
         context.outcome = Some(aura_expired_outcome(2));
 
         assert!(context.validate().is_ok());
+    }
+
+    #[test]
+    fn event_context_rejects_aura_expiration_with_wrong_trigger() {
+        let mut context = valid_context(EffectTrigger::OnCast);
+        context.outcome = Some(aura_expired_outcome(1));
+
+        assert_eq!(
+            context.validate(),
+            Err(
+                CombatEventContextError::AuraExpirationTriggerMismatch
+            )
+        );
     }
 
     #[test]
