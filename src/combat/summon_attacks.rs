@@ -575,12 +575,15 @@ mod tests {
 
         let health_pool = app.world().get::<HealthPool>(enemy).unwrap();
         let stats = app.world().get::<CombatStats>(enemy).unwrap();
-        let attack_state =
-            app.world().get::<AllySummonAttackState>(summon).unwrap();
+
+        assert!(
+            app.world()
+                .get::<AllySummonAttackState>(summon)
+                .is_none()
+        );
 
         assert_eq!(health_pool.current(), 0.0);
         assert_eq!(stats.current_health, 0.0);
-        assert_eq!(attack_state.cooldown.elapsed(), Duration::ZERO);
     }
 
     #[test]
