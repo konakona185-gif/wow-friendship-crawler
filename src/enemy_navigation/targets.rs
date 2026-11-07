@@ -7,7 +7,9 @@ use crate::combat::{
     Enemy,
     EnemyAi,
     EnemyHomePosition,
+    SummonedCreature,
 };
+use crate::content::ContentId;
 
 fn enemy_navigation_target(
     enemy_ai: &EnemyAi,
@@ -28,11 +30,15 @@ fn enemy_navigation_target(
 
 fn ally_summon_navigation_target(
     summon_ai: &AllySummonAi,
+    summoned_creature: Option<&SummonedCreature>,
 ) -> AgentTarget3d {
-    summon_ai.target.map_or(
-        AgentTarget3d::None,
-        AgentTarget3d::Entity,
-    )
+    match summon_ai.target {
+        Some(target) => AgentTarget3d::Entity(target),
+        None => summoned_creature.map_or(
+            AgentTarget3d::None,
+            |summon| AgentTarget3d::Entity(summon.owner),
+        ),
+    }
 }
 
 fn navigation_target_matches(
@@ -69,6 +75,7 @@ pub(super) fn sync_enemy_navigation_targets(
     mut ally_summon_query: Query<
         (
             &AllySummonAi,
+            Option<&SummonedCreature>,
             &mut AgentTarget3d,
         ),
         (
@@ -90,9 +97,16 @@ pub(super) fn sync_enemy_navigation_targets(
         }
     }
 
-    for (summon_ai, mut navigation_target) in &mut ally_summon_query {
-        let desired_target =
-            ally_summon_navigation_target(summon_ai);
+    for (
+        summon_ai,
+        summoned_creature,
+        mut navigation_target,
+    ) in &mut ally_summon_query
+    {
+        let desired_target = ally_summon_navigation_target(
+            summon_ai,
+            summoned_creature,
+        );
 
         if !navigation_target_matches(
             &navigation_target,
@@ -117,6 +131,15 @@ mod tests {
             leash_range: 40.0,
             returning_home,
         }
+    }
+
+    fn test_summoned_creature(owner: Entity) -> SummonedCreature {
+        SummonedCreature::new(
+            owner,
+            ContentId::new("test:creature.imp").unwrap(),
+            crate::combat::SummonFaction::Allies,
+            None,
+        )
     }
 
     #[test]
@@ -190,7 +213,10 @@ mod tests {
         let mut ai = ai;
         ai.target = Some(enemy);
 
-        let target = ally_summon_navigation_target(&ai);
+        let target = ally_summon_navigation_target(
+            &ai,
+            None,
+        );
 
         assert!(matches!(
             target,
@@ -199,10 +225,32 @@ mod tests {
     }
 
     #[test]
-    fn ally_summon_without_target_has_no_navigation_target() {
+    fn ally_summon_without_enemy_follows_its_owner() {
+        let mut world = World::new();
+        let owner = world.spawn_empty().id();
+
+        let ai = AllySummonAi::new(15.0);
+        let summoned_creature = test_summoned_creature(owner);
+
+        let target = ally_summon_navigation_target(
+            &ai,
+            Some(&summoned_creature),
+        );
+
+        assert!(matches!(
+            target,
+            AgentTarget3d::Entity(entity) if entity == owner
+        ));
+    }
+
+    #[test]
+    fn ally_summon_without_owner_metadata_has_no_navigation_target() {
         let ai = AllySummonAi::new(15.0);
 
-        let target = ally_summon_navigation_target(&ai);
+        let target = ally_summon_navigation_target(
+            &ai,
+            None,
+        );
 
         assert!(matches!(target, AgentTarget3d::None));
     }
@@ -216,11 +264,17 @@ mod tests {
         let mut ai = AllySummonAi::new(15.0);
         ai.target = Some(first_enemy);
 
-        let first_target = ally_summon_navigation_target(&ai);
+        let first_target = ally_summon_navigation_target(
+            &ai,
+            None,
+        );
 
         ai.target = Some(second_enemy);
 
-        let second_target = ally_summon_navigation_target(&ai);
+        let second_target = ally_summon_navigation_target(
+            &ai,
+            None,
+        );
 
         assert!(navigation_target_matches(
             &first_target,
