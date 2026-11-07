@@ -1013,3 +1013,125 @@ fn classic_pack_summon_imp_executes_end_to_end() {
             .is_empty()
     );
 }
+
+#[test]
+fn classic_pack_imp_acquires_and_attacks_enemy_end_to_end() {
+    let mut database = ContentDatabase::new();
+
+    crate::content::ContentPackLoader::load_ron(
+        &mut database,
+        include_str!("../../content/packs/classic_1_12_1.ron"),
+    )
+    .unwrap();
+
+    let mut app = App::new();
+
+    app.insert_resource(database.clone())
+        .insert_resource(Time::<()>::default())
+        .init_resource::<PendingCombatEffects>()
+        .init_resource::<CombatEventQueue>()
+        .init_resource::<summons::PendingSummons>()
+        .add_systems(
+            Update,
+            (
+                summon_lifecycle::summon_lifecycle_system,
+                effect_runtime::execute_pending_effects,
+                summons::spawn_pending_summons,
+                enemy_ai::enemy_aggro_system,
+                enemy_attacks::enemy_attack_system,
+                summon_ai::ally_summon_aggro_system,
+                summon_attacks::ally_summon_attack_system,
+            )
+                .chain(),
+        );
+
+    let owner = app
+        .world_mut()
+        .spawn((
+            Character,
+            CombatLevel::new(60).unwrap(),
+            CombatAttributes::default(),
+            Transform::IDENTITY,
+        ))
+        .id();
+
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi::default(),
+            CombatLevel::new(60).unwrap(),
+            Transform::from_xyz(0.0, 0.0, 2.0),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            HealthPool::new(100.0, 100.0).unwrap(),
+        ))
+        .id();
+
+    let summon_effect_id = ContentId::new(
+        "classic_1_12_1:effect.summon_imp",
+    )
+    .unwrap();
+
+    let resolved_count = app
+        .world_mut()
+        .resource_mut::<PendingCombatEffects>()
+        .resolve_and_enqueue_from_database(
+            &database,
+            &summon_effect_id,
+            Some(owner),
+            EffectTargetSelection::Caster,
+            &CombatAttributes::default(),
+        )
+        .unwrap();
+
+    assert_eq!(resolved_count, 1);
+
+    app.update();
+
+    let summon_entity = {
+        let world = app.world_mut();
+        let mut summon_query =
+            world.query_filtered::<Entity, With<AllySummon>>();
+
+        summon_query.iter(world).next().unwrap()
+    };
+
+    let summon_ai = app
+        .world()
+        .get::<summons::AllySummonAi>(summon_entity)
+        .unwrap();
+
+    assert_eq!(summon_ai.target, Some(enemy));
+
+    advance_test_time(&mut app, 2.0);
+    app.update();
+
+    let enemy_health = app
+        .world()
+        .get::<HealthPool>(enemy)
+        .unwrap();
+
+    let enemy_stats = app
+        .world()
+        .get::<CombatStats>(enemy)
+        .unwrap();
+
+    assert_eq!(enemy_health.current(), 88.0);
+    assert_eq!(enemy_stats.current_health, 88.0);
+
+    let threat = app
+        .world()
+        .get::<EnemyThreat>(enemy)
+        .unwrap();
+
+    assert!(
+        threat
+            .values
+            .get(&summon_entity)
+            .is_some_and(|value| *value > 0.0)
+    );
+}
