@@ -219,7 +219,7 @@ Sono state realizzate le fondamenta per statistiche, attributi, livelli, salute,
 
 ### Fase 3 — Sistema di esecuzione degli effetti
 
-**Stato: COMPLETATA — 7 novembre 2026.**
+**Stato: COMPLETATA.**
 
 È stato realizzato e verificato il runtime centralizzato che risolve le definizioni degli effetti e le applica alle entità ECS. La fase comprende:
 
