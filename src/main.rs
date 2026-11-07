@@ -1,3 +1,4 @@
+
 mod player;
 mod camera;
 mod combat;
@@ -60,7 +61,7 @@ use fellowship::{
     LeaveFellowship,
 };
 use character::{CharacterBuild, CharacterClass, CharacterRace};
-use content::{ContentDatabase, ContentPackLoader};
+use content::{ContentDatabase, ContentId, ContentPackLoader};
 use interaction::InteractionPlugin;
 use navigation::NavigationPlugin;
 use enemy_navigation::EnemyNavigationPlugin;
@@ -163,10 +164,44 @@ fn run_headless_tests(app: &mut App) {
     {
         let database = app.world().resource::<ContentDatabase>();
 
+        let fundamental_schools = [
+            "classic_1_12_1:school.physical",
+            "classic_1_12_1:school.holy",
+            "classic_1_12_1:school.shadow",
+            "classic_1_12_1:school.nature",
+            "classic_1_12_1:school.frost",
+            "classic_1_12_1:school.arcane",
+            "classic_1_12_1:school.fire",
+        ];
+
+        for school_id in fundamental_schools {
+            let id = ContentId::new(school_id).unwrap();
+
+            assert!(
+                database.damage_school(&id).is_some(),
+                "Manca una scuola fondamentale: {school_id}."
+            );
+        }
+
+        let composite_schools = [
+            "classic_1_12_1:school.shadowfrost",
+            "classic_1_12_1:school.entropy",
+            "classic_1_12_1:school.frostfire",
+        ];
+
+        for school_id in composite_schools {
+            let id = ContentId::new(school_id).unwrap();
+
+            assert!(
+                database.damage_school(&id).is_some(),
+                "Manca una scuola composita: {school_id}."
+            );
+        }
+
         assert_eq!(
             database.damage_school_count(),
-            7,
-            "Il database deve contenere le sette scuole fondamentali."
+            10,
+            "Il database deve contenere sette scuole fondamentali e tre composite."
         );
 
         assert_eq!(
