@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use super::summons::SummonCombatProfile;
 use super::*;
 
 #[derive(Component)]
@@ -16,6 +17,7 @@ pub(super) fn enemy_attack_system(
             Entity,
             &Transform,
             &EnemyAi,
+            Option<&SummonCombatProfile>,
             Option<&mut EnemyAttackState>,
         ),
         With<Enemy>,
@@ -28,11 +30,13 @@ pub(super) fn enemy_attack_system(
         ),
     >,
 ) {
-    let melee_range_squared =
-        DEFAULT_ENEMY_MELEE_RANGE * DEFAULT_ENEMY_MELEE_RANGE;
-
-    for (enemy_entity, enemy_transform, enemy_ai, attack_state) in
-        &mut enemy_query
+    for (
+        enemy_entity,
+        enemy_transform,
+        enemy_ai,
+        summon_profile,
+        attack_state,
+    ) in &mut enemy_query
     {
         if enemy_ai.returning_home {
             if let Some(mut state) = attack_state {
@@ -88,11 +92,25 @@ pub(super) fn enemy_attack_system(
             continue;
         }
 
+        let attack_damage = summon_profile
+            .map(|profile| profile.attack_damage)
+            .unwrap_or(DEFAULT_ENEMY_ATTACK_DAMAGE);
+
+        let attack_interval = summon_profile
+            .map(|profile| profile.attack_interval_seconds)
+            .unwrap_or(DEFAULT_ENEMY_ATTACK_INTERVAL);
+
+        let melee_range = summon_profile
+            .map(|profile| profile.melee_range)
+            .unwrap_or(DEFAULT_ENEMY_MELEE_RANGE);
+
+        let melee_range_squared = melee_range * melee_range;
+
         let Some(mut state) = attack_state else {
             commands.entity(enemy_entity).insert(EnemyAttackState {
                 target: target_entity,
                 cooldown: Timer::from_seconds(
-                    DEFAULT_ENEMY_ATTACK_INTERVAL,
+                    attack_interval,
                     TimerMode::Repeating,
                 ),
             });
@@ -119,7 +137,7 @@ pub(super) fn enemy_attack_system(
         if state.cooldown.just_finished() {
             let (current_health, max_health) =
                 if let Some(pool) = health_pool.as_deref_mut() {
-                    match pool.apply_damage(DEFAULT_ENEMY_ATTACK_DAMAGE) {
+                    match pool.apply_damage(attack_damage) {
                         Ok(_) => {
                             let current_health = pool.current();
                             let max_health = pool.maximum();
@@ -140,8 +158,7 @@ pub(super) fn enemy_attack_system(
                     }
                 } else if let Some(stats) = target_stats.as_deref_mut() {
                     stats.current_health =
-                        (stats.current_health - DEFAULT_ENEMY_ATTACK_DAMAGE)
-                            .max(0.0);
+                        (stats.current_health - attack_damage).max(0.0);
 
                     (stats.current_health, stats.max_health)
                 } else {
@@ -152,7 +169,7 @@ pub(super) fn enemy_attack_system(
                 "Nemico {:?} attacca il bersaglio alleato {:?}. Danno: {}. Vita: {}/{}",
                 enemy_entity,
                 target_entity,
-                DEFAULT_ENEMY_ATTACK_DAMAGE,
+                attack_damage,
                 current_health,
                 max_health
             );
