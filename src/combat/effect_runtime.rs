@@ -813,6 +813,10 @@ pub(super) fn execute_pending_effects(
 mod aura_tests;
 
 #[cfg(test)]
+#[path = "effect_runtime/corruption_tests.rs"]
+mod corruption_tests;
+
+#[cfg(test)]
 mod periodic_tests;
 
 #[cfg(test)]
