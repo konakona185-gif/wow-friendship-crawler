@@ -131,6 +131,7 @@ pub use summons::{
     SummonFaction,
     SummonedCreature,
 };
+pub(crate) use summons::SummonCombatProfile;
 
 const DEFAULT_ENEMY_AGGRO_RANGE: f32 = 20.0;
 const DEFAULT_ENEMY_LEASH_RANGE: f32 = 40.0;
