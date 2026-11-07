@@ -68,6 +68,21 @@ fn corruption_runtime_app(
     app
 }
 
+fn spawn_corruption_caster(app: &mut App) -> Entity {
+    let mut subscriptions =
+        CombatEffectSubscriptions::default();
+
+    subscriptions.subscribe(corruption_tick_effect_id());
+
+    app.world_mut()
+        .spawn((
+            CombatLevel::new(60).unwrap(),
+            CombatAttributes::default(),
+            subscriptions,
+        ))
+        .id()
+}
+
 fn setup_corruption_scenario() -> (
     App,
     Entity,
@@ -83,19 +98,7 @@ fn setup_corruption_scenario() -> (
 
     let mut app = corruption_runtime_app(database);
 
-    let mut subscriptions =
-        CombatEffectSubscriptions::default();
-
-    subscriptions.subscribe(corruption_tick_effect_id());
-
-    let caster = app
-        .world_mut()
-        .spawn((
-            CombatLevel::new(60).unwrap(),
-            CombatAttributes::default(),
-            subscriptions,
-        ))
-        .id();
+    let caster = spawn_corruption_caster(&mut app);
 
     let target = app
         .world_mut()
@@ -361,5 +364,100 @@ fn corruption_repeats_periodic_ticks_and_preserves_pandemic_carryover() {
     assert_eq!(
         active_aura.stacks(),
         1
+    );
+}
+
+#[test]
+fn corruption_from_two_casters_stacks_independently_and_ticks_both_sources() {
+    let (mut app, first_caster, target) =
+        setup_corruption_scenario();
+
+    let second_caster = spawn_corruption_caster(&mut app);
+
+    enqueue_corruption(&mut app, first_caster, target);
+    enqueue_corruption(&mut app, second_caster, target);
+
+    app.update();
+
+    let active_auras = app
+        .world()
+        .get::<ActiveAuras>(target)
+        .unwrap();
+
+    assert_eq!(active_auras.len(), 2);
+    assert_eq!(
+        active_auras.stacks(&corruption_aura_id()),
+        2
+    );
+
+    assert_eq!(
+        active_auras
+            .iter()
+            .filter(|aura| aura.source() == Some(first_caster))
+            .count(),
+        1
+    );
+
+    assert_eq!(
+        active_auras
+            .iter()
+            .filter(|aura| aura.source() == Some(second_caster))
+            .count(),
+        1
+    );
+
+    app.world_mut()
+        .resource_mut::<Time>()
+        .advance_by(Duration::from_secs(3));
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(target)
+            .unwrap()
+            .current(),
+        1000.0
+    );
+
+    assert_eq!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .len(),
+        2
+    );
+
+    app.world_mut()
+        .resource_mut::<Time>()
+        .advance_by(Duration::ZERO);
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(target)
+            .unwrap()
+            .current(),
+        726.0
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<CombatStats>(target)
+            .unwrap()
+            .current_health,
+        726.0
+    );
+
+    assert!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
+
+    assert!(
+        app.world()
+            .resource::<CombatEventQueue>()
+            .is_empty()
     );
 }
