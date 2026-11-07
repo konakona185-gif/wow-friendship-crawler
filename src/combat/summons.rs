@@ -856,6 +856,14 @@ mod tests {
         let level = world.get::<CombatLevel>(entity).unwrap();
         let ai = world.get::<EnemyAi>(entity).unwrap();
         let home = world.get::<EnemyHomePosition>(entity).unwrap();
+        let profile = world.get::<SummonCombatProfile>(entity).unwrap();
+
+        assert_eq!(profile.attack_damage, 12.0);
+        assert_eq!(profile.attack_interval_seconds, 2.0);
+        assert_eq!(profile.melee_range, 2.5);
+        assert_eq!(profile.aggro_range, 15.0);
+        assert_eq!(profile.leash_range, 40.0);
+        assert_eq!(profile.movement_speed, 5.0);
 
         assert_eq!(summon.owner, owner);
         assert_eq!(summon.faction, SummonFaction::Enemies);
