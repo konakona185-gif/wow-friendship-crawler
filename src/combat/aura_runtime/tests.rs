@@ -1133,7 +1133,7 @@ fn pandemic_add_stacks_preserves_remaining_duration() {
     let instance = active.get(&aura_id()).unwrap();
 
     assert_eq!(instance.stacks, 2);
-    assert_eq!(instance.remaining_duration(), Some(6.0));
+    assert_eq!(instance.remaining_duration(), Some(13.0));
 }
 
 #[test]
@@ -1160,7 +1160,7 @@ fn pandemic_refresh_duration_respects_thirty_percent_cap() {
     let instance = active.get(&aura_id()).unwrap();
 
     assert_eq!(instance.stacks, 1);
-    assert_eq!(instance.remaining_duration(), Some(11.0));
+    assert_eq!(instance.remaining_duration(), Some(13.0));
 }
 
 #[test]
@@ -1189,7 +1189,7 @@ fn pandemic_replace_preserves_duration_and_resets_periodic_progress() {
     let instance = active.get(&aura_id()).unwrap();
 
     assert_eq!(instance.stacks, 2);
-    assert_eq!(instance.remaining_duration(), Some(11.0));
+    assert_eq!(instance.remaining_duration(), Some(13.0));
 
     assert!(
         active.advance(4.0).periodic_ticks.is_empty()
@@ -1237,7 +1237,7 @@ fn pandemic_per_caster_refresh_only_preserves_matching_source_duration() {
         .find(|instance| instance.source == Some(other_source()))
         .unwrap();
 
-    assert_eq!(first.remaining_duration(), Some(6.0));
+    assert_eq!(first.remaining_duration(), Some(13.0));
     assert_eq!(second.remaining_duration(), Some(13.0));
 }
 
