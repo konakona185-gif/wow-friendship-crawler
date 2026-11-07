@@ -68,8 +68,11 @@ fn corruption_runtime_app(
     app
 }
 
-#[test]
-fn corruption_from_classic_pack_executes_periodic_shadow_damage_end_to_end() {
+fn setup_corruption_scenario() -> (
+    App,
+    Entity,
+    Entity,
+) {
     let mut database = ContentDatabase::new();
 
     ContentPackLoader::load_ron(
@@ -109,6 +112,14 @@ fn corruption_from_classic_pack_executes_periodic_shadow_damage_end_to_end() {
         ))
         .id();
 
+    (app, caster, target)
+}
+
+fn enqueue_corruption(
+    app: &mut App,
+    caster: Entity,
+    target: Entity,
+) {
     let database = app
         .world()
         .resource::<ContentDatabase>()
@@ -133,6 +144,76 @@ fn corruption_from_classic_pack_executes_periodic_shadow_damage_end_to_end() {
         .unwrap();
 
     assert_eq!(resolved_count, 1);
+}
+
+fn advance_corruption_tick(
+    app: &mut App,
+    target: Entity,
+    previous_health: f32,
+    expected_health: f32,
+) {
+    app.world_mut()
+        .resource_mut::<Time>()
+        .advance_by(Duration::from_secs(3));
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(target)
+            .unwrap()
+            .current(),
+        previous_health
+    );
+
+    assert_eq!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .len(),
+        1
+    );
+
+    app.world_mut()
+        .resource_mut::<Time>()
+        .advance_by(Duration::ZERO);
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(target)
+            .unwrap()
+            .current(),
+        expected_health
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<CombatStats>(target)
+            .unwrap()
+            .current_health,
+        expected_health
+    );
+
+    assert!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
+
+    assert!(
+        app.world()
+            .resource::<CombatEventQueue>()
+            .is_empty()
+    );
+}
+
+#[test]
+fn corruption_from_classic_pack_executes_periodic_shadow_damage_end_to_end() {
+    let (mut app, caster, target) =
+        setup_corruption_scenario();
+
+    enqueue_corruption(&mut app, caster, target);
 
     app.update();
 
@@ -162,47 +243,40 @@ fn corruption_from_classic_pack_executes_periodic_shadow_damage_end_to_end() {
             .is_empty()
     );
 
-    app.world_mut()
-        .resource_mut::<Time>()
-        .advance_by(Duration::from_secs(3));
+    advance_corruption_tick(
+        &mut app,
+        target,
+        1000.0,
+        863.0,
+    );
+
+    let active_aura = app
+        .world()
+        .get::<ActiveAuras>(target)
+        .unwrap()
+        .get(&corruption_aura_id())
+        .unwrap();
+
+    assert_eq!(
+        active_aura.remaining_duration(),
+        Some(15.0)
+    );
+}
+
+#[test]
+fn corruption_repeats_periodic_ticks_and_preserves_pandemic_carryover() {
+    let (mut app, caster, target) =
+        setup_corruption_scenario();
+
+    enqueue_corruption(&mut app, caster, target);
 
     app.update();
 
-    assert_eq!(
-        app.world()
-            .get::<HealthPool>(target)
-            .unwrap()
-            .current(),
-        1000.0
-    );
-
-    assert_eq!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .len(),
-        1
-    );
-
-    app.world_mut()
-        .resource_mut::<Time>()
-        .advance_by(Duration::ZERO);
-
-    app.update();
-
-    assert_eq!(
-        app.world()
-            .get::<HealthPool>(target)
-            .unwrap()
-            .current(),
-        863.0
-    );
-
-    assert_eq!(
-        app.world()
-            .get::<CombatStats>(target)
-            .unwrap()
-            .current_health,
-        863.0
+    advance_corruption_tick(
+        &mut app,
+        target,
+        1000.0,
+        863.0,
     );
 
     let active_aura = app
@@ -217,15 +291,75 @@ fn corruption_from_classic_pack_executes_periodic_shadow_damage_end_to_end() {
         Some(15.0)
     );
 
-    assert!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .is_empty()
+    advance_corruption_tick(
+        &mut app,
+        target,
+        863.0,
+        726.0,
     );
 
-    assert!(
-        app.world()
-            .resource::<CombatEventQueue>()
-            .is_empty()
+    let active_aura = app
+        .world()
+        .get::<ActiveAuras>(target)
+        .unwrap()
+        .get(&corruption_aura_id())
+        .unwrap();
+
+    assert_eq!(
+        active_aura.remaining_duration(),
+        Some(12.0)
+    );
+
+    enqueue_corruption(&mut app, caster, target);
+
+    app.update();
+
+    let active_auras = app
+        .world()
+        .get::<ActiveAuras>(target)
+        .unwrap();
+
+    assert_eq!(
+        active_auras.len(),
+        1
+    );
+
+    assert_eq!(
+        active_auras.stacks(&corruption_aura_id()),
+        1
+    );
+
+    let active_aura = active_auras
+        .get(&corruption_aura_id())
+        .unwrap();
+
+    assert_eq!(active_aura.source(), Some(caster));
+    assert_eq!(
+        active_aura.remaining_duration(),
+        Some(23.4)
+    );
+
+    advance_corruption_tick(
+        &mut app,
+        target,
+        726.0,
+        589.0,
+    );
+
+    let active_aura = app
+        .world()
+        .get::<ActiveAuras>(target)
+        .unwrap()
+        .get(&corruption_aura_id())
+        .unwrap();
+
+    assert_eq!(
+        active_aura.remaining_duration(),
+        Some(20.4)
+    );
+
+    assert_eq!(
+        active_aura.stacks(),
+        1
     );
 }
