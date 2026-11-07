@@ -1,3 +1,4 @@
+
 use super::*;
 
 use crate::combat::{
@@ -72,7 +73,9 @@ fn custom_test_database() -> (ContentDatabase, ContentId) {
                 description: "",
             ),
             trigger: on_cast,
-            target: selected_target,
+            target: (
+                type: selected_target,
+            ),
             kind: (
                 type: custom,
                 parameters: (
