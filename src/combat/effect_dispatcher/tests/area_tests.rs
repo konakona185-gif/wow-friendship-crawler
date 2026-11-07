@@ -621,3 +621,166 @@ fn periodic_area_effect_scales_each_enemy_by_stack_count() {
             .is_empty()
     );
 }
+
+#[test]
+fn periodic_area_targeting_uses_health_pool_as_authoritative_alive_state() {
+    let pack_id =
+        ContentId::new("pack:dispatcher_tests").unwrap();
+
+    let effect_id = content_id("effect.periodic_health_pool");
+
+    let mut database = ContentDatabase::new();
+
+    database
+        .register_pack(ContentPackManifest {
+            id: pack_id.clone(),
+            name: "Dispatcher Tests".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            dependencies: Vec::new(),
+        })
+        .unwrap();
+
+    database
+        .register_effect(EffectDefinition {
+            metadata: metadata(
+                effect_id.clone(),
+                &pack_id,
+                "Periodic Health Pool Test",
+            ),
+            trigger: EffectTrigger::OnPeriodicTick,
+            target: EffectTarget::EnemiesInRadius {
+                radius: 5.0,
+            },
+            kind: EffectKind::Heal {
+                amount: EffectMagnitude {
+                    base: 10.0,
+                    scaling: Vec::new(),
+                },
+            },
+        })
+        .unwrap();
+
+    let mut app = App::new();
+
+    app.insert_resource(database)
+        .init_resource::<CombatEventQueue>()
+        .init_resource::<PendingCombatEffects>()
+        .add_systems(
+            Update,
+            (
+                super::super::super::effect_runtime::execute_pending_effects,
+                dispatch_combat_events,
+            )
+                .chain(),
+        );
+
+    let mut subscriptions =
+        CombatEffectSubscriptions::default();
+
+    subscriptions.subscribe(effect_id.clone());
+
+    let subscriber = spawn_area_combatant(
+        &mut app,
+        TestCombatantSide::Character,
+        Vec3::ZERO,
+        50.0,
+    );
+
+    app.world_mut()
+        .entity_mut(subscriber)
+        .insert((
+            subscriptions,
+            CombatAttributes::default(),
+        ));
+
+    let living_enemy = spawn_area_combatant(
+        &mut app,
+        TestCombatantSide::Enemy,
+        Vec3::new(3.0, 0.0, 0.0),
+        50.0,
+    );
+
+    app.world_mut()
+        .get_mut::<CombatStats>(living_enemy)
+        .unwrap()
+        .current_health = 0.0;
+
+    let defeated_enemy = spawn_area_combatant(
+        &mut app,
+        TestCombatantSide::Enemy,
+        Vec3::new(4.0, 0.0, 0.0),
+        50.0,
+    );
+
+    app.world_mut()
+        .get_mut::<HealthPool>(defeated_enemy)
+        .unwrap()
+        .set_current(0.0)
+        .unwrap();
+
+    app.world_mut()
+        .resource_mut::<CombatEventQueue>()
+        .enqueue(CombatEventContext {
+            trigger: EffectTrigger::OnPeriodicTick,
+            source: Some(subscriber),
+            target: Some(living_enemy),
+            ability: None,
+            effect: Some(effect_id),
+            outcome: Some(periodic_tick_outcome(
+                1,
+                PeriodicEffectStackScaling::None,
+            )),
+        })
+        .unwrap();
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .len(),
+        1
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(living_enemy)
+            .unwrap()
+            .current(),
+        50.0
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(defeated_enemy)
+            .unwrap()
+            .current(),
+        0.0
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(living_enemy)
+            .unwrap()
+            .current(),
+        60.0
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(defeated_enemy)
+            .unwrap()
+            .current(),
+        0.0
+    );
+
+    assert_eq!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .len(),
+        0
+    );
+}
