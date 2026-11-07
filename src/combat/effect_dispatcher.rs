@@ -1,4 +1,3 @@
-
 use bevy::prelude::*;
 
 use crate::content::{
@@ -9,6 +8,7 @@ use crate::content::{
 
 use super::{
     effect_targeting::acquire_area_targets_from_world,
+    AllySummon,
     Character,
     CombatAttributes,
     CombatEffectSubscriptions,
@@ -74,7 +74,8 @@ pub(super) fn dispatch_combat_events(
         Option<&HealthPool>,
         Option<&Character>,
         Option<&Enemy>,
-    ), Or<(With<Character>, With<Enemy>)>>,
+        Option<&AllySummon>,
+    ), Or<(With<Character>, With<Enemy>, With<AllySummon>)>>,
 ) {
     let events = event_queue.drain_with_generation();
 
