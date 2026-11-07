@@ -1,7 +1,13 @@
 use bevy::prelude::*;
 use bevy_landmass::prelude::AgentTarget3d;
 
-use crate::combat::{Enemy, EnemyAi, EnemyHomePosition};
+use crate::combat::{
+    AllySummon,
+    AllySummonAi,
+    Enemy,
+    EnemyAi,
+    EnemyHomePosition,
+};
 
 fn enemy_navigation_target(
     enemy_ai: &EnemyAi,
@@ -15,6 +21,15 @@ fn enemy_navigation_target(
     }
 
     enemy_ai.target.map_or(
+        AgentTarget3d::None,
+        AgentTarget3d::Entity,
+    )
+}
+
+fn ally_summon_navigation_target(
+    summon_ai: &AllySummonAi,
+) -> AgentTarget3d {
+    summon_ai.target.map_or(
         AgentTarget3d::None,
         AgentTarget3d::Entity,
     )
@@ -45,12 +60,39 @@ pub(super) fn sync_enemy_navigation_targets(
             Option<&EnemyHomePosition>,
             &mut AgentTarget3d,
         ),
-        (With<Enemy>, With<super::movement::EnemyNavigationAgent>),
+        (
+            With<Enemy>,
+            With<super::movement::EnemyNavigationAgent>,
+            Without<AllySummon>,
+        ),
+    >,
+    mut ally_summon_query: Query<
+        (
+            &AllySummonAi,
+            &mut AgentTarget3d,
+        ),
+        (
+            With<AllySummon>,
+            With<super::movement::AllySummonNavigationAgent>,
+            Without<Enemy>,
+        ),
     >,
 ) {
     for (enemy_ai, home_position, mut navigation_target) in &mut enemy_query {
         let desired_target =
             enemy_navigation_target(enemy_ai, home_position);
+
+        if !navigation_target_matches(
+            &navigation_target,
+            &desired_target,
+        ) {
+            *navigation_target = desired_target;
+        }
+    }
+
+    for (summon_ai, mut navigation_target) in &mut ally_summon_query {
+        let desired_target =
+            ally_summon_navigation_target(summon_ai);
 
         if !navigation_target_matches(
             &navigation_target,
@@ -137,6 +179,63 @@ mod tests {
         let target = enemy_navigation_target(&ai, None);
 
         assert!(matches!(target, AgentTarget3d::None));
+    }
+
+    #[test]
+    fn ally_summon_uses_its_enemy_as_navigation_target() {
+        let mut world = World::new();
+        let enemy = world.spawn_empty().id();
+
+        let ai = AllySummonAi::new(15.0);
+        let mut ai = ai;
+        ai.target = Some(enemy);
+
+        let target = ally_summon_navigation_target(&ai);
+
+        assert!(matches!(
+            target,
+            AgentTarget3d::Entity(entity) if entity == enemy
+        ));
+    }
+
+    #[test]
+    fn ally_summon_without_target_has_no_navigation_target() {
+        let ai = AllySummonAi::new(15.0);
+
+        let target = ally_summon_navigation_target(&ai);
+
+        assert!(matches!(target, AgentTarget3d::None));
+    }
+
+    #[test]
+    fn ally_summon_target_updates_when_its_ai_target_changes() {
+        let mut world = World::new();
+        let first_enemy = world.spawn_empty().id();
+        let second_enemy = world.spawn_empty().id();
+
+        let mut ai = AllySummonAi::new(15.0);
+        ai.target = Some(first_enemy);
+
+        let first_target = ally_summon_navigation_target(&ai);
+
+        ai.target = Some(second_enemy);
+
+        let second_target = ally_summon_navigation_target(&ai);
+
+        assert!(navigation_target_matches(
+            &first_target,
+            &AgentTarget3d::Entity(first_enemy),
+        ));
+
+        assert!(navigation_target_matches(
+            &second_target,
+            &AgentTarget3d::Entity(second_enemy),
+        ));
+
+        assert!(!navigation_target_matches(
+            &first_target,
+            &second_target,
+        ));
     }
 
     #[test]
