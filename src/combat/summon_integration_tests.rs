@@ -17,6 +17,7 @@ use crate::player::Character;
 
 use super::{
     enemy_ai,
+    enemy_attacks,
     effect_runtime,
     summon_ai,
     summon_attacks,
@@ -127,6 +128,7 @@ fn setup_summon_integration_app() -> App {
                 effect_runtime::execute_pending_effects,
                 summons::spawn_pending_summons,
                 enemy_ai::enemy_aggro_system,
+                enemy_attacks::enemy_attack_system,
                 summon_ai::ally_summon_aggro_system,
                 summon_attacks::ally_summon_attack_system,
             )
@@ -526,4 +528,70 @@ fn allied_summon_attacks_generate_threat_against_the_enemy() {
             summon_entities.contains(&target)
         })
     );
+}
+
+#[test]
+fn enemy_summons_acquire_and_attack_a_player_end_to_end() {
+    let mut app = setup_summon_integration_app();
+
+    let owner = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi::default(),
+            CombatLevel::new(60).unwrap(),
+            Transform::IDENTITY,
+        ))
+        .id();
+
+    let player = app
+        .world_mut()
+        .spawn((
+            Character,
+            CombatLevel::new(60).unwrap(),
+            Transform::from_xyz(0.0, 0.0, 2.0),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            HealthPool::new(100.0, 100.0).unwrap(),
+        ))
+        .id();
+
+    enqueue_summon_effect(&mut app, owner);
+
+    app.update();
+
+    let summon_entities = {
+        let world = app.world_mut();
+        let mut summon_query = world.query_filtered::<
+            Entity,
+            (With<Enemy>, With<SummonedCreature>),
+        >();
+
+        summon_query.iter(world).collect::<Vec<_>>()
+    };
+
+    assert_eq!(summon_entities.len(), 2);
+
+    for summon in &summon_entities {
+        let ai = app.world().get::<EnemyAi>(*summon).unwrap();
+
+        assert_eq!(ai.target, Some(player));
+        assert!(
+            app.world()
+                .get::<AllySummon>(*summon)
+                .is_none()
+        );
+    }
+
+    advance_test_time(&mut app, 2.0);
+    app.update();
+
+    let player_health = app.world().get::<HealthPool>(player).unwrap();
+    let player_stats = app.world().get::<CombatStats>(player).unwrap();
+
+    assert_eq!(player_health.current(), 76.0);
+    assert_eq!(player_stats.current_health, 76.0);
 }
