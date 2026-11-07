@@ -26,6 +26,37 @@ fn test_enemy_attack_state(target: Entity) -> EnemyAttackState {
     }
 }
 
+fn test_summon_combat_profile(
+    attack_damage: f32,
+    attack_interval_seconds: f32,
+    melee_range: f32,
+) -> SummonCombatProfile {
+    SummonCombatProfile {
+        attack_damage,
+        attack_interval_seconds,
+        melee_range,
+        aggro_range: 15.0,
+        leash_range: 40.0,
+        movement_speed: 5.0,
+    }
+}
+
+fn spawn_enemy_summon(
+    world: &mut World,
+    target: Entity,
+    profile: SummonCombatProfile,
+) -> Entity {
+    world.spawn((
+        Enemy,
+        profile,
+        EnemyAi {
+            target: Some(target),
+            ..EnemyAi::default()
+        },
+        Transform::default(),
+    )).id()
+}
+
 fn spawn_living_player(
     world: &mut World,
     position: Vec3,
@@ -152,6 +183,104 @@ fn enemy_attacks_ally_summon_after_the_melee_cooldown() {
     assert_eq!(
         combat_stats.current_health,
         health_pool.current()
+    );
+}
+
+#[test]
+fn enemy_summon_uses_its_custom_attack_damage_and_interval() {
+    let mut app = setup_enemy_attack_test_app();
+
+    let player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 1.0),
+    );
+
+    spawn_enemy_summon(
+        app.world_mut(),
+        player,
+        test_summon_combat_profile(
+            17.0,
+            1.5,
+            4.0,
+        ),
+    );
+
+    app.update();
+
+    advance_test_time(&mut app, 1.49);
+    app.update();
+
+    assert_eq!(
+        app.world().get::<CombatStats>(player).unwrap().current_health,
+        100.0
+    );
+
+    advance_test_time(&mut app, 0.02);
+    app.update();
+
+    assert_eq!(
+        app.world().get::<CombatStats>(player).unwrap().current_health,
+        83.0
+    );
+}
+
+#[test]
+fn enemy_summon_uses_its_custom_melee_range() {
+    let mut app = setup_enemy_attack_test_app();
+
+    let player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 3.5),
+    );
+
+    spawn_enemy_summon(
+        app.world_mut(),
+        player,
+        test_summon_combat_profile(
+            18.0,
+            1.0,
+            4.0,
+        ),
+    );
+
+    app.update();
+
+    advance_test_time(&mut app, 1.0);
+    app.update();
+
+    assert_eq!(
+        app.world().get::<CombatStats>(player).unwrap().current_health,
+        82.0
+    );
+}
+
+#[test]
+fn enemy_summon_does_not_attack_outside_its_custom_melee_range() {
+    let mut app = setup_enemy_attack_test_app();
+
+    let player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 4.5),
+    );
+
+    spawn_enemy_summon(
+        app.world_mut(),
+        player,
+        test_summon_combat_profile(
+            18.0,
+            1.0,
+            4.0,
+        ),
+    );
+
+    app.update();
+
+    advance_test_time(&mut app, 1.0);
+    app.update();
+
+    assert_eq!(
+        app.world().get::<CombatStats>(player).unwrap().current_health,
+        100.0
     );
 }
 
