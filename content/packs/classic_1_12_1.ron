@@ -211,4 +211,49 @@
             ),
         ),
     ],
+
+    creatures: [
+        (
+            metadata: (
+                id: "classic_1_12_1:creature.imp",
+                pack_id: "pack:classic_1_12_1",
+                name: "Imp",
+                description: "Demone evocabile al servizio degli Warlock.",
+                icon: None,
+                tags: ["summon", "demon", "warlock"],
+            ),
+            health: 150.0,
+            attack_damage: 12.0,
+            attack_interval_seconds: 2.0,
+            melee_range: 2.5,
+            aggro_range: 15.0,
+            leash_range: 40.0,
+            movement_speed: 5.0,
+        ),
+    ],
+
+    effects: [
+        (
+            metadata: (
+                id: "classic_1_12_1:effect.summon_imp",
+                pack_id: "pack:classic_1_12_1",
+                name: "Summon Imp",
+                description: "Evoca un Imp permanente al servizio del Warlock.",
+                icon: None,
+                tags: ["summon", "warlock", "pet"],
+            ),
+            trigger: on_cast,
+            target: (
+                type: caster,
+            ),
+            kind: (
+                type: summon,
+                parameters: (
+                    creature: "classic_1_12_1:creature.imp",
+                    count: 1,
+                    duration_seconds: None,
+                ),
+            ),
+        ),
+    ],
 )
