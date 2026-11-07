@@ -22,7 +22,7 @@ use super::{
     CharacterCommand,
     GroundingState,
     MovementSpeed,
-    PendingDisplacement,
+use crate::combat::PendingDisplacement;
     Velocity,
 };
 use super::movement_helpers::{
