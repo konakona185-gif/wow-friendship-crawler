@@ -1,4 +1,3 @@
-
 use std::collections::HashSet;
 
 use bevy::prelude::{
@@ -14,6 +13,7 @@ use crate::content::EffectTarget;
 
 use super::{
     effect_resolution::EffectTargetSelection,
+    AllySummon,
     Character,
     CombatStats,
     Enemy,
@@ -131,7 +131,8 @@ pub(super) fn acquire_area_targets_from_world(
         Option<&HealthPool>,
         Option<&Character>,
         Option<&Enemy>,
-    ), Or<(With<Character>, With<Enemy>)>>,
+        Option<&AllySummon>,
+    ), Or<(With<Character>, With<Enemy>, With<AllySummon>)>>,
 ) -> Result<EffectTargetSelection, AreaTargetingError> {
     let (
         _,
@@ -140,6 +141,7 @@ pub(super) fn acquire_area_targets_from_world(
         _,
         source_character,
         source_enemy,
+        source_ally_summon,
     ) = combatants
         .get(source)
         .map_err(|_| AreaTargetingError::MissingSource)?;
@@ -147,12 +149,25 @@ pub(super) fn acquire_area_targets_from_world(
     let source_side = combat_side(
         source_character,
         source_enemy,
+        source_ally_summon,
     )
     .ok_or(AreaTargetingError::InvalidSourceSide)?;
 
     let candidates = combatants.iter().filter_map(
-        |(entity, transform, stats, health_pool, character, enemy)| {
-            let side = combat_side(character, enemy)?;
+        |(
+            entity,
+            transform,
+            stats,
+            health_pool,
+            character,
+            enemy,
+            ally_summon,
+        )| {
+            let side = combat_side(
+                character,
+                enemy,
+                ally_summon,
+            )?;
 
             let current_health = health_pool
                 .map(|pool| pool.current())
@@ -185,10 +200,17 @@ pub(super) fn acquire_area_targets_from_world(
 fn combat_side(
     character: Option<&Character>,
     enemy: Option<&Enemy>,
+    ally_summon: Option<&AllySummon>,
 ) -> Option<CombatSide> {
-    match (character.is_some(), enemy.is_some()) {
-        (true, false) => Some(CombatSide::Characters),
-        (false, true) => Some(CombatSide::Enemies),
+    match (
+        character.is_some(),
+        enemy.is_some(),
+        ally_summon.is_some(),
+    ) {
+        (true, false, false) | (false, false, true) => {
+            Some(CombatSide::Characters)
+        }
+        (false, true, false) => Some(CombatSide::Enemies),
         _ => None,
     }
 }
@@ -389,20 +411,34 @@ mod tests {
     fn combat_side_requires_exactly_one_team_component() {
         let character = Character;
         let enemy = Enemy;
+        let ally_summon = AllySummon;
 
         assert_eq!(
-            combat_side(Some(&character), None),
+            combat_side(Some(&character), None, None),
             Some(CombatSide::Characters)
         );
 
         assert_eq!(
-            combat_side(None, Some(&enemy)),
+            combat_side(None, Some(&enemy), None),
             Some(CombatSide::Enemies)
         );
 
-        assert_eq!(combat_side(None, None), None);
         assert_eq!(
-            combat_side(Some(&character), Some(&enemy)),
+            combat_side(None, None, Some(&ally_summon)),
+            Some(CombatSide::Characters)
+        );
+
+        assert_eq!(combat_side(None, None, None), None);
+        assert_eq!(
+            combat_side(Some(&character), Some(&enemy), None),
+            None
+        );
+        assert_eq!(
+            combat_side(Some(&character), None, Some(&ally_summon)),
+            None
+        );
+        assert_eq!(
+            combat_side(None, Some(&enemy), Some(&ally_summon)),
             None
         );
     }
