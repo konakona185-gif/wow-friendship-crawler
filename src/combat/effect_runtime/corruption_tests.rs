@@ -461,3 +461,68 @@ fn corruption_from_two_casters_stacks_independently_and_ticks_both_sources() {
             .is_empty()
     );
 }
+
+#[test]
+fn corruption_executes_final_tick_at_expiration_and_stops_afterward() {
+    let (mut app, caster, target) =
+        setup_corruption_scenario();
+
+    enqueue_corruption(&mut app, caster, target);
+
+    app.update();
+
+    let expected_health_values = [
+        863.0,
+        726.0,
+        589.0,
+        452.0,
+        315.0,
+        178.0,
+    ];
+
+    let mut previous_health = 1000.0;
+
+    for expected_health in expected_health_values {
+        advance_corruption_tick(
+            &mut app,
+            target,
+            previous_health,
+            expected_health,
+        );
+
+        previous_health = expected_health;
+    }
+
+    assert!(
+        app.world()
+            .get::<ActiveAuras>(target)
+            .unwrap()
+            .is_empty()
+    );
+
+    app.world_mut()
+        .resource_mut::<Time>()
+        .advance_by(Duration::from_secs(3));
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(target)
+            .unwrap()
+            .current(),
+        178.0
+    );
+
+    assert!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
+
+    assert!(
+        app.world()
+            .resource::<CombatEventQueue>()
+            .is_empty()
+    );
+}
