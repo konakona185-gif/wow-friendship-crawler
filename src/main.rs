@@ -182,8 +182,11 @@ fn run_headless_tests(app: &mut App) {
         );
 
         assert!(
-            database.creature_count() == 1 && database.effect_count() == 1,
-            "Il pacchetto deve registrare l'Imp e il relativo effetto Summon."
+            database.creature_count() == 1
+                && database.effect_count() == 3
+                && database.aura_count() == 1
+                && database.ability_count() == 1,
+            "Il pacchetto deve contenere l'Imp, tre effetti, un'aura e un'abilità."
         );
 
         assert!(
