@@ -24,6 +24,7 @@ use crate::combat::{
     EnemyAi,
     EnemyHomePosition,
     PendingDisplacement,
+    SummonCombatProfile,
 };
 
 use super::movement_helpers::*;
@@ -48,7 +49,13 @@ pub(super) fn spawn_enemy_navigation_agents(
     mut commands: Commands,
     archipelago_query: Query<Entity, With<Archipelago3d>>,
     combatant_query: Query<
-        (Entity, &Transform, Option<&EnemyHomePosition>, Has<Enemy>),
+        (
+            Entity,
+            &Transform,
+            Option<&EnemyHomePosition>,
+            Option<&SummonCombatProfile>,
+            Has<Enemy>,
+        ),
         (
             Or<(With<Enemy>, With<AllySummon>)>,
             Without<EnemyNavigationAgent>,
@@ -60,10 +67,28 @@ pub(super) fn spawn_enemy_navigation_agents(
         return;
     };
 
-    for (combatant_entity, transform, home_position, is_enemy) in
-        &combatant_query
+    for (
+        combatant_entity,
+        transform,
+        home_position,
+        summon_profile,
+        is_enemy,
+    ) in &combatant_query
     {
         let initial_position = transform.translation;
+
+        let (desired_speed, max_speed) = match summon_profile {
+            Some(profile)
+                if profile.movement_speed.is_finite()
+                    && profile.movement_speed > 0.0 =>
+            {
+                let desired_speed = profile.movement_speed;
+                let max_speed = (desired_speed * 1.4).min(f32::MAX);
+
+                (desired_speed, max_speed)
+            }
+            _ => (5.0, 7.0),
+        };
 
         let mut combatant_commands = commands.entity(combatant_entity);
 
@@ -72,8 +97,8 @@ pub(super) fn spawn_enemy_navigation_agents(
                 agent: Default::default(),
                 settings: AgentSettings {
                     radius: ENEMY_CAPSULE_RADIUS,
-                    desired_speed: 5.0,
-                    max_speed: 7.0,
+                    desired_speed,
+                    max_speed,
                 },
                 archipelago_ref: ArchipelagoRef3d::new(archipelago),
             },
