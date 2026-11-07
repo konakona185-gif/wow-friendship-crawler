@@ -5,10 +5,18 @@ use super::{
     CombatStats,
     Enemy,
     HealthPool,
+    SummonedCreature,
+    SummonFaction,
 };
-use super::summons::AllySummonAi;
+use super::summons::{
+    AllySummonAi,
+    SummonCombatProfile,
+};
+
+use crate::content::ContentId;
 
 const DEFAULT_SUMMON_AGGRO_RANGE: f32 = 15.0;
+const DEFAULT_SUMMON_LEASH_RANGE: f32 = 40.0;
 
 fn combatant_is_alive(
     stats: Option<&CombatStats>,
@@ -36,10 +44,28 @@ fn valid_aggro_range_squared(aggro_range: f32) -> f32 {
     }
 }
 
+fn valid_leash_range_squared(leash_range: f32) -> f32 {
+    let range = if leash_range.is_finite() && leash_range > 0.0 {
+        leash_range
+    } else {
+        DEFAULT_SUMMON_LEASH_RANGE
+    };
+
+    let range_squared = range * range;
+
+    if range_squared.is_finite() {
+        range_squared
+    } else {
+        DEFAULT_SUMMON_LEASH_RANGE * DEFAULT_SUMMON_LEASH_RANGE
+    }
+}
+
 pub(super) fn ally_summon_aggro_system(
     mut summon_query: Query<
         (
             &Transform,
+            &SummonedCreature,
+            &SummonCombatProfile,
             &mut AllySummonAi,
         ),
         (
@@ -59,8 +85,34 @@ pub(super) fn ally_summon_aggro_system(
             Without<AllySummon>,
         ),
     >,
+    owner_query: Query<&Transform>,
 ) {
-    for (summon_transform, mut summon_ai) in &mut summon_query {
+    for (
+        summon_transform,
+        summoned_creature,
+        combat_profile,
+        mut summon_ai,
+    ) in &mut summon_query
+    {
+        let leash_range_squared =
+            valid_leash_range_squared(combat_profile.leash_range);
+
+        let owner_is_within_leash = owner_query
+            .get(summoned_creature.owner)
+            .is_ok_and(|owner_transform| {
+                let distance_squared = summon_transform
+                    .translation
+                    .distance_squared(owner_transform.translation);
+
+                distance_squared.is_finite()
+                    && distance_squared <= leash_range_squared
+            });
+
+        if !owner_is_within_leash {
+            summon_ai.target = None;
+            continue;
+        }
+
         let aggro_range_squared =
             valid_aggro_range_squared(summon_ai.aggro_range);
 
@@ -166,9 +218,27 @@ mod tests {
         position: Vec3,
         aggro_range: f32,
     ) -> Entity {
+        let owner = world.spawn(
+            Transform::from_translation(position),
+        ).id();
+
         world.spawn((
             AllySummon,
             AllySummonAi::new(aggro_range),
+            SummonedCreature::new(
+                owner,
+                ContentId::new("test:creature.imp").unwrap(),
+                SummonFaction::Allies,
+                None,
+            ),
+            SummonCombatProfile {
+                attack_damage: 12.0,
+                attack_interval_seconds: 2.0,
+                melee_range: 2.5,
+                aggro_range,
+                leash_range: 40.0,
+                movement_speed: 5.0,
+            },
             Transform::from_translation(position),
         )).id()
     }
@@ -400,6 +470,148 @@ mod tests {
             .get_mut::<Transform>(enemy)
             .unwrap()
             .translation = Vec3::new(0.0, 0.0, 20.0);
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<AllySummonAi>(summon).unwrap().target,
+            None
+        );
+    }
+
+    #[test]
+    fn ally_summon_drops_target_when_owner_moves_beyond_leash_range() {
+        let mut app = setup_test_app();
+
+        let summon = spawn_ally_summon(
+            app.world_mut(),
+            Vec3::ZERO,
+            15.0,
+        );
+
+        let owner = app.world()
+            .get::<SummonedCreature>(summon)
+            .unwrap()
+            .owner;
+
+        let enemy = spawn_enemy(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 5.0),
+            100.0,
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<AllySummonAi>(summon).unwrap().target,
+            Some(enemy)
+        );
+
+        app.world_mut()
+            .get_mut::<SummonCombatProfile>(summon)
+            .unwrap()
+            .leash_range = 12.0;
+
+        app.world_mut()
+            .get_mut::<Transform>(owner)
+            .unwrap()
+            .translation = Vec3::new(0.0, 0.0, 13.0);
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<AllySummonAi>(summon).unwrap().target,
+            None
+        );
+    }
+
+    #[test]
+    fn ally_summon_reacquires_enemy_after_returning_within_leash_range() {
+        let mut app = setup_test_app();
+
+        let summon = spawn_ally_summon(
+            app.world_mut(),
+            Vec3::ZERO,
+            15.0,
+        );
+
+        let owner = app.world()
+            .get::<SummonedCreature>(summon)
+            .unwrap()
+            .owner;
+
+        let enemy = spawn_enemy(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 5.0),
+            100.0,
+        );
+
+        app.world_mut()
+            .get_mut::<SummonCombatProfile>(summon)
+            .unwrap()
+            .leash_range = 12.0;
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<AllySummonAi>(summon).unwrap().target,
+            Some(enemy)
+        );
+
+        app.world_mut()
+            .get_mut::<Transform>(owner)
+            .unwrap()
+            .translation = Vec3::new(0.0, 0.0, 13.0);
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<AllySummonAi>(summon).unwrap().target,
+            None
+        );
+
+        app.world_mut()
+            .get_mut::<Transform>(owner)
+            .unwrap()
+            .translation = Vec3::ZERO;
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<AllySummonAi>(summon).unwrap().target,
+            Some(enemy)
+        );
+    }
+
+    #[test]
+    fn ally_summon_drops_target_when_owner_is_missing() {
+        let mut app = setup_test_app();
+
+        let summon = spawn_ally_summon(
+            app.world_mut(),
+            Vec3::ZERO,
+            15.0,
+        );
+
+        let owner = app.world()
+            .get::<SummonedCreature>(summon)
+            .unwrap()
+            .owner;
+
+        let enemy = spawn_enemy(
+            app.world_mut(),
+            Vec3::new(0.0, 0.0, 5.0),
+            100.0,
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<AllySummonAi>(summon).unwrap().target,
+            Some(enemy)
+        );
+
+        app.world_mut().despawn(owner);
 
         app.update();
 
