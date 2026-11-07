@@ -1,4 +1,5 @@
 mod aura_tests;
+mod classic_pack_tests;
 mod registration_tests;
 mod reference_tests;
 
