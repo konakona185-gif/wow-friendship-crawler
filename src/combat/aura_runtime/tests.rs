@@ -691,6 +691,238 @@ fn adding_stacks_preserves_independent_periodic_timers() {
 }
 
 #[test]
+fn refresh_duration_preserves_periodic_timer_progress() {
+    let definition = periodic_aura_definition(
+        AuraStackingPolicy::RefreshDuration,
+        5,
+        5.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    assert!(active.advance(3.0).periodic_ticks.is_empty());
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    let result = active.advance(2.0);
+
+    assert_eq!(result.periodic_ticks.len(), 1);
+    assert_eq!(result.periodic_ticks[0].stacks, 1);
+}
+
+#[test]
+fn pandemic_refresh_duration_preserves_periodic_timer_progress() {
+    let mut definition = periodic_aura_definition(
+        AuraStackingPolicy::RefreshDuration,
+        5,
+        5.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    definition.refresh_policy = AuraRefreshPolicy::Pandemic;
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    assert!(active.advance(3.0).periodic_ticks.is_empty());
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    let result = active.advance(2.0);
+
+    assert_eq!(result.periodic_ticks.len(), 1);
+    assert_eq!(result.periodic_ticks[0].stacks, 1);
+}
+
+#[test]
+fn per_caster_periodic_timers_advance_independently() {
+    let mut definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        2.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    definition.stacking_scope = AuraStackingScope::PerCaster;
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    assert!(active.advance(1.0).periodic_ticks.is_empty());
+
+    active
+        .apply(&definition, Some(other_source()), 1, Some(10.0))
+        .unwrap();
+
+    let first = active.advance(1.0);
+
+    assert_eq!(first.periodic_ticks.len(), 1);
+    assert_eq!(first.periodic_ticks[0].source, Some(source()));
+
+    let second = active.advance(1.0);
+
+    assert_eq!(second.periodic_ticks.len(), 1);
+    assert_eq!(second.periodic_ticks[0].source, Some(other_source()));
+}
+
+#[test]
+fn partial_stack_removal_updates_future_periodic_tick_stacks() {
+    let definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        2.0,
+        PeriodicEffectStackScaling::Linear,
+    );
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 3, Some(10.0))
+        .unwrap();
+
+    assert!(active.advance(1.0).periodic_ticks.is_empty());
+
+    assert_eq!(active.remove(&aura_id(), Some(2)), 2);
+    assert_eq!(active.stacks(&aura_id()), 1);
+
+    let result = active.advance(1.0);
+
+    assert_eq!(result.periodic_ticks.len(), 1);
+    assert_eq!(result.periodic_ticks[0].stacks, 1);
+    assert_eq!(
+        result.periodic_ticks[0].stack_scaling,
+        PeriodicEffectStackScaling::Linear
+    );
+}
+
+#[test]
+fn removing_aura_stops_future_periodic_ticks() {
+    let definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        2.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    assert!(active.advance(1.0).periodic_ticks.is_empty());
+
+    assert_eq!(active.remove(&aura_id(), None), 1);
+    assert!(active.is_empty());
+
+    let result = active.advance(5.0);
+
+    assert!(result.periodic_ticks.is_empty());
+    assert!(result.expired.is_empty());
+}
+
+#[test]
+fn invalid_advance_deltas_do_not_advance_periodic_timers() {
+    let definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        2.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    assert!(active.advance(0.0).periodic_ticks.is_empty());
+    assert!(active.advance(-1.0).periodic_ticks.is_empty());
+    assert!(active.advance(f32::NAN).periodic_ticks.is_empty());
+    assert!(active.advance(f32::INFINITY).periodic_ticks.is_empty());
+
+    let result = active.advance(2.0);
+
+    assert_eq!(result.periodic_ticks.len(), 1);
+}
+
+#[test]
+fn failed_reapplication_does_not_mutate_existing_aura_or_timer() {
+    let definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        5.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 2, Some(10.0))
+        .unwrap();
+
+    assert!(active.advance(3.0).periodic_ticks.is_empty());
+
+    assert_eq!(
+        active.apply(
+            &definition,
+            Some(source()),
+            2,
+            Some(f32::NAN),
+        ),
+        Err(AuraRuntimeError::InvalidDuration)
+    );
+
+    assert_eq!(active.stacks(&aura_id()), 2);
+    assert_eq!(
+        active.get(&aura_id()).unwrap().remaining_duration(),
+        Some(7.0)
+    );
+
+    let result = active.advance(2.0);
+
+    assert_eq!(result.periodic_ticks.len(), 1);
+    assert_eq!(result.periodic_ticks[0].stacks, 2);
+}
+
+#[test]
+fn permanent_periodic_auras_continue_emitting_ticks() {
+    let definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        2.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, None)
+        .unwrap();
+
+    let result = active.advance(6.0);
+
+    assert_eq!(result.periodic_ticks.len(), 3);
+    assert!(result.expired.is_empty());
+    assert_eq!(active.len(), 1);
+}
+
+#[test]
 fn replacing_aura_restarts_periodic_tick_progress() {
     let definition = periodic_aura_definition(
         AuraStackingPolicy::Replace,
