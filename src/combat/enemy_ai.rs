@@ -1,9 +1,8 @@
-
 use bevy::prelude::*;
 
 use super::*;
 
-fn player_is_alive(
+fn combatant_is_alive(
     stats: Option<&CombatStats>,
     health_pool: Option<&HealthPool>,
 ) -> bool {
@@ -14,14 +13,17 @@ fn player_is_alive(
 }
 
 pub(super) fn enemy_aggro_system(
-    player_query: Query<
+    ally_query: Query<
         (
             Entity,
             &Transform,
             Option<&CombatStats>,
             Option<&HealthPool>,
         ),
-        (With<Character>, Without<Enemy>),
+        (
+            Or<(With<Character>, With<AllySummon>)>,
+            Without<Enemy>,
+        ),
     >,
     mut enemy_query: Query<
         (
@@ -147,30 +149,30 @@ pub(super) fn enemy_aggro_system(
 
         let highest_threat_target =
             if let Some(threat) = enemy_threat.as_deref_mut() {
-                threat.values.retain(|player_entity, value| {
+                threat.values.retain(|ally_entity, value| {
                     value.is_finite()
                         && *value > 0.0
-                        && player_query
-                            .get(*player_entity)
+                        && ally_query
+                            .get(*ally_entity)
                             .is_ok_and(|(_, _, stats, health_pool)| {
-                                player_is_alive(stats, health_pool)
+                                combatant_is_alive(stats, health_pool)
                             })
                 });
 
                 threat.values
                     .iter()
-                    .filter_map(|(player_entity, value)| {
-                        let (_, player_transform, stats, health_pool) =
-                            player_query.get(*player_entity).ok()?;
+                    .filter_map(|(ally_entity, value)| {
+                        let (_, ally_transform, stats, health_pool) =
+                            ally_query.get(*ally_entity).ok()?;
 
-                        player_is_alive(stats, health_pool)
+                        combatant_is_alive(stats, health_pool)
                             .then_some((
-                                *player_entity,
+                                *ally_entity,
                                 *value,
                                 enemy_transform
                                     .translation
                                     .distance_squared(
-                                        player_transform.translation,
+                                        ally_transform.translation,
                                     ),
                             ))
                     })
@@ -178,7 +180,7 @@ pub(super) fn enemy_aggro_system(
                         a.1.total_cmp(&b.1)
                             .then_with(|| b.2.total_cmp(&a.2))
                     })
-                    .map(|(player_entity, _, _)| player_entity)
+                    .map(|(ally_entity, _, _)| ally_entity)
             } else {
                 None
             };
@@ -190,10 +192,10 @@ pub(super) fn enemy_aggro_system(
 
         let current_target_is_alive = enemy_ai.target.is_some_and(
             |target_entity| {
-                player_query
+                ally_query
                     .get(target_entity)
                     .is_ok_and(|(_, _, stats, health_pool)| {
-                        player_is_alive(stats, health_pool)
+                        combatant_is_alive(stats, health_pool)
                     })
             },
         );
@@ -210,15 +212,15 @@ pub(super) fn enemy_aggro_system(
 
         let aggro_range_squared = aggro_range * aggro_range;
 
-        let new_target = player_query
+        let new_target = ally_query
             .iter()
             .filter(|(_, _, stats, health_pool)| {
-                player_is_alive(*stats, *health_pool)
+                combatant_is_alive(*stats, *health_pool)
             })
-            .filter_map(|(entity, player_transform, _, _)| {
+            .filter_map(|(entity, ally_transform, _, _)| {
                 let distance_squared = enemy_transform
                     .translation
-                    .distance_squared(player_transform.translation);
+                    .distance_squared(ally_transform.translation);
 
                 (distance_squared <= aggro_range_squared)
                     .then_some((entity, distance_squared))
@@ -230,7 +232,7 @@ pub(super) fn enemy_aggro_system(
 
         if let Some(target_entity) = new_target {
             info!(
-                "Nemico ha acquisito il giocatore {:?} come bersaglio.",
+                "Nemico ha acquisito un alleato {:?} come bersaglio.",
                 target_entity
             );
         }
