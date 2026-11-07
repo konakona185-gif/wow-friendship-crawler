@@ -33,6 +33,7 @@ mod resources;
 mod stats;
 mod summon_ai;
 mod summon_attacks;
+mod summon_lifecycle;
 mod summons;
 mod target_indicator;
 mod target_selection;
@@ -235,6 +236,7 @@ impl Plugin for CombatPlugin {
                     target_selection::target_click_system,
                     player_attacks::player_cast_system,
                     death::enemy_death_system,
+                    summon_lifecycle::summon_lifecycle_system,
                     enemy_ai::enemy_aggro_system,
                     summon_ai::ally_summon_aggro_system,
                     enemy_attacks::enemy_attack_system,
