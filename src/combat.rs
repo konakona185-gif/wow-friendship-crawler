@@ -32,6 +32,7 @@ mod player_attacks;
 mod resources;
 mod stats;
 mod summon_ai;
+mod summon_attacks;
 mod summons;
 mod target_indicator;
 mod target_selection;
@@ -237,6 +238,7 @@ impl Plugin for CombatPlugin {
                     enemy_ai::enemy_aggro_system,
                     summon_ai::ally_summon_aggro_system,
                     enemy_attacks::enemy_attack_system,
+                    summon_attacks::ally_summon_attack_system,
                     target_indicator::target_indicator_system,
                     aura_systems::tick_active_auras,
                     effect_runtime::execute_pending_effects,
