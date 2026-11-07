@@ -103,6 +103,87 @@
                 ),
             ),
         ),
+        (
+            metadata: (
+                id: "classic_1_12_1:school.shadowfrost",
+                pack_id: "pack:classic_1_12_1",
+                name: "Shadowfrost",
+                description: "Danni combinati Shadow e Frost.",
+            ),
+            mitigation: (
+                type: composite,
+                parameters: (
+                    components: [
+                        (
+                            type: resistance,
+                            parameters: (
+                                stat: "classic_1_12_1:stat.shadow_resistance",
+                            ),
+                        ),
+                        (
+                            type: resistance,
+                            parameters: (
+                                stat: "classic_1_12_1:stat.frost_resistance",
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:school.entropy",
+                pack_id: "pack:classic_1_12_1",
+                name: "Entropy",
+                description: "Danni combinati Fire e Shadow.",
+            ),
+            mitigation: (
+                type: composite,
+                parameters: (
+                    components: [
+                        (
+                            type: resistance,
+                            parameters: (
+                                stat: "classic_1_12_1:stat.fire_resistance",
+                            ),
+                        ),
+                        (
+                            type: resistance,
+                            parameters: (
+                                stat: "classic_1_12_1:stat.shadow_resistance",
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:school.frostfire",
+                pack_id: "pack:classic_1_12_1",
+                name: "Frostfire",
+                description: "Danni combinati Frost e Fire.",
+            ),
+            mitigation: (
+                type: composite,
+                parameters: (
+                    components: [
+                        (
+                            type: resistance,
+                            parameters: (
+                                stat: "classic_1_12_1:stat.frost_resistance",
+                            ),
+                        ),
+                        (
+                            type: resistance,
+                            parameters: (
+                                stat: "classic_1_12_1:stat.fire_resistance",
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+        ),
     ],
 
     combat_attributes: [
