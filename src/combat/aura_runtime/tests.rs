@@ -5,6 +5,7 @@ use crate::content::{
     AuraStackingScope,
     ContentId,
     ContentMetadata,
+    PeriodicAuraEffect,
     PeriodicEffectStackScaling,
 };
 
