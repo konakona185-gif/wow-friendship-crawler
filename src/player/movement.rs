@@ -1,4 +1,3 @@
-
 use std::time::Duration;
 
 use avian3d::prelude::{
@@ -22,9 +21,11 @@ use super::{
     CharacterCommand,
     GroundingState,
     MovementSpeed,
-use crate::combat::PendingDisplacement;
     Velocity,
 };
+
+use crate::combat::PendingDisplacement;
+
 use super::movement_helpers::{
     descent_step,
     fall_step,
