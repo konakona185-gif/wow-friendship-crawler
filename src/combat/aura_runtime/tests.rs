@@ -782,6 +782,90 @@ fn per_caster_periodic_timers_advance_independently() {
 }
 
 #[test]
+fn independent_aura_instances_keep_periodic_timers_separate() {
+    let definition = periodic_aura_definition(
+        AuraStackingPolicy::Independent,
+        5,
+        2.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    assert!(active.advance(1.0).periodic_ticks.is_empty());
+
+    active
+        .apply(&definition, Some(source()), 2, Some(10.0))
+        .unwrap();
+
+    let first = active.advance(1.0);
+
+    assert_eq!(first.periodic_ticks.len(), 1);
+    assert_eq!(first.periodic_ticks[0].aura, aura_id());
+    assert_eq!(first.periodic_ticks[0].stacks, 1);
+
+    let second = active.advance(1.0);
+
+    assert_eq!(second.periodic_ticks.len(), 1);
+    assert_eq!(second.periodic_ticks[0].aura, aura_id());
+    assert_eq!(second.periodic_ticks[0].stacks, 2);
+}
+
+#[test]
+fn different_auras_keep_periodic_timers_independent() {
+    let first_definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        2.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let mut second_definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        3.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let second_aura_id = ContentId::new("test:aura.second").unwrap();
+    let second_effect_id =
+        ContentId::new("test:effect.periodic_second").unwrap();
+
+    second_definition.metadata.id = second_aura_id.clone();
+    second_definition.periodic_effects[0].effect =
+        second_effect_id.clone();
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&first_definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    active
+        .apply(&second_definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    let first = active.advance(2.0);
+
+    assert_eq!(first.periodic_ticks.len(), 1);
+    assert_eq!(first.periodic_ticks[0].aura, aura_id());
+    assert_eq!(
+        first.periodic_ticks[0].effect,
+        periodic_effect_id()
+    );
+
+    let second = active.advance(1.0);
+
+    assert_eq!(second.periodic_ticks.len(), 1);
+    assert_eq!(second.periodic_ticks[0].aura, second_aura_id);
+    assert_eq!(second.periodic_ticks[0].effect, second_effect_id);
+}
+
+#[test]
 fn partial_stack_removal_updates_future_periodic_tick_stacks() {
     let definition = periodic_aura_definition(
         AuraStackingPolicy::AddStacks,
