@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -238,6 +237,7 @@ impl Plugin for CombatPlugin {
                     target_indicator::target_indicator_system,
                     aura_systems::tick_active_auras,
                     effect_runtime::execute_pending_effects,
+                    summons::spawn_pending_summons,
                     effect_dispatcher::dispatch_combat_events,
                 )
                     .chain()
@@ -352,6 +352,10 @@ mod tests {
 
         assert!(
             app.world().contains_resource::<CustomEffectHandlers>()
+        );
+
+        assert!(
+            app.world().contains_resource::<summons::PendingSummons>()
         );
     }
 }
