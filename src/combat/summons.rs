@@ -125,7 +125,7 @@ impl PendingSummons {
 }
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub(super) struct SummonCombatProfile {
+pub(crate) struct SummonCombatProfile {
     pub attack_damage: f32,
     pub attack_interval_seconds: f32,
     pub melee_range: f32,
