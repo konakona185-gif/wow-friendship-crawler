@@ -643,6 +643,54 @@ fn adding_stacks_preserves_periodic_tick_progress() {
 }
 
 #[test]
+fn adding_stacks_preserves_independent_periodic_timers() {
+    let mut definition = periodic_aura_definition(
+        AuraStackingPolicy::AddStacks,
+        5,
+        2.0,
+        PeriodicEffectStackScaling::None,
+    );
+
+    let second_effect = ContentId::new(
+        "classic:effect.periodic_test_second",
+    )
+    .unwrap();
+
+    definition.periodic_effects.push(PeriodicAuraEffect {
+        effect: second_effect.clone(),
+        interval_seconds: 3.0,
+        stack_scaling: PeriodicEffectStackScaling::None,
+    });
+
+    let mut active = ActiveAuras::default();
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    assert!(active.advance(1.0).periodic_ticks.is_empty());
+
+    active
+        .apply(&definition, Some(source()), 1, Some(10.0))
+        .unwrap();
+
+    let first = active.advance(1.0);
+
+    assert_eq!(first.periodic_ticks.len(), 1);
+    assert_eq!(
+        first.periodic_ticks[0].effect,
+        periodic_effect_id()
+    );
+    assert_eq!(first.periodic_ticks[0].stacks, 2);
+
+    let second = active.advance(1.0);
+
+    assert_eq!(second.periodic_ticks.len(), 1);
+    assert_eq!(second.periodic_ticks[0].effect, second_effect);
+    assert_eq!(second.periodic_ticks[0].stacks, 2);
+}
+
+#[test]
 fn replacing_aura_restarts_periodic_tick_progress() {
     let definition = periodic_aura_definition(
         AuraStackingPolicy::Replace,
