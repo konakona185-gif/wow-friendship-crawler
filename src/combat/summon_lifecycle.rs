@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+use std::time::Duration;
+
 use bevy::prelude::*;
 
 use crate::content::ContentId;
@@ -51,7 +54,8 @@ pub(super) fn summon_lifecycle_system(
     indicator_query: Query<(Entity, &TargetIndicator)>,
 ) {
     let delta = time.delta_secs();
-    let mut despawned_summons = Vec::new();
+    let mut summon_owners = Vec::new();
+    let mut despawned_summons = HashSet::new();
 
     for (
         summon_entity,
@@ -60,6 +64,11 @@ pub(super) fn summon_lifecycle_system(
         summon_health_pool,
     ) in &mut summon_query
     {
+        summon_owners.push((
+            summon_entity,
+            summon.owner,
+        ));
+
         let owner_alive = owner_query
             .get(summon.owner)
             .is_ok_and(|(stats, health_pool)| {
@@ -74,8 +83,29 @@ pub(super) fn summon_lifecycle_system(
         let expired = summon.tick_lifetime(delta);
 
         if !owner_alive || !summon_alive || expired {
-            despawned_summons.push(summon_entity);
+            despawned_summons.insert(summon_entity);
         }
+    }
+
+    loop {
+        let newly_despawned: Vec<Entity> = summon_owners
+            .iter()
+            .filter_map(|(summon_entity, owner)| {
+                if despawned_summons.contains(owner)
+                    && !despawned_summons.contains(summon_entity)
+                {
+                    Some(*summon_entity)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if newly_despawned.is_empty() {
+            break;
+        }
+
+        despawned_summons.extend(newly_despawned);
     }
 
     for summon_entity in despawned_summons {
@@ -110,8 +140,6 @@ pub(super) fn summon_lifecycle_system(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::time::Duration;
 
     fn creature_id() -> ContentId {
         ContentId::new("test:creature.imp").unwrap()
@@ -447,6 +475,49 @@ mod tests {
 
         assert!(
             app.world().get::<TargetIndicator>(indicator).is_none()
+        );
+    }
+
+    #[test]
+    fn all_descendants_are_despawned_when_an_ancestor_expires() {
+        let mut app = setup_test_app();
+
+        let owner = spawn_living_owner(app.world_mut());
+
+        let parent = spawn_summon(
+            app.world_mut(),
+            owner,
+            Some(1.0),
+            100.0,
+        );
+
+        let child = spawn_summon(
+            app.world_mut(),
+            parent,
+            None,
+            100.0,
+        );
+
+        let grandchild = spawn_summon(
+            app.world_mut(),
+            child,
+            None,
+            100.0,
+        );
+
+        advance_test_time(&mut app, 1.0);
+        app.update();
+
+        assert!(
+            app.world().get::<SummonedCreature>(parent).is_none()
+        );
+
+        assert!(
+            app.world().get::<SummonedCreature>(child).is_none()
+        );
+
+        assert!(
+            app.world().get::<SummonedCreature>(grandchild).is_none()
         );
     }
 }
