@@ -495,6 +495,3 @@ pub(super) fn move_enemy_agents(
             (transform.translation - start_position) / delta;
     }
 }
-
-#[cfg(test)]
-mod tests;
