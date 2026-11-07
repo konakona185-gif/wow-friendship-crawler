@@ -367,3 +367,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod summon_integration_tests;
