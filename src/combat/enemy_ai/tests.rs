@@ -1,4 +1,3 @@
-
 use super::*;
 
 fn spawn_living_player(
@@ -44,6 +43,24 @@ fn spawn_player_with_only_health_pool(
         Character,
         Transform::from_translation(position),
         HealthPool::new(health, maximum).unwrap(),
+    )).id()
+}
+
+fn spawn_living_ally_summon(
+    world: &mut World,
+    position: Vec3,
+    stats_health: f32,
+    pool_health: f32,
+) -> Entity {
+    world.spawn((
+        AllySummon,
+        Transform::from_translation(position),
+        CombatStats {
+            current_health: stats_health,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+        HealthPool::new(pool_health, 100.0).unwrap(),
     )).id()
 }
 
@@ -112,6 +129,126 @@ fn enemy_prefers_the_player_with_the_highest_threat() {
     assert_eq!(
         app.world().get::<EnemyAi>(enemy).unwrap().target,
         Some(highest_threat_player)
+    );
+}
+
+#[test]
+fn enemy_prefers_ally_summon_with_the_highest_threat() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 2.0),
+    );
+
+    let ally_summon = spawn_living_ally_summon(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 10.0),
+        100.0,
+        100.0,
+    );
+
+    let enemy = app.world_mut().spawn((
+        Enemy,
+        EnemyAi {
+            target: Some(player),
+            ..EnemyAi::default()
+        },
+        EnemyHomePosition(Vec3::ZERO),
+        EnemyThreat {
+            values: std::collections::HashMap::from([
+                (player, 20.0),
+                (ally_summon, 60.0),
+            ]),
+        },
+        CombatStats {
+            current_health: 100.0,
+            max_health: 100.0,
+            resource: 0.0,
+        },
+        Transform::default(),
+    )).id();
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(ally_summon)
+    );
+}
+
+#[test]
+fn enemy_acquires_ally_summon_and_keeps_it_as_target() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let enemy = spawn_enemy_ai(
+        app.world_mut(),
+        Vec3::ZERO,
+    );
+
+    let ally_summon = spawn_living_ally_summon(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 12.0),
+        100.0,
+        100.0,
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(ally_summon)
+    );
+
+    let closer_player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 2.0),
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(ally_summon)
+    );
+
+    assert_ne!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(closer_player)
+    );
+}
+
+#[test]
+fn enemy_ignores_defeated_ally_summons_during_target_acquisition() {
+    let mut app = setup_enemy_aggro_test_app();
+
+    let enemy = spawn_enemy_ai(
+        app.world_mut(),
+        Vec3::ZERO,
+    );
+
+    let defeated_ally_summon = spawn_living_ally_summon(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 2.0),
+        100.0,
+        0.0,
+    );
+
+    let living_player = spawn_living_player(
+        app.world_mut(),
+        Vec3::new(0.0, 0.0, 8.0),
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(living_player)
+    );
+
+    assert_ne!(
+        app.world().get::<EnemyAi>(enemy).unwrap().target,
+        Some(defeated_ally_summon)
     );
 }
 
