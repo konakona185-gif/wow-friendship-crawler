@@ -11,12 +11,10 @@ use crate::combat::{
     HealthPool,
 };
 use crate::content::{
-    ContentMetadata,
-    ContentPackManifest,
-    EffectDefinition,
+    ContentDatabase,
+    ContentId,
+    ContentPackLoader,
     EffectKind,
-    EffectTarget,
-    EffectTrigger,
 };
 
 struct HealingCustomEffectHandler;
@@ -54,42 +52,50 @@ fn handler_id() -> ContentId {
 fn custom_test_database() -> (ContentDatabase, ContentId) {
     let mut database = ContentDatabase::new();
 
-    let pack_id = ContentId::new(
-        "pack:classic_1_12_1",
+    let effect_id = content_id("effect.custom_heal");
+
+    let pack_ron = r#"
+(
+    manifest: (
+        id: "pack:classic_1_12_1",
+        name: "Classic 1.12.1",
+        version: "1.0.0",
+        description: "",
+        dependencies: [],
+    ),
+    effects: [
+        (
+            metadata: (
+                id: "classic_1_12_1:effect.custom_heal",
+                pack_id: "pack:classic_1_12_1",
+                name: "Custom Heal",
+                description: "",
+            ),
+            trigger: on_cast,
+            target: selected_target,
+            kind: (
+                type: custom,
+                parameters: (
+                    handler: "classic_1_12_1:handler.custom_heal",
+                ),
+            ),
+        ),
+    ],
+)
+"#;
+
+    ContentPackLoader::load_ron(
+        &mut database,
+        pack_ron,
     )
     .unwrap();
 
-    database
-        .register_pack(ContentPackManifest {
-            id: pack_id.clone(),
-            name: "Classic 1.12.1".to_string(),
-            version: "1.0.0".to_string(),
-            description: String::new(),
-            dependencies: Vec::new(),
-        })
-        .unwrap();
-
-    let effect_id = content_id("effect.custom_heal");
-
-    database
-        .register_effect(EffectDefinition {
-            metadata: ContentMetadata {
-                id: effect_id.clone(),
-                pack_id,
-                name: "Custom Heal".to_string(),
-                description: String::new(),
-                icon: None,
-                tags: Vec::new(),
-            },
-            trigger: EffectTrigger::OnCast,
-            target: EffectTarget::SelectedTarget,
-            kind: EffectKind::Custom {
-                handler: handler_id(),
-            },
-        })
-        .unwrap();
-
-    database.validate().unwrap();
+    assert_eq!(
+        database.effect(&effect_id).unwrap().kind,
+        EffectKind::Custom {
+            handler: handler_id(),
+        }
+    );
 
     (database, effect_id)
 }
