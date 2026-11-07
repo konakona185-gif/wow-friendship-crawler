@@ -45,6 +45,26 @@ pub(super) struct EnemyGroundingState {
     steep_support: bool,
 }
 
+fn navigation_speeds(
+    profile: Option<&SummonCombatProfile>,
+) -> (f32, f32) {
+    let Some(profile) = profile else {
+        return (5.0, 7.0);
+    };
+
+    let desired_speed = profile.movement_speed;
+
+    if !desired_speed.is_finite() || desired_speed <= 0.0 {
+        return (5.0, 7.0);
+    }
+
+    let max_speed = (desired_speed * 1.4)
+        .min(f32::MAX)
+        .max(desired_speed);
+
+    (desired_speed, max_speed)
+}
+
 pub(super) fn spawn_enemy_navigation_agents(
     mut commands: Commands,
     archipelago_query: Query<Entity, With<Archipelago3d>>,
@@ -77,18 +97,8 @@ pub(super) fn spawn_enemy_navigation_agents(
     {
         let initial_position = transform.translation;
 
-        let (desired_speed, max_speed) = match summon_profile {
-            Some(profile)
-                if profile.movement_speed.is_finite()
-                    && profile.movement_speed > 0.0 =>
-            {
-                let desired_speed = profile.movement_speed;
-                let max_speed = (desired_speed * 1.4).min(f32::MAX);
-
-                (desired_speed, max_speed)
-            }
-            _ => (5.0, 7.0),
-        };
+        let (desired_speed, max_speed) =
+            navigation_speeds(summon_profile);
 
         let mut combatant_commands = commands.entity(combatant_entity);
 
@@ -518,5 +528,74 @@ pub(super) fn move_enemy_agents(
 
         actual_velocity.velocity =
             (transform.translation - start_position) / delta;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_profile(movement_speed: f32) -> SummonCombatProfile {
+        SummonCombatProfile {
+            attack_damage: 12.0,
+            attack_interval_seconds: 2.0,
+            melee_range: 2.5,
+            aggro_range: 15.0,
+            leash_range: 40.0,
+            movement_speed,
+        }
+    }
+
+    #[test]
+    fn normal_enemies_use_default_navigation_speeds() {
+        assert_eq!(
+            navigation_speeds(None),
+            (5.0, 7.0)
+        );
+    }
+
+    #[test]
+    fn summons_use_their_configured_movement_speed() {
+        let profile = test_profile(8.0);
+
+        let (desired_speed, max_speed) =
+            navigation_speeds(Some(&profile));
+
+        assert_eq!(desired_speed, 8.0);
+        assert!((max_speed - 11.2).abs() < 0.0001);
+    }
+
+    #[test]
+    fn invalid_summon_speed_uses_default_navigation_speeds() {
+        let zero_speed = test_profile(0.0);
+        let nan_speed = test_profile(f32::NAN);
+        let infinite_speed = test_profile(f32::INFINITY);
+
+        assert_eq!(
+            navigation_speeds(Some(&zero_speed)),
+            (5.0, 7.0)
+        );
+
+        assert_eq!(
+            navigation_speeds(Some(&nan_speed)),
+            (5.0, 7.0)
+        );
+
+        assert_eq!(
+            navigation_speeds(Some(&infinite_speed)),
+            (5.0, 7.0)
+        );
+    }
+
+    #[test]
+    fn maximum_speed_never_falls_below_desired_speed() {
+        let profile = test_profile(f32::MAX);
+
+        let (desired_speed, max_speed) =
+            navigation_speeds(Some(&profile));
+
+        assert_eq!(desired_speed, f32::MAX);
+        assert!(max_speed >= desired_speed);
+        assert!(max_speed.is_finite());
     }
 }
