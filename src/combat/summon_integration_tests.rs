@@ -538,7 +538,10 @@ fn enemy_summons_acquire_and_attack_a_player_end_to_end() {
         .world_mut()
         .spawn((
             Enemy,
-            EnemyAi::default(),
+            EnemyAi {
+                returning_home: true,
+                ..Default::default()
+            },
             CombatLevel::new(60).unwrap(),
             Transform::IDENTITY,
         ))
