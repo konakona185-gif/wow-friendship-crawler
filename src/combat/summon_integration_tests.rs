@@ -21,6 +21,7 @@ use super::{
     effect_runtime,
     summon_ai,
     summon_attacks,
+    summon_lifecycle,
     summons,
     AllySummon,
     CombatAttributes,
@@ -125,6 +126,7 @@ fn setup_summon_integration_app() -> App {
         .add_systems(
             Update,
             (
+                summon_lifecycle::summon_lifecycle_system,
                 effect_runtime::execute_pending_effects,
                 summons::spawn_pending_summons,
                 enemy_ai::enemy_aggro_system,
@@ -597,4 +599,94 @@ fn enemy_summons_acquire_and_attack_a_player_end_to_end() {
 
     assert_eq!(player_health.current(), 76.0);
     assert_eq!(player_stats.current_health, 76.0);
+}
+
+#[test]
+fn timed_summons_expire_after_their_duration_end_to_end() {
+    let mut app = setup_summon_integration_app();
+
+    let owner = app
+        .world_mut()
+        .spawn((
+            Character,
+            CombatLevel::new(60).unwrap(),
+            Transform::IDENTITY,
+        ))
+        .id();
+
+    enqueue_summon_effect(&mut app, owner);
+
+    app.update();
+
+    let spawned_summons = {
+        let world = app.world_mut();
+        let mut summon_query = world.query_filtered::<
+            Entity,
+            With<SummonedCreature>,
+        >();
+
+        summon_query.iter(world).collect::<Vec<_>>()
+    };
+
+    assert_eq!(spawned_summons.len(), 2);
+
+    advance_test_time(&mut app, 30.0);
+    app.update();
+
+    let remaining_summons = {
+        let world = app.world_mut();
+        let mut summon_query = world.query_filtered::<
+            Entity,
+            With<SummonedCreature>,
+        >();
+
+        summon_query.iter(world).count()
+    };
+
+    assert_eq!(remaining_summons, 0);
+}
+
+#[test]
+fn summons_are_despawned_when_their_owner_is_removed_end_to_end() {
+    let mut app = setup_summon_integration_app();
+
+    let owner = app
+        .world_mut()
+        .spawn((
+            Character,
+            CombatLevel::new(60).unwrap(),
+            Transform::IDENTITY,
+        ))
+        .id();
+
+    enqueue_summon_effect(&mut app, owner);
+
+    app.update();
+
+    let spawned_summons = {
+        let world = app.world_mut();
+        let mut summon_query = world.query_filtered::<
+            Entity,
+            With<SummonedCreature>,
+        >();
+
+        summon_query.iter(world).collect::<Vec<_>>()
+    };
+
+    assert_eq!(spawned_summons.len(), 2);
+
+    app.world_mut().despawn(owner);
+    app.update();
+
+    let remaining_summons = {
+        let world = app.world_mut();
+        let mut summon_query = world.query_filtered::<
+            Entity,
+            With<SummonedCreature>,
+        >();
+
+        summon_query.iter(world).count()
+    };
+
+    assert_eq!(remaining_summons, 0);
 }
