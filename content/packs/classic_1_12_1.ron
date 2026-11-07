@@ -255,5 +255,116 @@
                 ),
             ),
         ),
+        (
+            metadata: (
+                id: "classic_1_12_1:effect.corruption_tick",
+                pack_id: "pack:classic_1_12_1",
+                name: "Corruption Periodic Damage",
+                description: "Infligge danni Shadow periodici.",
+                icon: None,
+                tags: ["warlock", "shadow", "periodic"],
+            ),
+            trigger: on_periodic_tick,
+            target: (
+                type: selected_target,
+            ),
+            kind: (
+                type: damage,
+                parameters: (
+                    amount: (
+                        base: 137.0,
+                        scaling: [
+                            (
+                                stat: "classic_1_12_1:stat.spell_power",
+                                coefficient: 0.167,
+                            ),
+                        ],
+                    ),
+                    school: "classic_1_12_1:school.shadow",
+                ),
+            ),
+        ),
+        (
+            metadata: (
+                id: "classic_1_12_1:effect.apply_corruption",
+                pack_id: "pack:classic_1_12_1",
+                name: "Apply Corruption",
+                description: "Applica Corruption al bersaglio.",
+                icon: None,
+                tags: ["warlock", "shadow", "debuff"],
+            ),
+            trigger: on_cast,
+            target: (
+                type: selected_target,
+            ),
+            kind: (
+                type: apply_aura,
+                parameters: (
+                    aura: "classic_1_12_1:aura.corruption",
+                    stacks: 1,
+                    duration_seconds: Some(18.0),
+                ),
+            ),
+        ),
+    ],
+
+    auras: [
+        (
+            metadata: (
+                id: "classic_1_12_1:aura.corruption",
+                pack_id: "pack:classic_1_12_1",
+                name: "Corruption",
+                description: "Debuff Shadow che infligge danni periodici.",
+                icon: None,
+                tags: ["warlock", "shadow", "debuff", "periodic"],
+            ),
+            max_stacks: 1,
+            stacking_policy: refresh_duration,
+            stacking_scope: per_caster,
+            refresh_policy: pandemic,
+            periodic_effects: [
+                (
+                    effect: "classic_1_12_1:effect.corruption_tick",
+                    interval_seconds: 3.0,
+                    stack_scaling: none,
+                ),
+            ],
+        ),
+    ],
+
+    abilities: [
+        (
+            metadata: (
+                id: "classic_1_12_1:ability.corruption",
+                pack_id: "pack:classic_1_12_1",
+                name: "Corruption",
+                description: "Corrompe il bersaglio infliggendo 822 danni Shadow in 18 secondi.",
+                icon: None,
+                tags: ["warlock", "affliction", "shadow", "damage_over_time"],
+            ),
+            activation: (
+                type: cast,
+                parameters: (
+                    cast_time_seconds: 2.0,
+                ),
+            ),
+            targeting: hostile_unit,
+            range: (
+                min_range: 0.0,
+                max_range: 30.0,
+            ),
+            cooldown_seconds: 0.0,
+            costs: [
+                (
+                    resource: "classic_1_12_1:resource.mana",
+                    amount: 340.0,
+                ),
+            ],
+            effects: [
+                "classic_1_12_1:effect.apply_corruption",
+            ],
+            class_restrictions: [],
+            prerequisites: [],
+        ),
     ],
 )
