@@ -31,6 +31,7 @@ mod healing;
 mod player_attacks;
 mod resources;
 mod stats;
+mod summon_ai;
 mod summons;
 mod target_indicator;
 mod target_selection;
@@ -124,6 +125,7 @@ pub use stats::{
 };
 pub use summons::{
     AllySummon,
+    AllySummonAi,
     SummonFaction,
     SummonedCreature,
 };
@@ -233,6 +235,7 @@ impl Plugin for CombatPlugin {
                     player_attacks::player_cast_system,
                     death::enemy_death_system,
                     enemy_ai::enemy_aggro_system,
+                    summon_ai::ally_summon_aggro_system,
                     enemy_attacks::enemy_attack_system,
                     target_indicator::target_indicator_system,
                     aura_systems::tick_active_auras,
