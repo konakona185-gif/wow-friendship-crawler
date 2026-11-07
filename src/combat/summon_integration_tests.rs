@@ -885,3 +885,131 @@ fn recursive_enemy_summons_inherit_faction_and_are_cleaned_up_with_root_owner_en
 
     assert_eq!(remaining_summons, 0);
 }
+
+#[test]
+fn classic_pack_summon_imp_executes_end_to_end() {
+    let mut database = ContentDatabase::new();
+
+    crate::content::ContentPackLoader::load_ron(
+        &mut database,
+        include_str!("../../content/packs/classic_1_12_1.ron"),
+    )
+    .unwrap();
+
+    let mut app = App::new();
+
+    app.insert_resource(database.clone())
+        .insert_resource(Time::<()>::default())
+        .init_resource::<PendingCombatEffects>()
+        .init_resource::<CombatEventQueue>()
+        .init_resource::<summons::PendingSummons>()
+        .add_systems(
+            Update,
+            (
+                effect_runtime::execute_pending_effects,
+                summons::spawn_pending_summons,
+            )
+                .chain(),
+        );
+
+    let owner_position = Vec3::new(4.0, 5.0, 6.0);
+
+    let owner = app
+        .world_mut()
+        .spawn((
+            Character,
+            CombatLevel::new(60).unwrap(),
+            CombatAttributes::default(),
+            Transform::from_translation(owner_position),
+        ))
+        .id();
+
+    let summon_effect_id = ContentId::new(
+        "classic_1_12_1:effect.summon_imp",
+    )
+    .unwrap();
+
+    let resolved_count = app
+        .world_mut()
+        .resource_mut::<PendingCombatEffects>()
+        .resolve_and_enqueue_from_database(
+            &database,
+            &summon_effect_id,
+            Some(owner),
+            EffectTargetSelection::Caster,
+            &CombatAttributes::default(),
+        )
+        .unwrap();
+
+    assert_eq!(resolved_count, 1);
+
+    app.update();
+
+    let world = app.world_mut();
+
+    let mut summon_query =
+        world.query_filtered::<Entity, With<AllySummon>>();
+
+    let spawned_summons: Vec<Entity> =
+        summon_query.iter(world).collect();
+
+    assert_eq!(spawned_summons.len(), 1);
+
+    let summon_entity = spawned_summons[0];
+
+    let summon = world
+        .get::<SummonedCreature>(summon_entity)
+        .unwrap();
+
+    let level = world
+        .get::<CombatLevel>(summon_entity)
+        .unwrap();
+
+    let health = world
+        .get::<HealthPool>(summon_entity)
+        .unwrap();
+
+    let stats = world
+        .get::<CombatStats>(summon_entity)
+        .unwrap();
+
+    let profile = world
+        .get::<SummonCombatProfile>(summon_entity)
+        .unwrap();
+
+    let transform = world
+        .get::<Transform>(summon_entity)
+        .unwrap();
+
+    assert_eq!(summon.owner, owner);
+    assert_eq!(summon.creature, creature_id());
+    assert_eq!(summon.faction, SummonFaction::Allies);
+    assert_eq!(summon.remaining_duration(), None);
+
+    assert_eq!(level.value(), 60);
+
+    assert_eq!(health.current(), 150.0);
+    assert_eq!(health.maximum(), 150.0);
+
+    assert_eq!(stats.current_health, 150.0);
+    assert_eq!(stats.max_health, 150.0);
+
+    assert_eq!(profile.attack_damage, 12.0);
+    assert_eq!(profile.attack_interval_seconds, 2.0);
+    assert_eq!(profile.melee_range, 2.5);
+    assert_eq!(profile.aggro_range, 15.0);
+    assert_eq!(profile.leash_range, 40.0);
+    assert_eq!(profile.movement_speed, 5.0);
+
+    assert_eq!(transform.translation, owner_position);
+
+    assert!(
+        world.get::<Enemy>(summon_entity).is_none()
+    );
+
+    assert!(
+        world
+            .resource::<summons::PendingSummons>()
+            .is_empty()
+    );
+}
