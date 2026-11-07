@@ -455,3 +455,169 @@ fn reactive_area_effects_from_ally_summon_respect_both_factions_end_to_end() {
             .is_empty()
     );
 }
+
+#[test]
+fn periodic_area_effect_scales_each_enemy_by_stack_count() {
+    let pack_id =
+        ContentId::new("pack:dispatcher_tests").unwrap();
+
+    let effect_id = content_id("effect.periodic_area");
+
+    let mut database = ContentDatabase::new();
+
+    database
+        .register_pack(ContentPackManifest {
+            id: pack_id.clone(),
+            name: "Dispatcher Tests".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            dependencies: Vec::new(),
+        })
+        .unwrap();
+
+    database
+        .register_effect(EffectDefinition {
+            metadata: metadata(
+                effect_id.clone(),
+                &pack_id,
+                "Periodic Area Heal",
+            ),
+            trigger: EffectTrigger::OnPeriodicTick,
+            target: EffectTarget::EnemiesInRadius {
+                radius: 5.0,
+            },
+            kind: EffectKind::Heal {
+                amount: EffectMagnitude {
+                    base: 10.0,
+                    scaling: Vec::new(),
+                },
+            },
+        })
+        .unwrap();
+
+    let mut app = App::new();
+
+    app.insert_resource(database)
+        .init_resource::<CombatEventQueue>()
+        .init_resource::<PendingCombatEffects>()
+        .add_systems(
+            Update,
+            (
+                super::super::super::effect_runtime::execute_pending_effects,
+                dispatch_combat_events,
+            )
+                .chain(),
+        );
+
+    let mut subscriptions =
+        CombatEffectSubscriptions::default();
+
+    subscriptions.subscribe(effect_id.clone());
+
+    let subscriber = spawn_area_combatant(
+        &mut app,
+        TestCombatantSide::Character,
+        Vec3::ZERO,
+        50.0,
+    );
+
+    app.world_mut()
+        .entity_mut(subscriber)
+        .insert((
+            subscriptions,
+            CombatAttributes::default(),
+        ));
+
+    let first_nearby_enemy = spawn_area_combatant(
+        &mut app,
+        TestCombatantSide::Enemy,
+        Vec3::new(3.0, 0.0, 0.0),
+        50.0,
+    );
+
+    let second_nearby_enemy = spawn_area_combatant(
+        &mut app,
+        TestCombatantSide::Enemy,
+        Vec3::new(4.0, 0.0, 0.0),
+        40.0,
+    );
+
+    let distant_enemy = spawn_area_combatant(
+        &mut app,
+        TestCombatantSide::Enemy,
+        Vec3::new(8.0, 0.0, 0.0),
+        50.0,
+    );
+
+    app.world_mut()
+        .resource_mut::<CombatEventQueue>()
+        .enqueue(CombatEventContext {
+            trigger: EffectTrigger::OnPeriodicTick,
+            source: Some(subscriber),
+            target: Some(first_nearby_enemy),
+            ability: None,
+            effect: Some(effect_id),
+            outcome: Some(periodic_tick_outcome(
+                3,
+                PeriodicEffectStackScaling::Linear,
+            )),
+        })
+        .unwrap();
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .len(),
+        2
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(first_nearby_enemy)
+            .unwrap()
+            .current(),
+        50.0
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(second_nearby_enemy)
+            .unwrap()
+            .current(),
+        40.0
+    );
+
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(first_nearby_enemy)
+            .unwrap()
+            .current(),
+        80.0
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(second_nearby_enemy)
+            .unwrap()
+            .current(),
+        70.0
+    );
+
+    assert_eq!(
+        app.world()
+            .get::<HealthPool>(distant_enemy)
+            .unwrap()
+            .current(),
+        50.0
+    );
+
+    assert!(
+        app.world()
+            .resource::<PendingCombatEffects>()
+            .is_empty()
+    );
+}
