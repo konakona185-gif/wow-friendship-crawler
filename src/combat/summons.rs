@@ -1,6 +1,17 @@
 use bevy::prelude::*;
 
-use crate::content::ContentId;
+use crate::content::{ContentDatabase, ContentId};
+use crate::player::Character;
+
+use super::{
+    CombatAttributes,
+    CombatLevel,
+    CombatStats,
+    Enemy,
+    EnemyAi,
+    EnemyHomePosition,
+    HealthPool,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SummonFaction {
@@ -98,6 +109,152 @@ impl PendingSummons {
     }
 }
 
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub(super) struct SummonCombatProfile {
+    pub attack_damage: f32,
+    pub attack_interval_seconds: f32,
+    pub melee_range: f32,
+    pub aggro_range: f32,
+    pub leash_range: f32,
+    pub movement_speed: f32,
+}
+
+pub(super) fn spawn_pending_summons(
+    mut commands: Commands,
+    mut pending: ResMut<PendingSummons>,
+    database: Res<ContentDatabase>,
+    owners: Query<(
+        &CombatLevel,
+        Has<Character>,
+        Has<Enemy>,
+        Option<&SummonedCreature>,
+    )>,
+) {
+    let requests = pending.take_pending();
+
+    for request in requests {
+        if request.count == 0
+            || !request.spawn_position.is_finite()
+            || request.duration_seconds.is_some_and(|duration| {
+                !duration.is_finite() || duration <= 0.0
+            })
+        {
+            warn!(
+                owner = ?request.owner,
+                creature = %request.creature.as_str(),
+                count = request.count,
+                duration_seconds = ?request.duration_seconds,
+                spawn_position = ?request.spawn_position,
+                "Impossibile creare l'evocazione: richiesta non valida."
+            );
+            continue;
+        }
+
+        let Ok((
+            owner_level,
+            is_character,
+            is_enemy,
+            parent_summon,
+        )) = owners.get(request.owner)
+        else {
+            warn!(
+                owner = ?request.owner,
+                creature = %request.creature.as_str(),
+                "Impossibile creare l'evocazione: proprietario mancante o privo di CombatLevel."
+            );
+            continue;
+        };
+
+        let faction = if let Some(parent_summon) = parent_summon {
+            parent_summon.faction
+        } else if is_character && !is_enemy {
+            SummonFaction::Allies
+        } else if is_enemy && !is_character {
+            SummonFaction::Enemies
+        } else {
+            warn!(
+                owner = ?request.owner,
+                creature = %request.creature.as_str(),
+                "Impossibile determinare la fazione runtime del proprietario."
+            );
+            continue;
+        };
+
+        let Some(creature) = database.creature(&request.creature) else {
+            warn!(
+                owner = ?request.owner,
+                creature = %request.creature.as_str(),
+                "Impossibile creare l'evocazione: creatura non registrata."
+            );
+            continue;
+        };
+
+        let health_pool = match HealthPool::new(
+            creature.health,
+            creature.health,
+        ) {
+            Ok(pool) => pool,
+            Err(error) => {
+                warn!(
+                    creature = %request.creature.as_str(),
+                    %error,
+                    "Impossibile inizializzare la salute dell'evocazione."
+                );
+                continue;
+            }
+        };
+
+        let level = *owner_level;
+        let combat_profile = SummonCombatProfile {
+            attack_damage: creature.attack_damage,
+            attack_interval_seconds: creature.attack_interval_seconds,
+            melee_range: creature.melee_range,
+            aggro_range: creature.aggro_range,
+            leash_range: creature.leash_range,
+            movement_speed: creature.movement_speed,
+        };
+
+        for _ in 0..request.count {
+            let mut entity_commands = commands.spawn((
+                SummonedCreature::new(
+                    request.owner,
+                    request.creature.clone(),
+                    faction,
+                    request.duration_seconds,
+                ),
+                combat_profile,
+                CombatStats {
+                    current_health: creature.health,
+                    max_health: creature.health,
+                    resource: 0.0,
+                },
+                health_pool,
+                level,
+                CombatAttributes::default(),
+                Transform::from_translation(request.spawn_position),
+            ));
+
+            match faction {
+                SummonFaction::Allies => {
+                    entity_commands.insert(AllySummon);
+                }
+                SummonFaction::Enemies => {
+                    entity_commands.insert((
+                        Enemy,
+                        EnemyAi {
+                            target: None,
+                            aggro_range: creature.aggro_range,
+                            leash_range: creature.leash_range,
+                            returning_home: false,
+                        },
+                        EnemyHomePosition(request.spawn_position),
+                    ));
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,6 +290,37 @@ mod tests {
 
     fn pack_id() -> ContentId {
         ContentId::new("pack:classic_1_12_1").unwrap()
+    }
+
+    fn spawn_test_app() -> App {
+        let database = summon_test_database(
+            EffectTarget::Caster,
+            true,
+        );
+
+        let mut app = App::new();
+
+        app.insert_resource(database)
+            .init_resource::<PendingSummons>()
+            .add_systems(Update, spawn_pending_summons);
+
+        app
+    }
+
+    fn enqueue_spawn_request(
+        app: &mut App,
+        owner: Entity,
+        count: u32,
+    ) {
+        app.world_mut()
+            .resource_mut::<PendingSummons>()
+            .enqueue(PendingSummon {
+                owner,
+                creature: creature_id(),
+                spawn_position: Vec3::new(4.0, 2.0, -3.0),
+                count,
+                duration_seconds: Some(30.0),
+            });
     }
 
     fn summon_test_database(
@@ -548,6 +736,166 @@ mod tests {
                 .resource::<PendingSummons>()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn spawn_system_creates_ally_summons_at_owner_level() {
+        let mut app = spawn_test_app();
+
+        let owner = app
+            .world_mut()
+            .spawn((
+                Character,
+                CombatLevel::new(60).unwrap(),
+                Transform::IDENTITY,
+            ))
+            .id();
+
+        enqueue_spawn_request(&mut app, owner, 2);
+
+        app.update();
+
+        let world = app.world_mut();
+        let mut query = world.query_filtered::<Entity, With<AllySummon>>();
+        let entities: Vec<Entity> = query.iter(world).collect();
+
+        assert_eq!(entities.len(), 2);
+
+        for entity in entities {
+            let summon = world.get::<SummonedCreature>(entity).unwrap();
+            let level = world.get::<CombatLevel>(entity).unwrap();
+            let health = world.get::<HealthPool>(entity).unwrap();
+            let stats = world.get::<CombatStats>(entity).unwrap();
+            let profile = world.get::<SummonCombatProfile>(entity).unwrap();
+            let transform = world.get::<Transform>(entity).unwrap();
+
+            assert_eq!(summon.owner, owner);
+            assert_eq!(summon.faction, SummonFaction::Allies);
+            assert_eq!(summon.creature, creature_id());
+            assert_eq!(summon.remaining_duration(), Some(30.0));
+            assert_eq!(level.value(), 60);
+            assert_eq!(health.current(), 150.0);
+            assert_eq!(health.maximum(), 150.0);
+            assert_eq!(stats.current_health, 150.0);
+            assert_eq!(stats.max_health, 150.0);
+            assert_eq!(profile.attack_damage, 12.0);
+            assert_eq!(profile.attack_interval_seconds, 2.0);
+            assert_eq!(profile.melee_range, 2.5);
+            assert_eq!(profile.aggro_range, 15.0);
+            assert_eq!(profile.leash_range, 40.0);
+            assert_eq!(profile.movement_speed, 5.0);
+            assert_eq!(
+                transform.translation,
+                Vec3::new(4.0, 2.0, -3.0)
+            );
+            assert!(world.get::<Enemy>(entity).is_none());
+        }
+
+        assert!(world.resource::<PendingSummons>().is_empty());
+    }
+
+    #[test]
+    fn spawn_system_creates_enemy_summons_with_enemy_components() {
+        let mut app = spawn_test_app();
+
+        let owner = app
+            .world_mut()
+            .spawn((
+                Enemy,
+                EnemyAi::default(),
+                CombatLevel::new(42).unwrap(),
+                Transform::IDENTITY,
+            ))
+            .id();
+
+        enqueue_spawn_request(&mut app, owner, 1);
+
+        app.update();
+
+        let world = app.world_mut();
+        let mut query = world.query_filtered::<Entity, With<Enemy>>();
+        let entities: Vec<Entity> = query
+            .iter(world)
+            .filter(|entity| *entity != owner)
+            .collect();
+
+        assert_eq!(entities.len(), 1);
+
+        let entity = entities[0];
+        let summon = world.get::<SummonedCreature>(entity).unwrap();
+        let level = world.get::<CombatLevel>(entity).unwrap();
+        let ai = world.get::<EnemyAi>(entity).unwrap();
+        let home = world.get::<EnemyHomePosition>(entity).unwrap();
+
+        assert_eq!(summon.owner, owner);
+        assert_eq!(summon.faction, SummonFaction::Enemies);
+        assert_eq!(level.value(), 42);
+        assert_eq!(ai.aggro_range, 15.0);
+        assert_eq!(ai.leash_range, 40.0);
+        assert_eq!(home.0, Vec3::new(4.0, 2.0, -3.0));
+        assert!(world.get::<AllySummon>(entity).is_none());
+    }
+
+    #[test]
+    fn spawned_summons_inherit_the_runtime_faction_of_their_owner() {
+        let mut app = spawn_test_app();
+
+        let owner = app
+            .world_mut()
+            .spawn((
+                Enemy,
+                EnemyAi::default(),
+                SummonedCreature::new(
+                    Entity::from_bits(99),
+                    creature_id(),
+                    SummonFaction::Enemies,
+                    None,
+                ),
+                CombatLevel::new(60).unwrap(),
+                Transform::IDENTITY,
+            ))
+            .id();
+
+        enqueue_spawn_request(&mut app, owner, 1);
+
+        app.update();
+
+        let world = app.world_mut();
+        let mut query = world.query_filtered::<Entity, With<SummonedCreature>>();
+        let child = query
+            .iter(world)
+            .find(|entity| *entity != owner)
+            .unwrap();
+
+        let child_summon = world.get::<SummonedCreature>(child).unwrap();
+
+        assert_eq!(child_summon.owner, owner);
+        assert_eq!(child_summon.faction, SummonFaction::Enemies);
+        assert!(world.get::<Enemy>(child).is_some());
+        assert!(world.get::<AllySummon>(child).is_none());
+    }
+
+    #[test]
+    fn spawn_system_rejects_owner_without_runtime_faction() {
+        let mut app = spawn_test_app();
+
+        let owner = app
+            .world_mut()
+            .spawn((
+                CombatLevel::new(60).unwrap(),
+                Transform::IDENTITY,
+            ))
+            .id();
+
+        enqueue_spawn_request(&mut app, owner, 1);
+
+        app.update();
+
+        let world = app.world_mut();
+        let mut query = world.query::<&SummonedCreature>();
+
+        assert_eq!(query.iter(world).count(), 0);
+        assert!(world.resource::<PendingSummons>().is_empty());
     }
 
     #[test]
