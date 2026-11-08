@@ -244,7 +244,7 @@ La Fase 3 è stata chiusa con la Run #522: controllo preliminare Rust superato; 
 
 ### Fase 3.5 — Refactoring e riorganizzazione strutturale
 
-**Stato: GRUPPI 1–6 COMPLETATI STRUTTURALMENTE E SOTTOPOSTI AD AUDIT STATICO; Gruppo 7 autorizzato e in fase di preparazione. Formattazione, compilazione, suite dei test e GitHub Actions non sono ancora state eseguite sullo SHA corrente. La verifica finale è obbligatoria prima della Fase 4.**
+**Stato: GRUPPI 1–6 COMPLETATI STRUTTURALMENTE E SOTTOPOSTI AD AUDIT STATICO. GRUPPO 7 IN CORSO: LA PRIMA CI (#536) È FALLITA DURANTE IL CONTROLLO DI FORMATTazione; L'ERRORE È STATO CORRETTO E PUBBLICATO, MA LA NUOVA CI SULLO SHA CORRETTO È ANCORA PENDENTE. COMPILAZIONE, SUITE DEI TEST E AVVIO HEADLESS NON SONO ANCORA STATI VERIFICATI SULLO SHA CORRETTO. LA VERIFICA FINALE È OBBLIGATORIA PRIMA DELLA FASE 4.**
 
 Prima di sviluppare il sistema di esecuzione delle abilità, riorganizzare in modo pulito e coerente l'intera struttura dei sorgenti sotto `src/`.
 
@@ -366,6 +366,32 @@ Le Run 446–448 erano fallite per l'import non risolto; la Run 449 era stata an
 
 Questa è la CI usata per dichiarare completata la Fase 3. Una CI è verde soltanto quando `conclusion = success` sulla run associata allo SHA esatto. `cancelled`, `failure`, `in_progress` e `pending` non sono esiti verdi.
 
+### Run #536 — prima verifica tecnica della Fase 3.5
+
+- Run ID: `42504899025`.
+- Branch: `refactor/src-domain-layout`.
+- Commit/SHA testato: `0cfcf2a61fff40500c7f9aac7ebec7c50cae7c77`.
+- Evento: `workflow_dispatch`.
+- Esito finale: **failure**.
+- Il job preliminare Rust è fallito durante `cargo fmt --all -- --check`.
+- Errore: `expected item after attributes` in `src/combat/effects/dispatcher/tests/reactive_runtime_tests.rs`, riga 488.
+- Causa: una direttiva `#[cfg(test)]` era rimasta orfana dopo lo spostamento della dichiarazione `mod area_tests` nel modulo parent.
+- I job di compilazione e test Windows e Linux sono stati saltati perché dipendenti dal controllo preliminare.
+- Compilazione, test release e avvio headless non sono stati verificati in questa esecuzione.
+- Run: https://github.com/konakona185-gif/wow-friendship-crawler/actions/runs/42504899025
+
+### Correzione successiva alla Run #536
+
+- Correzione applicata: rimossa esclusivamente la direttiva `#[cfg(test)]` orfana da `src/combat/effects/dispatcher/tests/reactive_runtime_tests.rs`.
+- La dichiarazione `mod area_tests` rimane nel modulo parent `tests/mod.rs`, già protetto da `#[cfg(test)]`.
+- Gli 11 test di `reactive_runtime_tests.rs` e le suite sibling sono stati preservati.
+- Commit della correzione: `b69aefcf7efe844d8c9bf32227bf04ec6cfca2ba`.
+- Messaggio: `Remove unnecessary lines from reactive_runtime_tests.rs`.
+- Il commit modifica esclusivamente `src/combat/effects/dispatcher/tests/reactive_runtime_tests.rs`, rimuovendo la direttiva orfana e la riga vuota finale.
+- La modifica è stata verificata leggendo il file aggiornato e confrontando il diff del commit su GitHub.
+- La correzione non è ancora stata verificata tramite una nuova esecuzione GitHub Actions.
+- Formattazione, compilazione, test Linux/Windows e avvio headless restano da verificare sul nuovo SHA.
+
 ## 9. Regole operative di sviluppo
 
 ### File e modifiche
@@ -395,7 +421,7 @@ Questa è la CI usata per dichiarare completata la Fase 3. Una CI è verde solta
 
 ### CI e commit
 
-- Tutti i commit del refactoring devono essere creati su `refactor/src-domain-layout`; `main` non va modificato direttamente.
+- Tutti i commit del refactoring devono essere creati su `refactor/src-domain-layout`; `main` non va modificato direttamente durante la Fase 3.5.
 - Raggruppare modifiche compatibili prima di avviare nuove verifiche; evitare run intermedie inutili.
 - Non è necessario attendere una CI verde per ogni singolo file se è sicuro proseguire.
 - Dichiarare una CI superata solo dopo aver verificato l'esito e lo SHA esatto del branch interessato.
@@ -414,13 +440,14 @@ Durante queste sessioni concentrarsi esclusivamente sul progetto WoW, non sul pr
 
 1. La Fase 3 è completata sulla revisione `55e001ec7dc06f5d9bbb3107f3b5ef3f96354b38`, verificata dalla Run #522.
 2. Proseguire esclusivamente sul branch `refactor/src-domain-layout`, creato dallo SHA `454874a358a18e7e565043d797e3c42ddc46323f`; non modificare direttamente `main`.
-3. I Gruppi 1–6 della Fase 3.5 sono completati strutturalmente e sottoposti ad audit statico; la mappatura finale comprende 135 file e il confronto statico registra 660 test (656 nomi distinti), senza differenze rispetto a HEAD.
-4. Il Gruppo 7 è autorizzato e in preparazione. Formattazione, compilazione, suite completa dei test e GitHub Actions restano da eseguire: nessuna verifica tecnica finale è stata superata sullo SHA corrente.
-5. Il controllo `cargo fmt --all -- --check` in `.github/workflows/build.yml` è stato reso bloccante: viene eseguito direttamente e un errore fallisce il job. La modifica è stata verificata staticamente, ma il workflow non è ancora stato eseguito; il risultato di formattazione sullo SHA finale resta da verificare.
-6. Eseguire e verificare la CI finale Linux/Windows/headless sullo SHA finale, controllando l'esito e lo SHA esatto della run.
-7. Registrare in questa roadmap struttura definitiva, SHA e risultati CI dopo che le verifiche saranno effettivamente completate.
-8. Solo dopo audit e CI verde preparare una Pull Request verso `main`; integrare il branch soltanto dopo revisione e approvazione.
-9. Solo dopo la chiusura verificata della Fase 3.5 iniziare la Fase 4.
+3. I Gruppi 1–6 della Fase 3.5 sono completati strutturalmente e sottoposti ad audit statico; la mappatura finale comprende 135 file e il confronto statico registra 660 test (656 nomi distinti), senza differenze rispetto alla baseline.
+4. Il Gruppo 7 è in corso. La Run #536, eseguita sullo SHA `0cfcf2a61fff40500c7f9aac7ebec7c50cae7c77`, è fallita durante `cargo fmt --all -- --check` per una direttiva `#[cfg(test)]` orfana. I job di compilazione e test Linux/Windows sono stati saltati perché il controllo preliminare è fallito.
+5. La direttiva orfana è stata rimossa e la correzione è stata pubblicata sul branch con il commit `b69aefcf7efe844d8c9bf32227bf04ec6cfca2ba`. La correzione non è ancora stata verificata da una nuova esecuzione CI.
+6. Il controllo `cargo fmt --all -- --check` in `.github/workflows/build.yml` è bloccante: un errore fa fallire il job. La prima esecuzione ha confermato che il controllo blocca correttamente il workflow.
+7. Eseguire nuovamente la CI finale Linux/Windows/headless sullo SHA aggiornato, verificando formattazione, compilazione, test, avvio headless, artifact ed esatto SHA della run.
+8. Registrare in questa roadmap struttura definitiva, SHA e risultati CI dopo che le verifiche saranno effettivamente completate.
+9. Solo dopo audit e CI verde preparare una Pull Request verso `main`; integrare il branch soltanto dopo revisione e approvazione esplicita dell'utente.
+10. Solo dopo la chiusura verificata della Fase 3.5 iniziare la Fase 4.
 
 **Non iniziare la Fase 4 prima del completamento del refactoring.**
 
