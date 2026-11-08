@@ -7,7 +7,7 @@ mod character;
 mod content;
 mod interaction;
 mod navigation;
-mod enemy_navigation;
+mod movement;
 
 use bevy::camera::{PerspectiveProjection, Projection};
 use bevy::core_pipeline::tonemapping::Tonemapping;
@@ -63,8 +63,7 @@ use fellowship::{
 use character::{CharacterBuild, CharacterClass, CharacterRace};
 use content::{ContentDatabase, ContentId, ContentPackLoader};
 use interaction::InteractionPlugin;
-use navigation::NavigationPlugin;
-use enemy_navigation::EnemyNavigationPlugin;
+use navigation::{EnemyNavigationPlugin, NavigationPlugin};
 
 const STARTING_COMBAT_LEVEL: u32 = 60;
 

@@ -1,6 +1,6 @@
 # Pipeline dei contenuti e struttura del progetto
 
-Ultimo aggiornamento: 7 novembre 2026  
+Ultimo aggiornamento: 8 novembre 2026
 Branch stabile: `main`  
 Branch di lavoro per il refactoring: `refactor/src-domain-layout`  
 SHA iniziale del branch di refactoring: `454874a358a18e7e565043d797e3c42ddc46323f` (creato dallo stesso SHA di `main`)  
@@ -47,7 +47,7 @@ L'architettura deve essere modulare, estendibile e data-driven. I contenuti devo
 - In futuro dovrà essere possibile aggiungere contenuti originali o ispirati a espansioni successive: abilità, talenti, specializzazioni, classi, effetti, statistiche, formule, risorse e scuole di danno.
 - Le meccaniche già supportate dal motore devono essere configurabili tramite dati. Una meccanica nuova richiede un'implementazione specifica, da rendere riutilizzabile.
 - Evitare duplicazioni, responsabilità sovrapposte e dipendenze eccessive dalle singole classi.
-- Preferire componenti e risorse ECS riutilizzabili; evitare frammentazioni artificiali.
+- Preferire componenti e risorse ECS riutilizzabili; valutare confini modulari chiari in base alle responsabilità a qualunque dimensione dei file ed evitare frammentazioni artificiali.
 - Non modificare meccaniche esistenti senza spiegare prima le conseguenze e ottenere l'approvazione dell'utente.
 
 ### Decisioni sul combattimento
@@ -244,7 +244,7 @@ La Fase 3 è stata chiusa con la Run #522: controllo preliminare Rust superato; 
 
 ### Fase 3.5 — Refactoring e riorganizzazione strutturale
 
-**Stato: DA INIZIARE — OBBLIGATORIA PRIMA DELLA FASE 4.**
+**Stato: GRUPPI 1–6 COMPLETATI STRUTTURALMENTE E SOTTOPOSTI AD AUDIT STATICO; Gruppo 7 autorizzato e in fase di preparazione. Formattazione, compilazione, suite dei test e GitHub Actions non sono ancora state eseguite sullo SHA corrente. La verifica finale è obbligatoria prima della Fase 4.**
 
 Prima di sviluppare il sistema di esecuzione delle abilità, riorganizzare in modo pulito e coerente l'intera struttura dei sorgenti sotto `src/`.
 
@@ -253,7 +253,7 @@ Obiettivi:
 - Raggruppare codice, sottosistemi e test in directory per dominio/responsabilità. Esempio: `src/combat/summon/` deve contenere tutto ciò che riguarda Summon e i relativi test.
 - Dare una collocazione coerente anche ai sistemi aura, danno, effetti, nemici, giocatori, targeting, contenuti, navigazione e agli altri moduli presenti.
 - Ridurre la dispersione dei file nella root di `src/` e rendere i confini tra moduli chiari.
-- Suddividere file troppo grandi e raggruppare i test per responsabilità. Obiettivo: massimo 1.000 righe fisiche per file; oltre 1.000 la suddivisione va effettuata quando esistono responsabilità separabili; 1.500 è un limite eccezionale, da motivare e documentare.
+- Valutare tutti i moduli e i test per responsabilità separabili, anche quando sono molto sotto le 1.000 righe. Raggruppare test simili per funzionalità e comportamento, separare gruppi che verificano responsabilità differenti, e mantenere fixture/helper condivisi in moduli comuni senza duplicazioni. La soglia di 1.000 righe fisiche è un limite di attenzione che richiede una valutazione, non il criterio minimo per suddividere. Le suddivisioni devono migliorare concretamente coesione e architettura, senza creare file minuscoli o frammenti artificiali. Oltre 1.000 righe effettuare comunque una valutazione e suddividere quando le responsabilità sono separabili; oltre 1.500 righe serve una motivazione documentata e approvazione esplicita.
 - Aggiornare dichiarazioni `mod`, import, re-export, visibilità e percorsi dei test.
 - Conservare tutti i file, i test e il comportamento attuale: questo passaggio è strutturale, non una modifica alle meccaniche di gioco.
 
@@ -269,7 +269,7 @@ Procedura obbligatoria:
 2. Eseguire tutti gli spostamenti, gli aggiornamenti di moduli e gli altri commit esclusivamente su `refactor/src-domain-layout`; non committare direttamente su `main`.
 3. Seguire e, se necessario, correggere la mappa dei percorsi in `refactoring.md` prima degli spostamenti.
 4. Riorganizzare un gruppo coerente alla volta, mantenendo tutti i file e test.
-5. Suddividere i file oltre 1.000 righe quando esistono responsabilità o gruppi di test separabili; non superare 1.500 righe salvo eccezioni motivate e approvate.
+5. Valutare in tutti i domini ogni modulo e test per responsabilità separabili, indipendentemente dalle righe; suddividere quando c'è un vantaggio architetturale concreto. Usare 1.000 righe come soglia di attenzione e non come requisito minimo, raggruppare i test per funzione e riutilizzare fixture/helper condivisi. Evitare frammentazione artificiale; oltre 1.500 righe servono motivazione documentata e approvazione.
 6. Aggiornare moduli, import, re-export, visibilità e percorsi dei test.
 7. Controllare che non siano state introdotte modifiche funzionali involontarie.
 8. Completare l'intera riorganizzazione e poi eseguire una sola verifica CI finale, salvo errori che rendano indispensabili controlli intermedi.
@@ -385,8 +385,9 @@ Questa è la CI usata per dichiarare completata la Fase 3. Una CI è verde solta
 - Preservare tutte le funzionalità e i test esistenti.
 - Non aggiungere commenti al codice (`//` o `#`), salvo attributi Rust necessari.
 - Preferire sistemi modulari, riutilizzabili e data-driven; evitare duplicazioni e frammentazioni artificiali.
-- Obiettivo dimensionale per ogni file Rust sotto `src/`, inclusi i test: **1.000 righe fisiche o meno**, contando anche righe vuote e commenti.
-- Ogni file oltre 1.000 righe deve essere esaminato e suddiviso quando le responsabilità possono essere separate senza creare frammentazione artificiale.
+- Valutare la coesione di ogni file Rust sotto `src/`, inclusi i test, indipendentemente dal numero di righe. La soglia di **1.000 righe fisiche** (comprese righe vuote e commenti) è un limite di attenzione che richiede una valutazione, non il criterio minimo per suddividere.
+- Suddividere file di qualunque dimensione quando responsabilità distinte possono essere organizzate in unità coerenti con un vantaggio architetturale concreto. Oltre 1.000 righe la valutazione è obbligatoria; oltre 1.500 righe serve una motivazione tecnica documentata e approvazione esplicita.
+- Per i test, raggruppare i casi simili per funzionalità e comportamento e separare i gruppi che verificano responsabilità diverse; mantenere fixture e helper condivisi in moduli comuni ed evitare duplicazioni. Non creare file minuscoli o frammenti senza vantaggio concreto.
 - **1.500 righe è il limite eccezionale**: un file oltre tale soglia richiede motivazione tecnica documentata e approvazione esplicita.
 - Prima della chiusura della Fase 3.5 eseguire un audit dimensionale completo e registrare tutte le eccezioni.
 - I test devono essere suddivisi per aree funzionali; fixture e helper condivisi possono rimanere nel rispettivo `tests/mod.rs`.
@@ -413,12 +414,13 @@ Durante queste sessioni concentrarsi esclusivamente sul progetto WoW, non sul pr
 
 1. La Fase 3 è completata sulla revisione `55e001ec7dc06f5d9bbb3107f3b5ef3f96354b38`, verificata dalla Run #522.
 2. Proseguire esclusivamente sul branch `refactor/src-domain-layout`, creato dallo SHA `454874a358a18e7e565043d797e3c42ddc46323f`; non modificare direttamente `main`.
-3. Avviare la Fase 3.5 seguendo `.github/workflows/refactoring.md`.
-4. Verificare la mappatura dei file rispetto alla baseline di `main` e riorganizzare l'intero `src/` sul branch dedicato, senza modificare le meccaniche.
-5. Aggiornare `refactoring.md` durante il lavoro e completare la CI finale Linux/Windows/headless sul branch di refactoring.
-6. Registrare struttura definitiva, commit e CI in questa roadmap.
-7. Dopo revisione e CI verde, preparare una Pull Request verso `main`; solo dopo la sua approvazione integrare il refactoring.
-8. Solo dopo la chiusura della Fase 3.5 iniziare la Fase 4.
+3. I Gruppi 1–6 della Fase 3.5 sono completati strutturalmente e sottoposti ad audit statico; la mappatura finale comprende 135 file e il confronto statico registra 660 test (656 nomi distinti), senza differenze rispetto a HEAD.
+4. Il Gruppo 7 è autorizzato e in preparazione. Formattazione, compilazione, suite completa dei test e GitHub Actions restano da eseguire: nessuna verifica tecnica finale è stata superata sullo SHA corrente.
+5. Il controllo `cargo fmt --all -- --check` in `.github/workflows/build.yml` è stato reso bloccante: viene eseguito direttamente e un errore fallisce il job. La modifica è stata verificata staticamente, ma il workflow non è ancora stato eseguito; il risultato di formattazione sullo SHA finale resta da verificare.
+6. Eseguire e verificare la CI finale Linux/Windows/headless sullo SHA finale, controllando l'esito e lo SHA esatto della run.
+7. Registrare in questa roadmap struttura definitiva, SHA e risultati CI dopo che le verifiche saranno effettivamente completate.
+8. Solo dopo audit e CI verde preparare una Pull Request verso `main`; integrare il branch soltanto dopo revisione e approvazione.
+9. Solo dopo la chiusura verificata della Fase 3.5 iniziare la Fase 4.
 
 **Non iniziare la Fase 4 prima del completamento del refactoring.**
 
