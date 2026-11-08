@@ -484,5 +484,3 @@ fn aura_application_and_removal_events_enqueue_reactive_effects() {
         );
     }
 }
-
-#[cfg(test)]
