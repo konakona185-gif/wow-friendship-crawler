@@ -8,16 +8,27 @@
 - Stato Git iniziale: working tree pulito; branch allineato a `origin/refactor/src-domain-layout`.
 - SHA iniziale di creazione del branch, riportato nei documenti progettuali: `454874a358a18e7e565043d797e3c42ddc46323f`.
 - Fase attuale: preparazione e salvaguardia della Fase 3.5 (refactoring strutturale), prima degli spostamenti del codice. La Fase 4 del progetto resta bloccata fino al completamento e alla verifica della Fase 3.5.
-- Ultimo checkpoint Git committato: `6989ae52c59b5e17264364c9926949e10aacf50a`.
+- Ultimo checkpoint Git committato: `eae9af014ce1fbd935bc1f6f41b37109cca57447`.
 
 ## Stato verificato all'avvio
 
 - Ricognizione di `src/`, dei test, delle dimensioni e delle dipendenze completata il 2026-11-08.
 - Inventario osservato: 88 file Rust in 18 directory; dimensione misurata nella ricognizione: 948.467 byte.
-- La roadmap riporta 913.840 byte per la baseline iniziale. Questa differenza è un elemento noto da riconciliare prima degli spostamenti; non è stata interpretata come modifica al codice.
+- Riconciliazione dimensionale verificata: i blob Git della baseline iniziale occupano 913.840 byte; con `core.autocrlf=true`, il checkout Windows converte 34.627 terminazioni LF in CRLF, per un totale sul disco di 948.467 byte (913.840 + 34.627). Tutti gli 88 file Rust contribuiscono alla differenza e i sorgenti risultano identici alla baseline.
+- Mappatura del piano operativo verificata: 88 percorsi sorgente corrispondenti ai file attuali, 98 destinazioni uniche, nessun sorgente mancante o non mappato e nessuna destinazione duplicata. Le 10 destinazioni aggiuntive derivano dalla suddivisione pianificata dei quattro file di test più grandi.
 - Quattro file superano 1.000 righe nella ricognizione: `combat/aura_runtime/tests.rs` (1.303), `combat/effect_execution.rs` (1.152), `combat/summon_integration_tests.rs` (1.137) e `combat/effect_runtime/tests.rs` (1.007).
 - La ricognizione non ha modificato il codice né eseguito test.
 - I documenti permanenti `AGENTS.md` e `CODEX_PROGRESS.md` sono stati creati in questa attività e verificati dopo la scrittura.
+
+## Checkpoint documentale del 2026-11-08
+
+- Branch attivo: `refactor/src-domain-layout`.
+- HEAD all'inizio dell'attività: `eae9af014ce1fbd935bc1f6f41b37109cca57447`.
+- Stato Git all'inizio: working tree pulito; branch avanti di un commit rispetto a `origin/refactor/src-domain-layout`.
+- Il commit locale `eae9af014ce1fbd935bc1f6f41b37109cca57447` contiene esclusivamente `AGENTS.md` e `CODEX_PROGRESS.md`.
+- Stato Git dopo le modifiche documentali di questa attività: working tree con modifiche non committate esclusivamente in `.github/workflows/benilla-classic-pipeline-revised-v3.md` e `CODEX_PROGRESS.md`; nessuna modifica a `AGENTS.md` o ai file Rust.
+- Ultimo checkpoint Git committato: `eae9af014ce1fbd935bc1f6f41b37109cca57447`.
+- Le modifiche documentali richieste in questa attività sono state rilette e confrontate nel diff. Nessun test o build eseguito.
 
 ## Registro delle modifiche
 
@@ -32,7 +43,6 @@
 
 ### Incomplete
 
-- Riconciliare la differenza tra i 948.467 byte misurati e i 913.840 byte riportati come baseline prima degli spostamenti.
 - Nessun gruppo di refactoring del codice è stato avviato.
 
 ## Gruppi di lavoro previsti
@@ -52,6 +62,7 @@ Ogni gruppo richiede un controllo dello stato Git prima di iniziare e un aggiorn
 ### Superati
 
 - Nessun test è stato eseguito in questa attività.
+- Nessun test o build è stato eseguito durante l'aggiornamento documentale del 2026-11-08.
 - La documentazione riporta come riferimento storico la Run CI #522: 660 test superati su Linux e Windows e avvio headless verificato sullo SHA `55e001ec7dc06f5d9bbb3107f3b5ef3f96354b38`. Non è una verifica dell'attuale SHA.
 
 ### Falliti
@@ -81,10 +92,9 @@ Dopo un'interruzione, rileggi `AGENTS.md`, la roadmap, `.github/workflows/refact
 
 ## Errori e rischi conosciuti
 
-- La dimensione totale osservata di `src/` differisce dalla baseline riportata nella roadmap; chiarire la metrica o la revisione di riferimento prima degli spostamenti.
 - Spostare moduli può cambiare la risoluzione di `use super::*`, `#[path]`, `include_str!` e import relativi; audit richiesto per ogni gruppo.
 - I re-export pubblici e `pub(crate)` del dominio combat devono restare disponibili ai chiamanti esistenti.
 
 ## Prossima attività autorizzata
 
-Questa autorizzazione copriva esclusivamente la creazione e verifica di `AGENTS.md` e `CODEX_PROGRESS.md`; tali documenti sono completati e verificati. La prossima attività è attendere ulteriori istruzioni dell'utente. La preparazione operativa del primo gruppo di refactoring non è ancora autorizzata.
+Questa attività ha autorizzato esclusivamente la correzione del riferimento interno alla roadmap e l'aggiornamento documentale del registro. Le modifiche sono state verificate; nessun file Rust è stato modificato e il refactoring non è iniziato. La prossima attività è attendere ulteriori istruzioni dell'utente.

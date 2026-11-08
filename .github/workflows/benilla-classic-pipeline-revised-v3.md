@@ -426,7 +426,7 @@ Durante queste sessioni concentrarsi esclusivamente sul progetto WoW, non sul pr
 
 Questa roadmap si trova in:
 
-`.github/workflows/benilla-classic-pipeline-revised-v2.md`
+`.github/workflows/benilla-classic-pipeline-revised-v3.md`
 
 Il piano operativo del refactoring si trova in:
 
