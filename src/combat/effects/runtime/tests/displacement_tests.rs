@@ -1,34 +1,14 @@
-
-use bevy::prelude::{
-    App,
-    Entity,
-    Transform,
-    Update,
-    Vec3,
-};
+use bevy::prelude::{App, Entity, Transform, Update, Vec3};
 
 use super::super::{
-    execute_pending_effects,
-    PendingCombatEffects,
-    ResolvedEffect,
-    ResolvedEffectOperation,
+    execute_pending_effects, PendingCombatEffects, ResolvedEffect, ResolvedEffectOperation,
 };
 
-use crate::combat::{
-    CombatEventQueue,
-    PendingDisplacement,
-};
-use crate::content::{
-    ContentDatabase,
-    ContentId,
-    EffectTrigger,
-};
+use crate::combat::{CombatEventQueue, PendingDisplacement};
+use crate::content::{ContentDatabase, ContentId, EffectTrigger};
 
 fn content_id(value: &str) -> ContentId {
-    ContentId::new(
-        format!("classic_1_12_1:{value}"),
-    )
-    .unwrap()
+    ContentId::new(format!("classic_1_12_1:{value}")).unwrap()
 }
 
 fn displacement_app(
@@ -54,9 +34,7 @@ fn displacement_app(
             .id()
     } else {
         app.world_mut()
-            .spawn(
-                Transform::from_translation(target_position),
-            )
+            .spawn(Transform::from_translation(target_position))
             .id()
     };
 
@@ -84,77 +62,41 @@ fn displacement_app(
 
 #[test]
 fn runtime_accumulates_displacements_without_changing_transform() {
-    let (mut app, target_entity) = displacement_app(
-        Some(Vec3::ZERO),
-        Vec3::X * 5.0,
-        &[4.0, 2.0],
-        true,
-    );
+    let (mut app, target_entity) =
+        displacement_app(Some(Vec3::ZERO), Vec3::X * 5.0, &[4.0, 2.0], true);
 
     app.update();
 
     let world = app.world();
 
-    let displacement = world
-        .get::<PendingDisplacement>(target_entity)
-        .unwrap();
+    let displacement = world.get::<PendingDisplacement>(target_entity).unwrap();
 
-    assert_eq!(
-        displacement.pending_translation(),
-        Vec3::X * 6.0
-    );
+    assert_eq!(displacement.pending_translation(), Vec3::X * 6.0);
 
-    let transform = world
-        .get::<Transform>(target_entity)
-        .unwrap();
+    let transform = world.get::<Transform>(target_entity).unwrap();
 
-    assert_eq!(
-        transform.translation,
-        Vec3::X * 5.0
-    );
+    assert_eq!(transform.translation, Vec3::X * 5.0);
 
-    assert!(
-        world
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(world.resource::<PendingCombatEffects>().is_empty());
 
-    assert!(
-        world
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(world.resource::<CombatEventQueue>().is_empty());
 }
 
 #[test]
 fn runtime_ignores_displacement_without_source() {
-    let (mut app, target_entity) = displacement_app(
-        None,
-        Vec3::X * 5.0,
-        &[3.0],
-        true,
-    );
+    let (mut app, target_entity) = displacement_app(None, Vec3::X * 5.0, &[3.0], true);
 
     app.update();
 
     let world = app.world();
 
-    let displacement = world
-        .get::<PendingDisplacement>(target_entity)
-        .unwrap();
+    let displacement = world.get::<PendingDisplacement>(target_entity).unwrap();
 
-    assert!(
-        displacement.is_empty()
-    );
+    assert!(displacement.is_empty());
 
-    let transform = world
-        .get::<Transform>(target_entity)
-        .unwrap();
+    let transform = world.get::<Transform>(target_entity).unwrap();
 
-    assert_eq!(
-        transform.translation,
-        Vec3::X * 5.0
-    );
+    assert_eq!(transform.translation, Vec3::X * 5.0);
 }
 
 #[test]
@@ -170,40 +112,22 @@ fn runtime_ignores_displacement_when_source_and_target_overlap() {
 
     let world = app.world();
 
-    let displacement = world
-        .get::<PendingDisplacement>(target_entity)
-        .unwrap();
+    let displacement = world.get::<PendingDisplacement>(target_entity).unwrap();
 
-    assert!(
-        displacement.is_empty()
-    );
+    assert!(displacement.is_empty());
 }
 
 #[test]
 fn runtime_ignores_displacement_without_pending_component() {
-    let (mut app, target_entity) = displacement_app(
-        Some(Vec3::ZERO),
-        Vec3::X * 5.0,
-        &[3.0],
-        false,
-    );
+    let (mut app, target_entity) = displacement_app(Some(Vec3::ZERO), Vec3::X * 5.0, &[3.0], false);
 
     app.update();
 
     let world = app.world();
 
-    assert!(
-        world
-            .get::<PendingDisplacement>(target_entity)
-            .is_none()
-    );
+    assert!(world.get::<PendingDisplacement>(target_entity).is_none());
 
-    let transform = world
-        .get::<Transform>(target_entity)
-        .unwrap();
+    let transform = world.get::<Transform>(target_entity).unwrap();
 
-    assert_eq!(
-        transform.translation,
-        Vec3::X * 5.0
-    );
+    assert_eq!(transform.translation, Vec3::X * 5.0);
 }

@@ -41,8 +41,7 @@ fn allied_summon_attacks_generate_threat_against_the_enemy() {
 
     let summon_entities = {
         let world = app.world_mut();
-        let mut summon_query =
-            world.query_filtered::<Entity, With<AllySummon>>();
+        let mut summon_query = world.query_filtered::<Entity, With<AllySummon>>();
 
         summon_query.iter(world).collect::<Vec<_>>()
     };
@@ -59,37 +58,17 @@ fn allied_summon_attacks_generate_threat_against_the_enemy() {
     assert_eq!(threat.values.len(), summon_entities.len());
 
     for summon in &summon_entities {
-        assert!(
-            threat
-                .values
-                .get(summon)
-                .is_some_and(|value| *value > 0.0)
-        );
+        assert!(threat.values.get(summon).is_some_and(|value| *value > 0.0));
     }
 
-    assert!(
-        app.world()
-            .get::<HealthPool>(enemy)
-            .unwrap()
-            .current()
-            < 100.0
-    );
+    assert!(app.world().get::<HealthPool>(enemy).unwrap().current() < 100.0);
 
     app.update();
 
-    let enemy_target = app
-        .world()
-        .get::<EnemyAi>(enemy)
-        .unwrap()
-        .target;
+    let enemy_target = app.world().get::<EnemyAi>(enemy).unwrap().target;
 
-    assert!(
-        enemy_target.is_some_and(|target| {
-            summon_entities.contains(&target)
-        })
-    );
+    assert!(enemy_target.is_some_and(|target| { summon_entities.contains(&target) }));
 }
-
 
 #[test]
 fn enemy_summons_acquire_and_attack_a_player_end_to_end() {
@@ -129,10 +108,8 @@ fn enemy_summons_acquire_and_attack_a_player_end_to_end() {
 
     let summon_entities = {
         let world = app.world_mut();
-        let mut summon_query = world.query_filtered::<
-            Entity,
-            (With<Enemy>, With<SummonedCreature>),
-        >();
+        let mut summon_query =
+            world.query_filtered::<Entity, (With<Enemy>, With<SummonedCreature>)>();
 
         summon_query.iter(world).collect::<Vec<_>>()
     };
@@ -143,11 +120,7 @@ fn enemy_summons_acquire_and_attack_a_player_end_to_end() {
         let ai = app.world().get::<EnemyAi>(*summon).unwrap();
 
         assert_eq!(ai.target, Some(player));
-        assert!(
-            app.world()
-                .get::<AllySummon>(*summon)
-                .is_none()
-        );
+        assert!(app.world().get::<AllySummon>(*summon).is_none());
     }
 
     advance_test_time(&mut app, 2.0);

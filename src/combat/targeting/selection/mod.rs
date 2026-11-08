@@ -2,22 +2,17 @@ use bevy::prelude::*;
 
 use crate::interaction::WorldObjectClicked;
 
-use crate::combat::{
-    Character,
-    CharacterCommand,
-    CombatStats,
-    Enemy,
-    HealthPool,
-    Target,
-};
+use crate::combat::{Character, CharacterCommand, CombatStats, Enemy, HealthPool, Target};
 
 pub(super) fn target_tab_system(
-    mut player_query: Query<
-        (&Transform, &mut Target, &mut CharacterCommand),
-        With<Character>,
-    >,
+    mut player_query: Query<(&Transform, &mut Target, &mut CharacterCommand), With<Character>>,
     enemy_query: Query<
-        (Entity, &Transform, Option<&CombatStats>, Option<&HealthPool>),
+        (
+            Entity,
+            &Transform,
+            Option<&CombatStats>,
+            Option<&HealthPool>,
+        ),
         With<Enemy>,
     >,
 ) {
@@ -54,9 +49,7 @@ pub(super) fn target_tab_system(
 
         let next_index = player_target
             .entity
-            .and_then(|current| {
-                enemies.iter().position(|(entity, _)| *entity == current)
-            })
+            .and_then(|current| enemies.iter().position(|(entity, _)| *entity == current))
             .map_or(0, |index| (index + 1) % enemies.len());
 
         let enemy_entity = enemies[next_index].0;
@@ -69,10 +62,7 @@ pub(super) fn target_tab_system(
 
 pub(super) fn target_click_system(
     mut clicked: MessageReader<WorldObjectClicked>,
-    enemy_query: Query<
-        (Option<&CombatStats>, Option<&HealthPool>),
-        With<Enemy>,
-    >,
+    enemy_query: Query<(Option<&CombatStats>, Option<&HealthPool>), With<Enemy>>,
     mut player_query: Query<&mut Target, With<Character>>,
 ) {
     for click in clicked.read() {

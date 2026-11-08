@@ -2,10 +2,7 @@ use super::*;
 
 #[test]
 fn first_application_creates_an_active_aura() {
-    let definition = aura_definition(
-        AuraStackingPolicy::AddStacks,
-        5,
-    );
+    let definition = aura_definition(AuraStackingPolicy::AddStacks, 5);
 
     let mut active = ActiveAuras::default();
 
@@ -23,13 +20,9 @@ fn first_application_creates_an_active_aura() {
     assert_eq!(instance.remaining_duration(), Some(10.0));
 }
 
-
 #[test]
 fn add_stacks_increases_stacks_and_refreshes_duration() {
-    let definition = aura_definition(
-        AuraStackingPolicy::AddStacks,
-        5,
-    );
+    let definition = aura_definition(AuraStackingPolicy::AddStacks, 5);
 
     let mut active = ActiveAuras::default();
 
@@ -49,13 +42,9 @@ fn add_stacks_increases_stacks_and_refreshes_duration() {
     assert_eq!(instance.remaining_duration(), Some(10.0));
 }
 
-
 #[test]
 fn add_stacks_respects_maximum_stacks() {
-    let definition = aura_definition(
-        AuraStackingPolicy::AddStacks,
-        5,
-    );
+    let definition = aura_definition(AuraStackingPolicy::AddStacks, 5);
 
     let mut active = ActiveAuras::default();
 
@@ -70,13 +59,9 @@ fn add_stacks_respects_maximum_stacks() {
     assert_eq!(active.stacks(&aura_id()), 5);
 }
 
-
 #[test]
 fn refresh_duration_preserves_existing_stacks() {
-    let definition = aura_definition(
-        AuraStackingPolicy::RefreshDuration,
-        5,
-    );
+    let definition = aura_definition(AuraStackingPolicy::RefreshDuration, 5);
 
     let mut active = ActiveAuras::default();
 
@@ -96,13 +81,9 @@ fn refresh_duration_preserves_existing_stacks() {
     assert_eq!(instance.remaining_duration(), Some(8.0));
 }
 
-
 #[test]
 fn replace_policy_overwrites_stacks_and_duration() {
-    let definition = aura_definition(
-        AuraStackingPolicy::Replace,
-        5,
-    );
+    let definition = aura_definition(AuraStackingPolicy::Replace, 5);
 
     let mut active = ActiveAuras::default();
 
@@ -122,13 +103,9 @@ fn replace_policy_overwrites_stacks_and_duration() {
     assert_eq!(instance.remaining_duration(), Some(8.0));
 }
 
-
 #[test]
 fn independent_policy_creates_separate_instances() {
-    let definition = aura_definition(
-        AuraStackingPolicy::Independent,
-        5,
-    );
+    let definition = aura_definition(AuraStackingPolicy::Independent, 5);
 
     let mut active = ActiveAuras::default();
 
@@ -144,13 +121,9 @@ fn independent_policy_creates_separate_instances() {
     assert_eq!(active.stacks(&aura_id()), 5);
 }
 
-
 #[test]
 fn per_caster_add_stacks_are_isolated_between_sources() {
-    let mut definition = aura_definition(
-        AuraStackingPolicy::AddStacks,
-        5,
-    );
+    let mut definition = aura_definition(AuraStackingPolicy::AddStacks, 5);
 
     definition.stacking_scope = AuraStackingScope::PerCaster;
 
@@ -185,13 +158,9 @@ fn per_caster_add_stacks_are_isolated_between_sources() {
     assert_eq!(second.stacks, 3);
 }
 
-
 #[test]
 fn per_caster_refresh_duration_affects_only_matching_source() {
-    let mut definition = aura_definition(
-        AuraStackingPolicy::RefreshDuration,
-        5,
-    );
+    let mut definition = aura_definition(AuraStackingPolicy::RefreshDuration, 5);
 
     definition.stacking_scope = AuraStackingScope::PerCaster;
 
@@ -228,13 +197,9 @@ fn per_caster_refresh_duration_affects_only_matching_source() {
     assert_eq!(second.remaining_duration(), Some(15.0));
 }
 
-
 #[test]
 fn per_caster_replace_affects_only_matching_source() {
-    let mut definition = aura_definition(
-        AuraStackingPolicy::Replace,
-        5,
-    );
+    let mut definition = aura_definition(AuraStackingPolicy::Replace, 5);
 
     definition.stacking_scope = AuraStackingScope::PerCaster;
 
@@ -269,13 +234,9 @@ fn per_caster_replace_affects_only_matching_source() {
     assert_eq!(second.remaining_duration(), Some(20.0));
 }
 
-
 #[test]
 fn independent_policy_creates_separate_instances_for_same_caster() {
-    let mut definition = aura_definition(
-        AuraStackingPolicy::Independent,
-        5,
-    );
+    let mut definition = aura_definition(AuraStackingPolicy::Independent, 5);
 
     definition.stacking_scope = AuraStackingScope::PerCaster;
 
@@ -293,13 +254,9 @@ fn independent_policy_creates_separate_instances_for_same_caster() {
     assert_eq!(active.stacks(&aura_id()), 5);
 }
 
-
 #[test]
 fn partial_removal_removes_oldest_stacks_first() {
-    let definition = aura_definition(
-        AuraStackingPolicy::Independent,
-        5,
-    );
+    let definition = aura_definition(AuraStackingPolicy::Independent, 5);
 
     let mut active = ActiveAuras::default();
 
@@ -321,13 +278,9 @@ fn partial_removal_removes_oldest_stacks_first() {
     assert_eq!(remaining.stacks, 2);
 }
 
-
 #[test]
 fn full_removal_removes_all_matching_instances() {
-    let definition = aura_definition(
-        AuraStackingPolicy::Independent,
-        5,
-    );
+    let definition = aura_definition(AuraStackingPolicy::Independent, 5);
 
     let mut active = ActiveAuras::default();
 

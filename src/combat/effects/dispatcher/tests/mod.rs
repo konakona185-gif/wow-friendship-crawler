@@ -1,27 +1,13 @@
-
 use super::*;
 
 use crate::combat::{
-    CombatLevel,
-    CombatStats,
-    DamageRequest,
-    HealthPool,
-    ResolvedEffect,
-    ResolvedEffectOperation,
+    CombatLevel, CombatStats, DamageRequest, HealthPool, ResolvedEffect, ResolvedEffectOperation,
 };
 
 use crate::content::{
-    CombatAttributeDefinition,
-    CombatAttributeValueKind,
-    ContentId,
-    ContentMetadata,
-    ContentPackManifest,
-    DamageSchoolDefinition,
-    DamageSchoolMitigation,
-    EffectDefinition,
-    EffectKind,
-    EffectMagnitude,
-    PeriodicEffectStackScaling,
+    CombatAttributeDefinition, CombatAttributeValueKind, ContentId, ContentMetadata,
+    ContentPackManifest, DamageSchoolDefinition, DamageSchoolMitigation, EffectDefinition,
+    EffectKind, EffectMagnitude, PeriodicEffectStackScaling,
 };
 
 fn source() -> Entity {
@@ -48,24 +34,14 @@ fn event(
 }
 
 fn content_id(value: &str) -> ContentId {
-    ContentId::new(
-        format!("dispatcher_tests:{value}"),
-    )
-    .unwrap()
+    ContentId::new(format!("dispatcher_tests:{value}")).unwrap()
 }
 
 fn classic_content_id(value: &str) -> ContentId {
-    ContentId::new(
-        format!("classic_1_12_1:{value}"),
-    )
-    .unwrap()
+    ContentId::new(format!("classic_1_12_1:{value}")).unwrap()
 }
 
-fn metadata(
-    id: ContentId,
-    pack_id: &ContentId,
-    name: &str,
-) -> ContentMetadata {
+fn metadata(id: ContentId, pack_id: &ContentId, name: &str) -> ContentMetadata {
     ContentMetadata {
         id,
         pack_id: pack_id.clone(),
@@ -87,15 +63,10 @@ fn periodic_tick_outcome(
     }
 }
 
-fn test_application(
-    trigger: EffectTrigger,
-    target: EffectTarget,
-) -> (App, ContentId) {
-    let pack_id =
-        ContentId::new("pack:dispatcher_tests").unwrap();
+fn test_application(trigger: EffectTrigger, target: EffectTarget) -> (App, ContentId) {
+    let pack_id = ContentId::new("pack:dispatcher_tests").unwrap();
 
-    let effect_id =
-        content_id("effect.reactive");
+    let effect_id = content_id("effect.reactive");
 
     let mut database = ContentDatabase::new();
 
@@ -140,17 +111,12 @@ fn test_application(
     (app, effect_id)
 }
 
-fn runtime_test_application(
-    trigger: EffectTrigger,
-) -> (App, ContentId) {
-    let pack_id =
-        ContentId::new("pack:classic_1_12_1").unwrap();
+fn runtime_test_application(trigger: EffectTrigger) -> (App, ContentId) {
+    let pack_id = ContentId::new("pack:classic_1_12_1").unwrap();
 
-    let armor_id =
-        ContentId::new("classic_1_12_1:stat.armor").unwrap();
+    let armor_id = ContentId::new("classic_1_12_1:stat.armor").unwrap();
 
-    let school_id =
-        ContentId::new("classic_1_12_1:school.physical").unwrap();
+    let school_id = ContentId::new("classic_1_12_1:school.physical").unwrap();
 
     let effect_id = classic_content_id("effect.reactive");
 
@@ -168,33 +134,21 @@ fn runtime_test_application(
 
     database
         .register_combat_attribute(CombatAttributeDefinition {
-            metadata: metadata(
-                armor_id,
-                &pack_id,
-                "Armor",
-            ),
+            metadata: metadata(armor_id, &pack_id, "Armor"),
             value_kind: CombatAttributeValueKind::Rating,
         })
         .unwrap();
 
     database
         .register_damage_school(DamageSchoolDefinition {
-            metadata: metadata(
-                school_id.clone(),
-                &pack_id,
-                "Physical",
-            ),
+            metadata: metadata(school_id.clone(), &pack_id, "Physical"),
             mitigation: DamageSchoolMitigation::Armor,
         })
         .unwrap();
 
     database
         .register_effect(EffectDefinition {
-            metadata: metadata(
-                effect_id.clone(),
-                &pack_id,
-                "Reactive Heal",
-            ),
+            metadata: metadata(effect_id.clone(), &pack_id, "Reactive Heal"),
             trigger,
             target: EffectTarget::SelectedTarget,
             kind: EffectKind::Heal {
@@ -225,23 +179,16 @@ fn runtime_test_application(
     (app, school_id)
 }
 
-fn spawn_subscriber(
-    app: &mut App,
-    effect_id: ContentId,
-) -> Entity {
-    let mut subscriptions =
-        CombatEffectSubscriptions::default();
+fn spawn_subscriber(app: &mut App, effect_id: ContentId) -> Entity {
+    let mut subscriptions = CombatEffectSubscriptions::default();
 
     subscriptions.subscribe(effect_id);
 
     app.world_mut()
-        .spawn((
-            subscriptions,
-            CombatAttributes::default(),
-        ))
+        .spawn((subscriptions, CombatAttributes::default()))
         .id()
 }
 
 mod area_tests;
-mod subscriber_tests;
 mod reactive_runtime_tests;
+mod subscriber_tests;

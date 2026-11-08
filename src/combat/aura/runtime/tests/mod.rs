@@ -1,18 +1,10 @@
 use super::*;
 use crate::content::{
-    AuraRefreshPolicy,
-    AuraStackingPolicy,
-    AuraStackingScope,
-    ContentId,
-    ContentMetadata,
-    PeriodicAuraEffect,
-    PeriodicEffectStackScaling,
+    AuraRefreshPolicy, AuraStackingPolicy, AuraStackingScope, ContentId, ContentMetadata,
+    PeriodicAuraEffect, PeriodicEffectStackScaling,
 };
 
-fn aura_definition(
-    stacking_policy: AuraStackingPolicy,
-    max_stacks: u32,
-) -> AuraDefinition {
+fn aura_definition(stacking_policy: AuraStackingPolicy, max_stacks: u32) -> AuraDefinition {
     AuraDefinition {
         metadata: ContentMetadata {
             id: aura_id(),
@@ -36,10 +28,7 @@ fn periodic_aura_definition(
     interval_seconds: f32,
     stack_scaling: PeriodicEffectStackScaling,
 ) -> AuraDefinition {
-    let mut definition = aura_definition(
-        stacking_policy,
-        max_stacks,
-    );
+    let mut definition = aura_definition(stacking_policy, max_stacks);
 
     definition.periodic_effects.push(PeriodicAuraEffect {
         effect: periodic_effect_id(),
@@ -70,6 +59,6 @@ fn third_source() -> Entity {
     Entity::from_raw_u32(3).unwrap()
 }
 
-mod stacking_tests;
-mod periodic_tests;
 mod lifecycle_validation_tests;
+mod periodic_tests;
+mod stacking_tests;

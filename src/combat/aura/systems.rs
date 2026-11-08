@@ -1,12 +1,7 @@
-
 use bevy::prelude::*;
 
 use crate::combat::{
-    ActiveAuras,
-    CombatEventContext,
-    CombatEventOutcome,
-    CombatEventQueue,
-    EffectTrigger,
+    ActiveAuras, CombatEventContext, CombatEventOutcome, CombatEventQueue, EffectTrigger,
 };
 
 pub(super) fn tick_active_auras(
@@ -94,27 +89,15 @@ mod tests {
 
     use crate::combat::ActiveAuras;
     use crate::content::{
-        AuraDefinition,
-        AuraRefreshPolicy,
-        AuraStackingPolicy,
-        AuraStackingScope,
-        ContentId,
-        ContentMetadata,
-        PeriodicAuraEffect,
-        PeriodicEffectStackScaling,
+        AuraDefinition, AuraRefreshPolicy, AuraStackingPolicy, AuraStackingScope, ContentId,
+        ContentMetadata, PeriodicAuraEffect, PeriodicEffectStackScaling,
     };
 
     fn aura_definition() -> AuraDefinition {
         AuraDefinition {
             metadata: ContentMetadata {
-                id: ContentId::new(
-                    "classic_1_12_1:aura.test",
-                )
-                .unwrap(),
-                pack_id: ContentId::new(
-                    "pack:classic_1_12_1",
-                )
-                .unwrap(),
+                id: ContentId::new("classic_1_12_1:aura.test").unwrap(),
+                pack_id: ContentId::new("pack:classic_1_12_1").unwrap(),
                 name: "Test Aura".to_string(),
                 description: String::new(),
                 icon: None,
@@ -144,30 +127,17 @@ mod tests {
     }
 
     fn aura_id() -> ContentId {
-        ContentId::new(
-            "classic_1_12_1:aura.test",
-        )
-        .unwrap()
+        ContentId::new("classic_1_12_1:aura.test").unwrap()
     }
 
     fn periodic_effect_id() -> ContentId {
-        ContentId::new(
-            "classic_1_12_1:effect.periodic_test",
-        )
-        .unwrap()
+        ContentId::new("classic_1_12_1:effect.periodic_test").unwrap()
     }
 
     fn active_auras(duration: Option<f32>) -> ActiveAuras {
         let mut active = ActiveAuras::default();
 
-        active
-            .apply(
-                &aura_definition(),
-                None,
-                1,
-                duration,
-            )
-            .unwrap();
+        active.apply(&aura_definition(), None, 1, duration).unwrap();
 
         active
     }
@@ -183,10 +153,7 @@ mod tests {
 
         active
             .apply(
-                &periodic_aura_definition(
-                    interval_seconds,
-                    stack_scaling,
-                ),
+                &periodic_aura_definition(interval_seconds, stack_scaling),
                 Some(source),
                 stacks,
                 duration,
@@ -213,55 +180,33 @@ mod tests {
     fn aura_duration_decreases_during_updates() {
         let mut app = app_with_delta(Duration::from_secs(2));
 
-        let entity = app
-            .world_mut()
-            .spawn(active_auras(Some(5.0)))
-            .id();
+        let entity = app.world_mut().spawn(active_auras(Some(5.0))).id();
 
         app.update();
 
-        let active = app
-            .world()
-            .get::<ActiveAuras>(entity)
-            .unwrap();
+        let active = app.world().get::<ActiveAuras>(entity).unwrap();
 
         assert_eq!(
-            active
-                .get(&aura_id())
-                .unwrap()
-                .remaining_duration(),
+            active.get(&aura_id()).unwrap().remaining_duration(),
             Some(3.0)
         );
 
-        assert!(
-            app.world()
-                .resource::<CombatEventQueue>()
-                .is_empty()
-        );
+        assert!(app.world().resource::<CombatEventQueue>().is_empty());
     }
 
     #[test]
     fn expired_auras_are_removed_during_updates() {
         let mut app = app_with_delta(Duration::from_secs(6));
 
-        let entity = app
-            .world_mut()
-            .spawn(active_auras(Some(5.0)))
-            .id();
+        let entity = app.world_mut().spawn(active_auras(Some(5.0))).id();
 
         app.update();
 
-        let active = app
-            .world()
-            .get::<ActiveAuras>(entity)
-            .unwrap();
+        let active = app.world().get::<ActiveAuras>(entity).unwrap();
 
         assert!(active.is_empty());
 
-        let events = app
-            .world_mut()
-            .resource_mut::<CombatEventQueue>()
-            .drain();
+        let events = app.world_mut().resource_mut::<CombatEventQueue>().drain();
 
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].trigger, EffectTrigger::OnExpire);
@@ -281,10 +226,7 @@ mod tests {
     fn periodic_ticks_enqueue_complete_outcomes() {
         let mut app = app_with_delta(Duration::from_secs(2));
 
-        let source = app
-            .world_mut()
-            .spawn_empty()
-            .id();
+        let source = app.world_mut().spawn_empty().id();
 
         let owner = app
             .world_mut()
@@ -299,23 +241,14 @@ mod tests {
 
         app.update();
 
-        let events = app
-            .world_mut()
-            .resource_mut::<CombatEventQueue>()
-            .drain();
+        let events = app.world_mut().resource_mut::<CombatEventQueue>().drain();
 
         assert_eq!(events.len(), 1);
 
-        assert_eq!(
-            events[0].trigger,
-            EffectTrigger::OnPeriodicTick
-        );
+        assert_eq!(events[0].trigger, EffectTrigger::OnPeriodicTick);
         assert_eq!(events[0].source, Some(source));
         assert_eq!(events[0].target, Some(owner));
-        assert_eq!(
-            events[0].effect,
-            Some(periodic_effect_id())
-        );
+        assert_eq!(events[0].effect, Some(periodic_effect_id()));
         assert_eq!(
             events[0].outcome,
             Some(CombatEventOutcome::PeriodicTick {
@@ -330,10 +263,7 @@ mod tests {
     fn periodic_ticks_are_enqueued_before_expiration_events() {
         let mut app = app_with_delta(Duration::from_secs(5));
 
-        let source = app
-            .world_mut()
-            .spawn_empty()
-            .id();
+        let source = app.world_mut().spawn_empty().id();
 
         let owner = app
             .world_mut()
@@ -348,25 +278,13 @@ mod tests {
 
         app.update();
 
-        let events = app
-            .world_mut()
-            .resource_mut::<CombatEventQueue>()
-            .drain();
+        let events = app.world_mut().resource_mut::<CombatEventQueue>().drain();
 
         assert_eq!(events.len(), 3);
 
-        assert_eq!(
-            events[0].trigger,
-            EffectTrigger::OnPeriodicTick
-        );
-        assert_eq!(
-            events[1].trigger,
-            EffectTrigger::OnPeriodicTick
-        );
-        assert_eq!(
-            events[2].trigger,
-            EffectTrigger::OnExpire
-        );
+        assert_eq!(events[0].trigger, EffectTrigger::OnPeriodicTick);
+        assert_eq!(events[1].trigger, EffectTrigger::OnPeriodicTick);
+        assert_eq!(events[2].trigger, EffectTrigger::OnExpire);
 
         assert_eq!(events[0].source, Some(source));
         assert_eq!(events[1].source, Some(source));
@@ -376,14 +294,8 @@ mod tests {
         assert_eq!(events[1].target, Some(owner));
         assert_eq!(events[2].target, Some(owner));
 
-        assert_eq!(
-            events[0].effect,
-            Some(periodic_effect_id())
-        );
-        assert_eq!(
-            events[1].effect,
-            Some(periodic_effect_id())
-        );
+        assert_eq!(events[0].effect, Some(periodic_effect_id()));
+        assert_eq!(events[1].effect, Some(periodic_effect_id()));
         assert_eq!(events[2].effect, None);
 
         assert_eq!(
@@ -417,74 +329,40 @@ mod tests {
     fn permanent_auras_survive_updates() {
         let mut app = app_with_delta(Duration::from_secs(60));
 
-        let entity = app
-            .world_mut()
-            .spawn(active_auras(None))
-            .id();
+        let entity = app.world_mut().spawn(active_auras(None)).id();
 
         app.update();
 
-        let active = app
-            .world()
-            .get::<ActiveAuras>(entity)
-            .unwrap();
+        let active = app.world().get::<ActiveAuras>(entity).unwrap();
 
         assert_eq!(active.stacks(&aura_id()), 1);
-        assert_eq!(
-            active
-                .get(&aura_id())
-                .unwrap()
-                .remaining_duration(),
-            None
-        );
+        assert_eq!(active.get(&aura_id()).unwrap().remaining_duration(), None);
 
-        assert!(
-            app.world()
-                .resource::<CombatEventQueue>()
-                .is_empty()
-        );
+        assert!(app.world().resource::<CombatEventQueue>().is_empty());
     }
 
     #[test]
     fn each_entity_has_independent_aura_durations() {
         let mut app = app_with_delta(Duration::from_secs(5));
 
-        let first = app
-            .world_mut()
-            .spawn(active_auras(Some(5.0)))
-            .id();
+        let first = app.world_mut().spawn(active_auras(Some(5.0))).id();
 
-        let second = app
-            .world_mut()
-            .spawn(active_auras(Some(10.0)))
-            .id();
+        let second = app.world_mut().spawn(active_auras(Some(10.0))).id();
 
         app.update();
 
-        let first_auras = app
-            .world()
-            .get::<ActiveAuras>(first)
-            .unwrap();
+        let first_auras = app.world().get::<ActiveAuras>(first).unwrap();
 
-        let second_auras = app
-            .world()
-            .get::<ActiveAuras>(second)
-            .unwrap();
+        let second_auras = app.world().get::<ActiveAuras>(second).unwrap();
 
         assert!(first_auras.is_empty());
 
         assert_eq!(
-            second_auras
-                .get(&aura_id())
-                .unwrap()
-                .remaining_duration(),
+            second_auras.get(&aura_id()).unwrap().remaining_duration(),
             Some(5.0)
         );
 
-        let events = app
-            .world_mut()
-            .resource_mut::<CombatEventQueue>()
-            .drain();
+        let events = app.world_mut().resource_mut::<CombatEventQueue>().drain();
 
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].target, Some(first));

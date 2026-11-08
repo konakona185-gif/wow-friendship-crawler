@@ -19,8 +19,7 @@ impl CriticalStrikeResult {
             return Err(CriticalStrikeError::InvalidIncomingAmount);
         }
 
-        if !critical_chance_percent.is_finite()
-            || !(0.0..=100.0).contains(&critical_chance_percent)
+        if !critical_chance_percent.is_finite() || !(0.0..=100.0).contains(&critical_chance_percent)
         {
             return Err(CriticalStrikeError::InvalidChance);
         }
@@ -73,15 +72,11 @@ impl CriticalStrikeResult {
             return Err(CriticalStrikeError::InvalidChance);
         }
 
-        if !self.critical_multiplier.is_finite()
-            || self.critical_multiplier < 1.0
-        {
+        if !self.critical_multiplier.is_finite() || self.critical_multiplier < 1.0 {
             return Err(CriticalStrikeError::InvalidMultiplier);
         }
 
-        if !self.roll_percent.is_finite()
-            || !(0.0..100.0).contains(&self.roll_percent)
-        {
+        if !self.roll_percent.is_finite() || !(0.0..100.0).contains(&self.roll_percent) {
             return Err(CriticalStrikeError::InvalidRoll);
         }
 
@@ -89,8 +84,7 @@ impl CriticalStrikeResult {
             return Err(CriticalStrikeError::InvalidFinalAmount);
         }
 
-        let expected_critical =
-            self.roll_percent < self.critical_chance_percent;
+        let expected_critical = self.roll_percent < self.critical_chance_percent;
 
         let expected_amount = if expected_critical {
             self.incoming_amount * self.critical_multiplier
@@ -102,9 +96,7 @@ impl CriticalStrikeResult {
             return Err(CriticalStrikeError::InvalidFinalAmount);
         }
 
-        if self.is_critical != expected_critical
-            || self.final_amount != expected_amount
-        {
+        if self.is_critical != expected_critical || self.final_amount != expected_amount {
             return Err(CriticalStrikeError::InconsistentResult);
         }
 
@@ -125,18 +117,12 @@ pub enum CriticalStrikeError {
 impl std::fmt::Display for CriticalStrikeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
-            Self::InvalidIncomingAmount => {
-                "Il danno in ingresso deve essere finito e non negativo"
-            }
-            Self::InvalidChance => {
-                "La probabilità di critico deve essere compresa tra 0 e 100"
-            }
+            Self::InvalidIncomingAmount => "Il danno in ingresso deve essere finito e non negativo",
+            Self::InvalidChance => "La probabilità di critico deve essere compresa tra 0 e 100",
             Self::InvalidMultiplier => {
                 "Il moltiplicatore critico deve essere finito e almeno pari a 1"
             }
-            Self::InvalidRoll => {
-                "Il tiro critico deve essere compreso tra 0 incluso e 100 escluso"
-            }
+            Self::InvalidRoll => "Il tiro critico deve essere compreso tra 0 incluso e 100 escluso",
             Self::InvalidFinalAmount => {
                 "Il danno finale del critico deve essere finito e non negativo"
             }
@@ -171,8 +157,7 @@ mod tests {
 
     #[test]
     fn critical_strike_applies_multiplier_when_roll_is_below_chance() {
-        let result =
-            calculate_critical_strike(100.0, 25.0, 2.0, 24.99).unwrap();
+        let result = calculate_critical_strike(100.0, 25.0, 2.0, 24.99).unwrap();
 
         assert!(result.is_critical);
         assert_eq!(result.final_amount, 200.0);
@@ -182,8 +167,7 @@ mod tests {
 
     #[test]
     fn critical_strike_does_not_apply_when_roll_equals_chance() {
-        let result =
-            calculate_critical_strike(100.0, 25.0, 2.0, 25.0).unwrap();
+        let result = calculate_critical_strike(100.0, 25.0, 2.0, 25.0).unwrap();
 
         assert!(!result.is_critical);
         assert_eq!(result.final_amount, 100.0);
@@ -192,8 +176,7 @@ mod tests {
 
     #[test]
     fn critical_strike_does_not_apply_when_roll_exceeds_chance() {
-        let result =
-            calculate_critical_strike(100.0, 25.0, 2.0, 75.0).unwrap();
+        let result = calculate_critical_strike(100.0, 25.0, 2.0, 75.0).unwrap();
 
         assert!(!result.is_critical);
         assert_eq!(result.final_amount, 100.0);
@@ -201,8 +184,7 @@ mod tests {
 
     #[test]
     fn critical_strike_with_zero_chance_never_criticals() {
-        let result =
-            calculate_critical_strike(100.0, 0.0, 2.0, 0.0).unwrap();
+        let result = calculate_critical_strike(100.0, 0.0, 2.0, 0.0).unwrap();
 
         assert!(!result.is_critical);
         assert_eq!(result.final_amount, 100.0);
@@ -210,8 +192,7 @@ mod tests {
 
     #[test]
     fn critical_strike_with_full_chance_always_criticals() {
-        let result =
-            calculate_critical_strike(100.0, 100.0, 2.0, 99.99).unwrap();
+        let result = calculate_critical_strike(100.0, 100.0, 2.0, 99.99).unwrap();
 
         assert!(result.is_critical);
         assert_eq!(result.final_amount, 200.0);
@@ -219,8 +200,7 @@ mod tests {
 
     #[test]
     fn critical_strike_supports_custom_multipliers() {
-        let result =
-            calculate_critical_strike(100.0, 100.0, 1.5, 50.0).unwrap();
+        let result = calculate_critical_strike(100.0, 100.0, 1.5, 50.0).unwrap();
 
         assert!(result.is_critical);
         assert_eq!(result.final_amount, 150.0);
@@ -229,8 +209,7 @@ mod tests {
 
     #[test]
     fn critical_strike_preserves_zero_damage() {
-        let result =
-            calculate_critical_strike(0.0, 100.0, 2.0, 50.0).unwrap();
+        let result = calculate_critical_strike(0.0, 100.0, 2.0, 50.0).unwrap();
 
         assert!(result.is_critical);
         assert_eq!(result.final_amount, 0.0);
@@ -287,8 +266,7 @@ mod tests {
 
     #[test]
     fn critical_strike_rejects_inconsistent_results() {
-        let mut result =
-            calculate_critical_strike(100.0, 25.0, 2.0, 10.0).unwrap();
+        let mut result = calculate_critical_strike(100.0, 25.0, 2.0, 10.0).unwrap();
 
         result.final_amount = 100.0;
 

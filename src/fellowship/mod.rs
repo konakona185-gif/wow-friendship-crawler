@@ -1,4 +1,3 @@
-
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
@@ -74,17 +73,10 @@ fn register_new_members(
         (Entity, &PlayerId, &CharacterBuild),
         (
             With<Character>,
-            Or<(
-                Added<Character>,
-                Added<PlayerId>,
-                Added<CharacterBuild>,
-            )>,
+            Or<(Added<Character>, Added<PlayerId>, Added<CharacterBuild>)>,
         ),
     >,
-    all_players: Query<
-        (Entity, &PlayerId, &CharacterBuild),
-        With<Character>,
-    >,
+    all_players: Query<(Entity, &PlayerId, &CharacterBuild), With<Character>>,
     mut fellowship: ResMut<Fellowship>,
 ) {
     for (entity, player_id, build) in &new_players {
@@ -125,10 +117,7 @@ fn register_new_members(
 fn process_membership_requests(
     mut join_messages: MessageReader<JoinFellowship>,
     mut leave_messages: MessageReader<LeaveFellowship>,
-    player_query: Query<
-        (Entity, &PlayerId, &CharacterBuild),
-        With<Character>,
-    >,
+    player_query: Query<(Entity, &PlayerId, &CharacterBuild), With<Character>>,
     mut fellowship: ResMut<Fellowship>,
 ) {
     for message in join_messages.read() {
@@ -175,27 +164,18 @@ fn process_membership_requests(
 
         fellowship.members.insert(message.player_id, entity);
 
-        info!(
-            "PlayerId {:?} aggiunto alla Fellowship.",
-            message.player_id
-        );
+        info!("PlayerId {:?} aggiunto alla Fellowship.", message.player_id);
     }
 
     for message in leave_messages.read() {
         if fellowship.members.remove(&message.player_id).is_some() {
-            info!(
-                "PlayerId {:?} uscito dalla Fellowship.",
-                message.player_id
-            );
+            info!("PlayerId {:?} uscito dalla Fellowship.", message.player_id);
         }
     }
 }
 
 fn cleanup_fellowship(
-    player_query: Query<
-        (Entity, &PlayerId, &CharacterBuild),
-        With<Character>,
-    >,
+    player_query: Query<(Entity, &PlayerId, &CharacterBuild), With<Character>>,
     mut fellowship: ResMut<Fellowship>,
 ) {
     let mut active_players: HashMap<PlayerId, Vec<(Entity, bool)>> = HashMap::new();
@@ -225,11 +205,7 @@ fn cleanup_fellowship(
     fellowship.members.retain(|player_id, entity| {
         active_players
             .get(player_id)
-            .map(|entities| {
-                entities.len() == 1
-                    && entities[0].0 == *entity
-                    && entities[0].1
-            })
+            .map(|entities| entities.len() == 1 && entities[0].0 == *entity && entities[0].1)
             .unwrap_or(false)
     });
 

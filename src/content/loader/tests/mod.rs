@@ -1,9 +1,6 @@
 use super::*;
 use crate::content::{
-    AuraRefreshPolicy,
-    AuraStackingPolicy,
-    AuraStackingScope,
-    CombatAttributeValueKind,
+    AuraRefreshPolicy, AuraStackingPolicy, AuraStackingScope, CombatAttributeValueKind,
 };
 use serde::Serialize;
 
@@ -118,6 +115,6 @@ fn test_creature() -> CreatureDefinition {
     }
 }
 
-mod validation_tests;
 mod registration_tests;
 mod serialization_tests;
+mod validation_tests;

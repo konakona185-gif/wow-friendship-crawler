@@ -3,41 +3,16 @@ use std::fmt::{Display, Formatter};
 
 use bevy::prelude::*;
 
-use crate::content::{
-    ContentDatabase,
-    ContentId,
-    PeriodicEffectStackScaling,
-};
+use crate::content::{ContentDatabase, ContentId, PeriodicEffectStackScaling};
 
-use crate::combat::aura::{
-    execute_aura_effect,
-    AuraExecutionResult,
-};
+use crate::combat::aura::{execute_aura_effect, AuraExecutionResult};
 use crate::combat::summon::{PendingSummon, PendingSummons};
 use crate::combat::{
-    execute_resolved_effect,
-    resolve_effect,
-    ActiveAuras,
-    CombatAttributes,
-    CombatEventContext,
-    CombatEventOutcome,
-    CombatEventQueue,
-    CombatLevel,
-    CombatResources,
-    CombatStats,
-    CustomEffectHandlers,
-    EffectExecutionContext,
-    EffectExecutionResult,
-    EffectResolutionError,
-    EffectTargetSelection,
-    EffectTrigger,
-    EnemyThreat,
-    HealthPool,
-    ResolvedEffect,
-    ResolvedEffectOperation,
-    ResourceOperation,
-    MAX_REACTIVE_EFFECT_GENERATIONS,
-    PendingDisplacement,
+    execute_resolved_effect, resolve_effect, ActiveAuras, CombatAttributes, CombatEventContext,
+    CombatEventOutcome, CombatEventQueue, CombatLevel, CombatResources, CombatStats,
+    CustomEffectHandlers, EffectExecutionContext, EffectExecutionResult, EffectResolutionError,
+    EffectTargetSelection, EffectTrigger, EnemyThreat, HealthPool, PendingDisplacement,
+    ResolvedEffect, ResolvedEffectOperation, ResourceOperation, MAX_REACTIVE_EFFECT_GENERATIONS,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -56,21 +31,11 @@ impl PendingCombatEffects {
         self.enqueue_with_generation(effect, 0);
     }
 
-    pub fn enqueue_with_generation(
-        &mut self,
-        effect: ResolvedEffect,
-        generation: u8,
-    ) {
-        self.pending.push_back(PendingEffect {
-            effect,
-            generation,
-        });
+    pub fn enqueue_with_generation(&mut self, effect: ResolvedEffect, generation: u8) {
+        self.pending.push_back(PendingEffect { effect, generation });
     }
 
-    pub fn enqueue_all(
-        &mut self,
-        effects: impl IntoIterator<Item = ResolvedEffect>,
-    ) {
+    pub fn enqueue_all(&mut self, effects: impl IntoIterator<Item = ResolvedEffect>) {
         self.enqueue_all_with_generation(effects, 0);
     }
 
@@ -80,10 +45,9 @@ impl PendingCombatEffects {
         generation: u8,
     ) {
         self.pending.extend(
-            effects.into_iter().map(|effect| PendingEffect {
-                effect,
-                generation,
-            }),
+            effects
+                .into_iter()
+                .map(|effect| PendingEffect { effect, generation }),
         );
     }
 
@@ -155,43 +119,25 @@ impl PendingCombatEffects {
         target_selection: EffectTargetSelection,
         source_attributes: &CombatAttributes,
         generation: u8,
-        periodic_scaling: Option<(
-            u32,
-            PeriodicEffectStackScaling,
-        )>,
+        periodic_scaling: Option<(u32, PeriodicEffectStackScaling)>,
     ) -> Result<usize, EffectQueueError> {
         let definition = database
             .effect(effect_id)
-            .ok_or_else(|| {
-                EffectQueueError::MissingEffectDefinition(
-                    effect_id.clone(),
-                )
-            })?;
+            .ok_or_else(|| EffectQueueError::MissingEffectDefinition(effect_id.clone()))?;
 
-        let mut resolved_effects = resolve_effect(
-            definition,
-            source,
-            target_selection,
-            source_attributes,
-        )
-        .map_err(EffectQueueError::Resolution)?;
+        let mut resolved_effects =
+            resolve_effect(definition, source, target_selection, source_attributes)
+                .map_err(EffectQueueError::Resolution)?;
 
         if let Some((stacks, stack_scaling)) = periodic_scaling {
             for effect in &mut resolved_effects {
-                apply_periodic_stack_scaling(
-                    effect,
-                    stacks,
-                    stack_scaling,
-                )?;
+                apply_periodic_stack_scaling(effect, stacks, stack_scaling)?;
             }
         }
 
         let count = resolved_effects.len();
 
-        self.enqueue_all_with_generation(
-            resolved_effects,
-            generation,
-        );
+        self.enqueue_all_with_generation(resolved_effects, generation);
 
         Ok(count)
     }
@@ -220,19 +166,11 @@ fn apply_periodic_stack_scaling(
     };
 
     let amount = match &mut effect.operation {
-        ResolvedEffectOperation::Damage(request) => {
-            Some(&mut request.base_amount)
-        }
-        ResolvedEffectOperation::Heal(request) => {
-            Some(&mut request.base_amount)
-        }
+        ResolvedEffectOperation::Damage(request) => Some(&mut request.base_amount),
+        ResolvedEffectOperation::Heal(request) => Some(&mut request.base_amount),
         ResolvedEffectOperation::GainResource(request)
-        | ResolvedEffectOperation::SpendResource(request) => {
-            Some(&mut request.base_amount)
-        }
-        ResolvedEffectOperation::ModifyThreat { amount } => {
-            Some(amount)
-        }
+        | ResolvedEffectOperation::SpendResource(request) => Some(&mut request.base_amount),
+        ResolvedEffectOperation::ModifyThreat { amount } => Some(amount),
         _ => None,
     };
 
@@ -240,11 +178,9 @@ fn apply_periodic_stack_scaling(
         let scaled_amount = *amount * multiplier;
 
         if !scaled_amount.is_finite() {
-            return Err(
-                EffectQueueError::InvalidPeriodicMagnitude(
-                    effect.effect.clone(),
-                )
-            );
+            return Err(EffectQueueError::InvalidPeriodicMagnitude(
+                effect.effect.clone(),
+            ));
         }
 
         *amount = scaled_amount;
@@ -272,15 +208,10 @@ impl Display for EffectQueueError {
                 )
             }
             Self::Resolution(error) => {
-                write!(
-                    formatter,
-                    "Impossibile risolvere l'effetto: {error}"
-                )
+                write!(formatter, "Impossibile risolvere l'effetto: {error}")
             }
             Self::ZeroPeriodicStacks => {
-                formatter.write_str(
-                    "Un effetto periodico richiede almeno uno stack",
-                )
+                formatter.write_str("Un effetto periodico richiede almeno uno stack")
             }
             Self::InvalidPeriodicMagnitude(id) => {
                 write!(
@@ -311,10 +242,7 @@ fn enqueue_execution_events(
             }
 
             (
-                vec![
-                    EffectTrigger::OnDamageDealt,
-                    EffectTrigger::OnDamageTaken,
-                ],
+                vec![EffectTrigger::OnDamageDealt, EffectTrigger::OnDamageTaken],
                 CombatEventOutcome::Damage(resolution.clone()),
             )
         }
@@ -327,10 +255,7 @@ fn enqueue_execution_events(
             }
 
             (
-                vec![
-                    EffectTrigger::OnHealDealt,
-                    EffectTrigger::OnHealTaken,
-                ],
+                vec![EffectTrigger::OnHealDealt, EffectTrigger::OnHealTaken],
                 CombatEventOutcome::Healing(resolution.clone()),
             )
         }
@@ -340,12 +265,8 @@ fn enqueue_execution_events(
             }
 
             let trigger = match resolution.request.operation {
-                ResourceOperation::Gain => {
-                    EffectTrigger::OnResourceGained
-                }
-                ResourceOperation::Spend => {
-                    EffectTrigger::OnResourceSpent
-                }
+                ResourceOperation::Gain => EffectTrigger::OnResourceGained,
+                ResourceOperation::Spend => EffectTrigger::OnResourceSpent,
             };
 
             (
@@ -368,10 +289,7 @@ fn enqueue_execution_events(
             outcome: Some(outcome.clone()),
         };
 
-        if let Err(error) = event_queue.enqueue_with_generation(
-            event,
-            generation,
-        ) {
+        if let Err(error) = event_queue.enqueue_with_generation(event, generation) {
             warn!(
                 effect = ?effect.effect,
                 target = ?effect.target,
@@ -389,10 +307,7 @@ fn enqueue_aura_execution_event(
     generation: u8,
 ) {
     let (trigger, outcome) = match result {
-        AuraExecutionResult::Applied {
-            aura,
-            total_stacks,
-        } => (
+        AuraExecutionResult::Applied { aura, total_stacks } => (
             EffectTrigger::OnAuraApplied,
             CombatEventOutcome::AuraApplied {
                 aura: aura.clone(),
@@ -426,10 +341,7 @@ fn enqueue_aura_execution_event(
         outcome: Some(outcome),
     };
 
-    if let Err(error) = event_queue.enqueue_with_generation(
-        event,
-        generation,
-    ) {
+    if let Err(error) = event_queue.enqueue_with_generation(event, generation) {
         warn!(
             effect = ?effect.effect,
             target = ?effect.target,
@@ -509,9 +421,8 @@ pub(super) fn execute_pending_effects(
             }
 
             if *count == 0
-                || (*duration_seconds).is_some_and(|duration| {
-                    !duration.is_finite() || duration <= 0.0
-                })
+                || (*duration_seconds)
+                    .is_some_and(|duration| !duration.is_finite() || duration <= 0.0)
                 || !spawn_position.is_finite()
             {
                 warn!(
@@ -589,10 +500,9 @@ pub(super) fn execute_pending_effects(
                 continue;
             };
 
-            let (Ok(source_transform), Ok(target_transform)) = (
-                transforms.get(source),
-                transforms.get(effect.target),
-            ) else {
+            let (Ok(source_transform), Ok(target_transform)) =
+                (transforms.get(source), transforms.get(effect.target))
+            else {
                 warn!(
                     effect = ?effect.effect,
                     source = ?source,
@@ -602,16 +512,10 @@ pub(super) fn execute_pending_effects(
                 continue;
             };
 
-            let direction = (
-                target_transform.translation
-                    - source_transform.translation
-            )
-                .normalize_or_zero();
+            let direction =
+                (target_transform.translation - source_transform.translation).normalize_or_zero();
 
-            if direction == Vec3::ZERO
-                || !distance.is_finite()
-                || *distance <= 0.0
-            {
+            if direction == Vec3::ZERO || !distance.is_finite() || *distance <= 0.0 {
                 warn!(
                     effect = ?effect.effect,
                     source = ?source,
@@ -622,9 +526,7 @@ pub(super) fn execute_pending_effects(
                 continue;
             }
 
-            let Some(displacement) =
-                target_displacement.as_deref_mut()
-            else {
+            let Some(displacement) = target_displacement.as_deref_mut() else {
                 warn!(
                     effect = ?effect.effect,
                     target = ?effect.target,
@@ -662,21 +564,11 @@ pub(super) fn execute_pending_effects(
 
         if matches!(
             &effect.operation,
-            ResolvedEffectOperation::ApplyAura { .. }
-                | ResolvedEffectOperation::RemoveAura { .. }
+            ResolvedEffectOperation::ApplyAura { .. } | ResolvedEffectOperation::RemoveAura { .. }
         ) {
-            match execute_aura_effect(
-                &effect,
-                &database,
-                target_auras.as_deref_mut(),
-            ) {
+            match execute_aura_effect(&effect, &database, target_auras.as_deref_mut()) {
                 Ok(result) => {
-                    enqueue_aura_execution_event(
-                        &mut event_queue,
-                        &effect,
-                        &result,
-                        generation,
-                    );
+                    enqueue_aura_execution_event(&mut event_queue, &effect, &result, generation);
 
                     debug!(
                         effect = ?effect.effect,
@@ -726,10 +618,9 @@ pub(super) fn execute_pending_effects(
                 custom_handler.execute(&effect, &mut context)
             };
 
-            if let (Some(pool), Some(stats)) = (
-                target_health.as_deref(),
-                target_stats.as_deref_mut(),
-            ) {
+            if let (Some(pool), Some(stats)) =
+                (target_health.as_deref(), target_stats.as_deref_mut())
+            {
                 stats.current_health = pool.current();
                 stats.max_health = pool.maximum();
             }
@@ -771,22 +662,14 @@ pub(super) fn execute_pending_effects(
             execute_resolved_effect(&effect, context)
         };
 
-        if let (Some(pool), Some(stats)) = (
-            target_health.as_deref(),
-            target_stats.as_deref_mut(),
-        ) {
+        if let (Some(pool), Some(stats)) = (target_health.as_deref(), target_stats.as_deref_mut()) {
             stats.current_health = pool.current();
             stats.max_health = pool.maximum();
         }
 
         match execution_result {
             Ok(result) => {
-                enqueue_execution_events(
-                    &mut event_queue,
-                    &effect,
-                    &result,
-                    generation,
-                );
+                enqueue_execution_events(&mut event_queue, &effect, &result, generation);
 
                 debug!(
                     effect = ?effect.effect,

@@ -1,18 +1,10 @@
-use super::{ContentDatabase, ContentId, TalentDefinition};
 use super::super::{
-    AbilityValidationError,
-    AuraValidationError,
-    CombatAttributeValidationError,
-    ContentPackRegistryError,
-    CreatureValidationError,
-    DamageSchoolMitigation,
-    DamageSchoolValidationError,
-    EffectKind,
-    EffectMagnitude,
-    EffectValidationError,
-    ResourceValidationError,
-    TalentValidationError,
+    AbilityValidationError, AuraValidationError, CombatAttributeValidationError,
+    ContentPackRegistryError, CreatureValidationError, DamageSchoolMitigation,
+    DamageSchoolValidationError, EffectKind, EffectMagnitude, EffectValidationError,
+    ResourceValidationError, TalentValidationError,
 };
+use super::{ContentDatabase, ContentId, TalentDefinition};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 
@@ -31,14 +23,10 @@ impl ContentDatabase {
         Ok(())
     }
 
-    fn validate_damage_school_references(
-        &self,
-    ) -> Result<(), ContentDatabaseError> {
+    fn validate_damage_school_references(&self) -> Result<(), ContentDatabaseError> {
         for (id, school) in &self.damage_schools {
             let components = match &school.mitigation {
-                DamageSchoolMitigation::Composite { components } => {
-                    components.as_slice()
-                }
+                DamageSchoolMitigation::Composite { components } => components.as_slice(),
                 mitigation => std::slice::from_ref(mitigation),
             };
 
@@ -57,9 +45,7 @@ impl ContentDatabase {
         Ok(())
     }
 
-    fn validate_creature_definitions(
-        &self,
-    ) -> Result<(), ContentDatabaseError> {
+    fn validate_creature_definitions(&self) -> Result<(), ContentDatabaseError> {
         for creature in self.creatures.values() {
             creature
                 .validate()
@@ -69,12 +55,9 @@ impl ContentDatabase {
         Ok(())
     }
 
-    fn validate_aura_definitions(
-        &self,
-    ) -> Result<(), ContentDatabaseError> {
+    fn validate_aura_definitions(&self) -> Result<(), ContentDatabaseError> {
         for aura in self.auras.values() {
-            aura.validate()
-                .map_err(ContentDatabaseError::InvalidAura)?;
+            aura.validate().map_err(ContentDatabaseError::InvalidAura)?;
 
             for periodic_effect in &aura.periodic_effects {
                 if !self.effects.contains_key(&periodic_effect.effect) {
@@ -89,9 +72,7 @@ impl ContentDatabase {
         Ok(())
     }
 
-    fn validate_effect_references(
-        &self,
-    ) -> Result<(), ContentDatabaseError> {
+    fn validate_effect_references(&self) -> Result<(), ContentDatabaseError> {
         for (id, effect) in &self.effects {
             match &effect.kind {
                 EffectKind::Damage { amount, school } => {
@@ -115,12 +96,10 @@ impl ContentDatabase {
 
                     self.validate_effect_magnitude_references(id, amount)?;
                 }
-                EffectKind::Heal { amount }
-                | EffectKind::ModifyThreat { amount } => {
+                EffectKind::Heal { amount } | EffectKind::ModifyThreat { amount } => {
                     self.validate_effect_magnitude_references(id, amount)?;
                 }
-                EffectKind::ApplyAura { aura, .. }
-                | EffectKind::RemoveAura { aura, .. } => {
+                EffectKind::ApplyAura { aura, .. } | EffectKind::RemoveAura { aura, .. } => {
                     if !self.auras.contains_key(aura) {
                         return Err(ContentDatabaseError::MissingReference {
                             owner: id.clone(),
@@ -160,9 +139,7 @@ impl ContentDatabase {
         Ok(())
     }
 
-    fn validate_ability_references(
-        &self,
-    ) -> Result<(), ContentDatabaseError> {
+    fn validate_ability_references(&self) -> Result<(), ContentDatabaseError> {
         for (id, ability) in &self.abilities {
             for cost in &ability.costs {
                 if !self.resources.contains_key(&cost.resource) {
@@ -195,9 +172,7 @@ impl ContentDatabase {
         Ok(())
     }
 
-    fn validate_talent_references(
-        &self,
-    ) -> Result<(), ContentDatabaseError> {
+    fn validate_talent_references(&self) -> Result<(), ContentDatabaseError> {
         for (tree_id, tree) in &self.talent_trees {
             for talent_id in &tree.talents {
                 let talent = self.talents.get(talent_id).ok_or_else(|| {
@@ -232,25 +207,20 @@ impl ContentDatabase {
             }
 
             for prerequisite in &talent.prerequisites {
-                let required_talent = self
-                    .talents
-                    .get(&prerequisite.talent)
-                    .ok_or_else(|| {
-                        ContentDatabaseError::MissingReference {
-                            owner: talent_id.clone(),
-                            reference: prerequisite.talent.clone(),
-                        }
-                    })?;
+                let required_talent = self.talents.get(&prerequisite.talent).ok_or_else(|| {
+                    ContentDatabaseError::MissingReference {
+                        owner: talent_id.clone(),
+                        reference: prerequisite.talent.clone(),
+                    }
+                })?;
 
                 if prerequisite.required_rank > required_talent.max_rank() {
-                    return Err(
-                        ContentDatabaseError::PrerequisiteRankOutOfRange {
-                            talent: talent_id.clone(),
-                            prerequisite: prerequisite.talent.clone(),
-                            required_rank: prerequisite.required_rank,
-                            max_rank: required_talent.max_rank(),
-                        },
-                    );
+                    return Err(ContentDatabaseError::PrerequisiteRankOutOfRange {
+                        talent: talent_id.clone(),
+                        prerequisite: prerequisite.talent.clone(),
+                        required_rank: prerequisite.required_rank,
+                        max_rank: required_talent.max_rank(),
+                    });
                 }
             }
 
@@ -278,19 +248,12 @@ impl ContentDatabase {
         Ok(())
     }
 
-    fn validate_talent_prerequisite_cycles(
-        &self,
-    ) -> Result<(), ContentDatabaseError> {
+    fn validate_talent_prerequisite_cycles(&self) -> Result<(), ContentDatabaseError> {
         let mut visiting = HashSet::new();
         let mut visited = HashSet::new();
 
         for id in self.talents.keys() {
-            visit_talent(
-                &self.talents,
-                id,
-                &mut visiting,
-                &mut visited,
-            )?;
+            visit_talent(&self.talents, id, &mut visiting, &mut visited)?;
         }
 
         Ok(())
@@ -308,9 +271,7 @@ fn visit_talent(
     }
 
     if !visiting.insert(id.clone()) {
-        return Err(ContentDatabaseError::TalentPrerequisiteCycle(
-            id.clone(),
-        ));
+        return Err(ContentDatabaseError::TalentPrerequisiteCycle(id.clone()));
     }
 
     let talent = talents
@@ -321,12 +282,7 @@ fn visit_talent(
         })?;
 
     for prerequisite in &talent.prerequisites {
-        visit_talent(
-            talents,
-            &prerequisite.talent,
-            visiting,
-            visited,
-        )?;
+        visit_talent(talents, &prerequisite.talent, visiting, visited)?;
     }
 
     visiting.remove(id);

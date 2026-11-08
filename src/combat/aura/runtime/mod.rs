@@ -1,14 +1,9 @@
-
 mod refresh;
 
 use bevy::prelude::{Component, Entity};
 
 use crate::content::{
-    AuraDefinition,
-    AuraStackingPolicy,
-    AuraStackingScope,
-    AuraValidationError,
-    ContentId,
+    AuraDefinition, AuraStackingPolicy, AuraStackingScope, AuraValidationError, ContentId,
     PeriodicEffectStackScaling,
 };
 
@@ -90,9 +85,7 @@ impl ActiveAuras {
             return Err(AuraRuntimeError::ZeroStacks);
         }
 
-        if duration_seconds.is_some_and(
-            |duration| !duration.is_finite() || duration <= 0.0,
-        ) {
+        if duration_seconds.is_some_and(|duration| !duration.is_finite() || duration <= 0.0) {
             return Err(AuraRuntimeError::InvalidDuration);
         }
 
@@ -101,17 +94,12 @@ impl ActiveAuras {
 
         match definition.stacking_policy {
             AuraStackingPolicy::RefreshDuration => {
-                if let Some(existing) = self.find_mut(
-                    aura_id,
-                    source,
-                    definition.stacking_scope,
-                ) {
-                    existing.remaining_duration =
-                        refresh::refreshed_duration(
-                            existing.remaining_duration,
-                            duration_seconds,
-                            definition.refresh_policy,
-                        )?;
+                if let Some(existing) = self.find_mut(aura_id, source, definition.stacking_scope) {
+                    existing.remaining_duration = refresh::refreshed_duration(
+                        existing.remaining_duration,
+                        duration_seconds,
+                        definition.refresh_policy,
+                    )?;
                 } else {
                     self.instances.push(ActiveAura {
                         aura: aura_id.clone(),
@@ -123,17 +111,12 @@ impl ActiveAuras {
                 }
             }
             AuraStackingPolicy::AddStacks => {
-                if let Some(existing) = self.find_mut(
-                    aura_id,
-                    source,
-                    definition.stacking_scope,
-                ) {
-                    let refreshed_duration =
-                        refresh::refreshed_duration(
-                            existing.remaining_duration,
-                            duration_seconds,
-                            definition.refresh_policy,
-                        )?;
+                if let Some(existing) = self.find_mut(aura_id, source, definition.stacking_scope) {
+                    let refreshed_duration = refresh::refreshed_duration(
+                        existing.remaining_duration,
+                        duration_seconds,
+                        definition.refresh_policy,
+                    )?;
 
                     existing.stacks = existing
                         .stacks
@@ -152,23 +135,17 @@ impl ActiveAuras {
                 }
             }
             AuraStackingPolicy::Replace => {
-                if let Some(existing) = self.find_mut(
-                    aura_id,
-                    source,
-                    definition.stacking_scope,
-                ) {
-                    let refreshed_duration =
-                        refresh::refreshed_duration(
-                            existing.remaining_duration,
-                            duration_seconds,
-                            definition.refresh_policy,
-                        )?;
+                if let Some(existing) = self.find_mut(aura_id, source, definition.stacking_scope) {
+                    let refreshed_duration = refresh::refreshed_duration(
+                        existing.remaining_duration,
+                        duration_seconds,
+                        definition.refresh_policy,
+                    )?;
 
                     existing.source = source;
                     existing.stacks = applied_stacks;
                     existing.remaining_duration = refreshed_duration;
-                    existing.periodic_effects =
-                        periodic_effect_states(definition);
+                    existing.periodic_effects = periodic_effect_states(definition);
                 } else {
                     self.instances.push(ActiveAura {
                         aura: aura_id.clone(),
@@ -193,11 +170,7 @@ impl ActiveAuras {
         Ok(())
     }
 
-    pub fn remove(
-        &mut self,
-        aura_id: &ContentId,
-        stacks: Option<u32>,
-    ) -> u32 {
+    pub fn remove(&mut self, aura_id: &ContentId, stacks: Option<u32>) -> u32 {
         match stacks {
             None => {
                 let mut removed = 0u32;
@@ -237,17 +210,11 @@ impl ActiveAuras {
         }
     }
 
-    pub fn tick(
-        &mut self,
-        delta_seconds: f32,
-    ) -> Vec<ExpiredAura> {
+    pub fn tick(&mut self, delta_seconds: f32) -> Vec<ExpiredAura> {
         self.advance(delta_seconds).expired
     }
 
-    pub fn advance(
-        &mut self,
-        delta_seconds: f32,
-    ) -> AuraAdvance {
+    pub fn advance(&mut self, delta_seconds: f32) -> AuraAdvance {
         if !delta_seconds.is_finite() || delta_seconds <= 0.0 {
             return AuraAdvance::default();
         }
@@ -263,17 +230,14 @@ impl ActiveAuras {
             for periodic_effect in &mut instance.periodic_effects {
                 periodic_effect.elapsed_seconds += active_delta;
 
-                let tolerance =
-                    periodic_effect.interval_seconds * 0.000001;
+                let tolerance = periodic_effect.interval_seconds * 0.000001;
 
                 while periodic_effect.elapsed_seconds + tolerance
                     >= periodic_effect.interval_seconds
                 {
-                    periodic_effect.elapsed_seconds = (
-                        periodic_effect.elapsed_seconds
-                            - periodic_effect.interval_seconds
-                    )
-                    .max(0.0);
+                    periodic_effect.elapsed_seconds = (periodic_effect.elapsed_seconds
+                        - periodic_effect.interval_seconds)
+                        .max(0.0);
 
                     result.periodic_ticks.push(PeriodicAuraTick {
                         aura: instance.aura.clone(),
@@ -310,10 +274,7 @@ impl ActiveAuras {
         result
     }
 
-    pub fn get(
-        &self,
-        aura_id: &ContentId,
-    ) -> Option<&ActiveAura> {
+    pub fn get(&self, aura_id: &ContentId) -> Option<&ActiveAura> {
         self.instances
             .iter()
             .find(|instance| instance.aura == *aura_id)
@@ -353,17 +314,13 @@ impl ActiveAuras {
 
             match stacking_scope {
                 AuraStackingScope::Shared => true,
-                AuraStackingScope::PerCaster => {
-                    instance.source == source
-                }
+                AuraStackingScope::PerCaster => instance.source == source,
             }
         })
     }
 }
 
-fn periodic_effect_states(
-    definition: &AuraDefinition,
-) -> Vec<ActivePeriodicEffect> {
+fn periodic_effect_states(definition: &AuraDefinition) -> Vec<ActivePeriodicEffect> {
     definition
         .periodic_effects
         .iter()

@@ -12,14 +12,8 @@ pub struct ResourcePool {
 }
 
 impl ResourcePool {
-    pub fn new(
-        current: f32,
-        maximum: f32,
-    ) -> Result<Self, ResourcePoolError> {
-        let pool = Self {
-            current,
-            maximum,
-        };
+    pub fn new(current: f32, maximum: f32) -> Result<Self, ResourcePoolError> {
+        let pool = Self { current, maximum };
 
         pool.validate()?;
 
@@ -38,10 +32,7 @@ impl ResourcePool {
         self.maximum - self.current
     }
 
-    pub fn set_current(
-        &mut self,
-        current: f32,
-    ) -> Result<(), ResourcePoolError> {
+    pub fn set_current(&mut self, current: f32) -> Result<(), ResourcePoolError> {
         if !current.is_finite() || current < 0.0 {
             return Err(ResourcePoolError::InvalidCurrent);
         }
@@ -55,10 +46,7 @@ impl ResourcePool {
         Ok(())
     }
 
-    pub fn set_maximum(
-        &mut self,
-        maximum: f32,
-    ) -> Result<(), ResourcePoolError> {
+    pub fn set_maximum(&mut self, maximum: f32) -> Result<(), ResourcePoolError> {
         if !maximum.is_finite() || maximum < 0.0 {
             return Err(ResourcePoolError::InvalidMaximum);
         }
@@ -105,9 +93,7 @@ impl Display for ResourcePoolError {
             Self::InvalidMaximum => {
                 "Il valore massimo della risorsa deve essere finito e non negativo"
             }
-            Self::CurrentExceedsMaximum => {
-                "Il valore corrente non può superare quello massimo"
-            }
+            Self::CurrentExceedsMaximum => "Il valore corrente non può superare quello massimo",
         };
 
         formatter.write_str(message)
@@ -126,18 +112,11 @@ impl CombatResources {
         self.pools.get(resource)
     }
 
-    pub fn pool_mut(
-        &mut self,
-        resource: &ContentId,
-    ) -> Option<&mut ResourcePool> {
+    pub fn pool_mut(&mut self, resource: &ContentId) -> Option<&mut ResourcePool> {
         self.pools.get_mut(resource)
     }
 
-    pub fn insert(
-        &mut self,
-        resource: ContentId,
-        pool: ResourcePool,
-    ) -> Option<ResourcePool> {
+    pub fn insert(&mut self, resource: ContentId, pool: ResourcePool) -> Option<ResourcePool> {
         self.pools.insert(resource, pool)
     }
 
@@ -156,35 +135,20 @@ impl CombatResources {
         let pool = self
             .pools
             .get_mut(&request.resource)
-            .ok_or_else(|| {
-                ResourceApplicationError::MissingPool(
-                    request.resource.clone(),
-                )
-            })?;
+            .ok_or_else(|| ResourceApplicationError::MissingPool(request.resource.clone()))?;
 
         let effective_amount = match request.operation {
-            ResourceOperation::Gain => {
-                pool.remaining_capacity().min(request.base_amount)
-            }
-            ResourceOperation::Spend => {
-                pool.current.min(request.base_amount)
-            }
+            ResourceOperation::Gain => pool.remaining_capacity().min(request.base_amount),
+            ResourceOperation::Spend => pool.current.min(request.base_amount),
         };
 
         let new_current = match request.operation {
-            ResourceOperation::Gain => {
-                (pool.current + effective_amount).min(pool.maximum)
-            }
-            ResourceOperation::Spend => {
-                (pool.current - effective_amount).max(0.0)
-            }
+            ResourceOperation::Gain => (pool.current + effective_amount).min(pool.maximum),
+            ResourceOperation::Spend => (pool.current - effective_amount).max(0.0),
         };
 
-        let resolution = ResourceResolution::new(
-            request,
-            effective_amount,
-        )
-        .map_err(ResourceApplicationError::InvalidResolution)?;
+        let resolution = ResourceResolution::new(request, effective_amount)
+            .map_err(ResourceApplicationError::InvalidResolution)?;
 
         pool.current = new_current;
 
@@ -233,9 +197,7 @@ pub enum ResourceRequestError {
 impl Display for ResourceRequestError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         let message = match self {
-            Self::InvalidAmount => {
-                "La quantità di risorsa deve essere finita e non negativa"
-            }
+            Self::InvalidAmount => "La quantità di risorsa deve essere finita e non negativa",
         };
 
         formatter.write_str(message)
@@ -300,14 +262,10 @@ impl Display for ResourceResolutionError {
                 write!(formatter, "Richiesta di risorsa non valida: {error}")
             }
             Self::InvalidEffectiveAmount => {
-                formatter.write_str(
-                    "La quantità effettiva deve essere finita e non negativa",
-                )
+                formatter.write_str("La quantità effettiva deve essere finita e non negativa")
             }
             Self::EffectiveExceedsRequestedAmount => {
-                formatter.write_str(
-                    "La quantità effettiva non può superare quella richiesta",
-                )
+                formatter.write_str("La quantità effettiva non può superare quella richiesta")
             }
         }
     }
@@ -369,10 +327,7 @@ mod tests {
     fn resources_with_mana(current: f32, maximum: f32) -> CombatResources {
         let mut resources = CombatResources::default();
 
-        resources.insert(
-            mana_id(),
-            ResourcePool::new(current, maximum).unwrap(),
-        );
+        resources.insert(mana_id(), ResourcePool::new(current, maximum).unwrap());
 
         resources
     }
@@ -470,15 +425,9 @@ mod tests {
     fn combat_resources_store_independent_pools() {
         let mut resources = CombatResources::default();
 
-        resources.insert(
-            mana_id(),
-            ResourcePool::new(80.0, 100.0).unwrap(),
-        );
+        resources.insert(mana_id(), ResourcePool::new(80.0, 100.0).unwrap());
 
-        resources.insert(
-            energy_id(),
-            ResourcePool::new(30.0, 100.0).unwrap(),
-        );
+        resources.insert(energy_id(), ResourcePool::new(30.0, 100.0).unwrap());
 
         assert_eq!(resources.len(), 2);
         assert_eq!(resources.pool(&mana_id()).unwrap().current(), 80.0);
@@ -489,10 +438,7 @@ mod tests {
     fn combat_resources_can_remove_pools() {
         let mut resources = CombatResources::default();
 
-        resources.insert(
-            mana_id(),
-            ResourcePool::new(80.0, 100.0).unwrap(),
-        );
+        resources.insert(mana_id(), ResourcePool::new(80.0, 100.0).unwrap());
 
         assert!(resources.remove(&mana_id()).is_some());
         assert!(resources.pool(&mana_id()).is_none());
@@ -501,17 +447,9 @@ mod tests {
 
     #[test]
     fn valid_resource_requests_pass_validation() {
-        assert!(
-            valid_request(ResourceOperation::Gain)
-                .validate()
-                .is_ok()
-        );
+        assert!(valid_request(ResourceOperation::Gain).validate().is_ok());
 
-        assert!(
-            valid_request(ResourceOperation::Spend)
-                .validate()
-                .is_ok()
-        );
+        assert!(valid_request(ResourceOperation::Spend).validate().is_ok());
     }
 
     #[test]
@@ -520,10 +458,7 @@ mod tests {
             let mut request = valid_request(ResourceOperation::Gain);
             request.base_amount = amount;
 
-            assert_eq!(
-                request.validate(),
-                Err(ResourceRequestError::InvalidAmount)
-            );
+            assert_eq!(request.validate(), Err(ResourceRequestError::InvalidAmount));
         }
     }
 
@@ -537,11 +472,8 @@ mod tests {
 
     #[test]
     fn resource_resolution_supports_partial_changes() {
-        let resolution = ResourceResolution::new(
-            valid_request(ResourceOperation::Gain),
-            30.0,
-        )
-        .unwrap();
+        let resolution =
+            ResourceResolution::new(valid_request(ResourceOperation::Gain), 30.0).unwrap();
 
         assert_eq!(resolution.effective_amount, 30.0);
         assert_eq!(resolution.unapplied_amount(), 20.0);
@@ -550,22 +482,16 @@ mod tests {
 
     #[test]
     fn resource_resolution_supports_full_changes() {
-        let resolution = ResourceResolution::new(
-            valid_request(ResourceOperation::Spend),
-            50.0,
-        )
-        .unwrap();
+        let resolution =
+            ResourceResolution::new(valid_request(ResourceOperation::Spend), 50.0).unwrap();
 
         assert_eq!(resolution.unapplied_amount(), 0.0);
     }
 
     #[test]
     fn resource_resolution_supports_zero_effective_changes() {
-        let resolution = ResourceResolution::new(
-            valid_request(ResourceOperation::Spend),
-            0.0,
-        )
-        .unwrap();
+        let resolution =
+            ResourceResolution::new(valid_request(ResourceOperation::Spend), 0.0).unwrap();
 
         assert_eq!(resolution.unapplied_amount(), 50.0);
     }
@@ -574,10 +500,7 @@ mod tests {
     fn resource_resolution_rejects_invalid_effective_amounts() {
         for amount in [-1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
             assert_eq!(
-                ResourceResolution::new(
-                    valid_request(ResourceOperation::Gain),
-                    amount,
-                ),
+                ResourceResolution::new(valid_request(ResourceOperation::Gain), amount,),
                 Err(ResourceResolutionError::InvalidEffectiveAmount)
             );
         }
@@ -586,10 +509,7 @@ mod tests {
     #[test]
     fn resource_resolution_rejects_effective_amount_above_request() {
         assert_eq!(
-            ResourceResolution::new(
-                valid_request(ResourceOperation::Gain),
-                75.0,
-            ),
+            ResourceResolution::new(valid_request(ResourceOperation::Gain), 75.0,),
             Err(ResourceResolutionError::EffectiveExceedsRequestedAmount)
         );
     }
@@ -684,10 +604,7 @@ mod tests {
     fn resource_application_does_not_change_other_pools() {
         let mut resources = resources_with_mana(50.0, 100.0);
 
-        resources.insert(
-            energy_id(),
-            ResourcePool::new(30.0, 100.0).unwrap(),
-        );
+        resources.insert(energy_id(), ResourcePool::new(30.0, 100.0).unwrap());
 
         resources
             .apply_request(valid_request(ResourceOperation::Spend))

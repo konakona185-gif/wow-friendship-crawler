@@ -7,10 +7,7 @@ pub struct PendingDisplacement {
 }
 
 impl PendingDisplacement {
-    pub fn accumulate(
-        &mut self,
-        translation: Vec3,
-    ) -> Result<(), DisplacementError> {
+    pub fn accumulate(&mut self, translation: Vec3) -> Result<(), DisplacementError> {
         if !translation.is_finite() {
             return Err(DisplacementError::InvalidTranslation);
         }
@@ -49,14 +46,10 @@ impl Display for DisplacementError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidTranslation => {
-                formatter.write_str(
-                    "Lo spostamento deve contenere coordinate finite",
-                )
+                formatter.write_str("Lo spostamento deve contenere coordinate finite")
             }
             Self::AccumulationOverflow => {
-                formatter.write_str(
-                    "L'accumulo degli spostamenti ha prodotto un overflow",
-                )
+                formatter.write_str("L'accumulo degli spostamenti ha prodotto un overflow")
             }
         }
     }
@@ -72,10 +65,7 @@ mod tests {
     fn pending_displacement_starts_empty() {
         let displacement = PendingDisplacement::default();
 
-        assert_eq!(
-            displacement.pending_translation(),
-            Vec3::ZERO
-        );
+        assert_eq!(displacement.pending_translation(), Vec3::ZERO);
 
         assert!(displacement.is_empty());
     }
@@ -84,13 +74,9 @@ mod tests {
     fn pending_displacement_accumulates_translations() {
         let mut displacement = PendingDisplacement::default();
 
-        displacement
-            .accumulate(Vec3::new(2.0, 0.0, 1.0))
-            .unwrap();
+        displacement.accumulate(Vec3::new(2.0, 0.0, 1.0)).unwrap();
 
-        displacement
-            .accumulate(Vec3::new(3.0, 1.0, -2.0))
-            .unwrap();
+        displacement.accumulate(Vec3::new(3.0, 1.0, -2.0)).unwrap();
 
         assert_eq!(
             displacement.pending_translation(),
@@ -122,9 +108,7 @@ mod tests {
     fn pending_displacement_rejects_accumulation_overflow() {
         let mut displacement = PendingDisplacement::default();
 
-        displacement
-            .accumulate(Vec3::splat(f32::MAX))
-            .unwrap();
+        displacement.accumulate(Vec3::splat(f32::MAX)).unwrap();
 
         let previous = displacement.pending_translation();
 
@@ -133,51 +117,33 @@ mod tests {
             Err(DisplacementError::AccumulationOverflow)
         );
 
-        assert_eq!(
-            displacement.pending_translation(),
-            previous
-        );
+        assert_eq!(displacement.pending_translation(), previous);
     }
 
     #[test]
     fn pending_displacement_take_returns_and_clears_translation() {
         let mut displacement = PendingDisplacement::default();
 
-        displacement
-            .accumulate(Vec3::new(4.0, 2.0, -3.0))
-            .unwrap();
+        displacement.accumulate(Vec3::new(4.0, 2.0, -3.0)).unwrap();
 
         let taken = displacement.take();
 
-        assert_eq!(
-            taken,
-            Vec3::new(4.0, 2.0, -3.0)
-        );
+        assert_eq!(taken, Vec3::new(4.0, 2.0, -3.0));
 
         assert!(displacement.is_empty());
-        assert_eq!(
-            displacement.pending_translation(),
-            Vec3::ZERO
-        );
+        assert_eq!(displacement.pending_translation(), Vec3::ZERO);
     }
 
     #[test]
     fn pending_displacement_can_accumulate_again_after_take() {
         let mut displacement = PendingDisplacement::default();
 
-        displacement
-            .accumulate(Vec3::X * 5.0)
-            .unwrap();
+        displacement.accumulate(Vec3::X * 5.0).unwrap();
 
         displacement.take();
 
-        displacement
-            .accumulate(Vec3::Z * 3.0)
-            .unwrap();
+        displacement.accumulate(Vec3::Z * 3.0).unwrap();
 
-        assert_eq!(
-            displacement.pending_translation(),
-            Vec3::Z * 3.0
-        );
+        assert_eq!(displacement.pending_translation(), Vec3::Z * 3.0);
     }
 }

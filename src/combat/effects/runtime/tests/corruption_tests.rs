@@ -2,53 +2,28 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-use super::super::{
-    execute_pending_effects,
-    PendingCombatEffects,
-};
+use super::super::{execute_pending_effects, PendingCombatEffects};
 
 use crate::combat::{
-    ActiveAuras,
-    CombatAttributes,
-    CombatEffectSubscriptions,
-    CombatEventQueue,
-    CombatLevel,
-    CombatStats,
-    EffectTargetSelection,
-    Enemy,
-    HealthPool,
+    ActiveAuras, CombatAttributes, CombatEffectSubscriptions, CombatEventQueue, CombatLevel,
+    CombatStats, EffectTargetSelection, Enemy, HealthPool,
 };
 
-use crate::content::{
-    ContentDatabase,
-    ContentId,
-    ContentPackLoader,
-};
+use crate::content::{ContentDatabase, ContentId, ContentPackLoader};
 
 fn corruption_apply_effect_id() -> ContentId {
-    ContentId::new(
-        "classic_1_12_1:effect.apply_corruption",
-    )
-    .unwrap()
+    ContentId::new("classic_1_12_1:effect.apply_corruption").unwrap()
 }
 
 fn corruption_tick_effect_id() -> ContentId {
-    ContentId::new(
-        "classic_1_12_1:effect.corruption_tick",
-    )
-    .unwrap()
+    ContentId::new("classic_1_12_1:effect.corruption_tick").unwrap()
 }
 
 fn corruption_aura_id() -> ContentId {
-    ContentId::new(
-        "classic_1_12_1:aura.corruption",
-    )
-    .unwrap()
+    ContentId::new("classic_1_12_1:aura.corruption").unwrap()
 }
 
-fn corruption_runtime_app(
-    database: ContentDatabase,
-) -> App {
+fn corruption_runtime_app(database: ContentDatabase) -> App {
     let mut app = App::new();
 
     app.insert_resource(database)
@@ -69,8 +44,7 @@ fn corruption_runtime_app(
 }
 
 fn spawn_corruption_caster(app: &mut App) -> Entity {
-    let mut subscriptions =
-        CombatEffectSubscriptions::default();
+    let mut subscriptions = CombatEffectSubscriptions::default();
 
     subscriptions.subscribe(corruption_tick_effect_id());
 
@@ -83,11 +57,7 @@ fn spawn_corruption_caster(app: &mut App) -> Entity {
         .id()
 }
 
-fn setup_corruption_scenario() -> (
-    App,
-    Entity,
-    Entity,
-) {
+fn setup_corruption_scenario() -> (App, Entity, Entity) {
     let mut database = ContentDatabase::new();
 
     ContentPackLoader::load_ron(
@@ -118,21 +88,10 @@ fn setup_corruption_scenario() -> (
     (app, caster, target)
 }
 
-fn enqueue_corruption(
-    app: &mut App,
-    caster: Entity,
-    target: Entity,
-) {
-    let database = app
-        .world()
-        .resource::<ContentDatabase>()
-        .clone();
+fn enqueue_corruption(app: &mut App, caster: Entity, target: Entity) {
+    let database = app.world().resource::<ContentDatabase>().clone();
 
-    let source_attributes = app
-        .world()
-        .get::<CombatAttributes>(caster)
-        .unwrap()
-        .clone();
+    let source_attributes = app.world().get::<CombatAttributes>(caster).unwrap().clone();
 
     let resolved_count = app
         .world_mut()
@@ -162,19 +121,11 @@ fn advance_corruption_tick(
     app.update();
 
     assert_eq!(
-        app.world()
-            .get::<HealthPool>(target)
-            .unwrap()
-            .current(),
+        app.world().get::<HealthPool>(target).unwrap().current(),
         previous_health
     );
 
-    assert_eq!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .len(),
-        1
-    );
+    assert_eq!(app.world().resource::<PendingCombatEffects>().len(), 1);
 
     app.world_mut()
         .resource_mut::<Time>()
@@ -183,10 +134,7 @@ fn advance_corruption_tick(
     app.update();
 
     assert_eq!(
-        app.world()
-            .get::<HealthPool>(target)
-            .unwrap()
-            .current(),
+        app.world().get::<HealthPool>(target).unwrap().current(),
         expected_health
     );
 
@@ -198,60 +146,31 @@ fn advance_corruption_tick(
         expected_health
     );
 
-    assert!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingCombatEffects>().is_empty());
 
-    assert!(
-        app.world()
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<CombatEventQueue>().is_empty());
 }
 
 #[test]
 fn corruption_from_classic_pack_executes_periodic_shadow_damage_end_to_end() {
-    let (mut app, caster, target) =
-        setup_corruption_scenario();
+    let (mut app, caster, target) = setup_corruption_scenario();
 
     enqueue_corruption(&mut app, caster, target);
 
     app.update();
 
-    let active_auras = app
-        .world()
-        .get::<ActiveAuras>(target)
-        .unwrap();
+    let active_auras = app.world().get::<ActiveAuras>(target).unwrap();
 
-    assert_eq!(
-        active_auras.stacks(&corruption_aura_id()),
-        1
-    );
+    assert_eq!(active_auras.stacks(&corruption_aura_id()), 1);
 
-    let active_aura = active_auras
-        .get(&corruption_aura_id())
-        .unwrap();
+    let active_aura = active_auras.get(&corruption_aura_id()).unwrap();
 
     assert_eq!(active_aura.source(), Some(caster));
-    assert_eq!(
-        active_aura.remaining_duration(),
-        Some(18.0)
-    );
+    assert_eq!(active_aura.remaining_duration(), Some(18.0));
 
-    assert!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingCombatEffects>().is_empty());
 
-    advance_corruption_tick(
-        &mut app,
-        target,
-        1000.0,
-        863.0,
-    );
+    advance_corruption_tick(&mut app, target, 1000.0, 863.0);
 
     let active_aura = app
         .world()
@@ -260,27 +179,18 @@ fn corruption_from_classic_pack_executes_periodic_shadow_damage_end_to_end() {
         .get(&corruption_aura_id())
         .unwrap();
 
-    assert_eq!(
-        active_aura.remaining_duration(),
-        Some(15.0)
-    );
+    assert_eq!(active_aura.remaining_duration(), Some(15.0));
 }
 
 #[test]
 fn corruption_repeats_periodic_ticks_and_preserves_pandemic_carryover() {
-    let (mut app, caster, target) =
-        setup_corruption_scenario();
+    let (mut app, caster, target) = setup_corruption_scenario();
 
     enqueue_corruption(&mut app, caster, target);
 
     app.update();
 
-    advance_corruption_tick(
-        &mut app,
-        target,
-        1000.0,
-        863.0,
-    );
+    advance_corruption_tick(&mut app, target, 1000.0, 863.0);
 
     let active_aura = app
         .world()
@@ -289,17 +199,9 @@ fn corruption_repeats_periodic_ticks_and_preserves_pandemic_carryover() {
         .get(&corruption_aura_id())
         .unwrap();
 
-    assert_eq!(
-        active_aura.remaining_duration(),
-        Some(15.0)
-    );
+    assert_eq!(active_aura.remaining_duration(), Some(15.0));
 
-    advance_corruption_tick(
-        &mut app,
-        target,
-        863.0,
-        726.0,
-    );
+    advance_corruption_tick(&mut app, target, 863.0, 726.0);
 
     let active_aura = app
         .world()
@@ -308,46 +210,24 @@ fn corruption_repeats_periodic_ticks_and_preserves_pandemic_carryover() {
         .get(&corruption_aura_id())
         .unwrap();
 
-    assert_eq!(
-        active_aura.remaining_duration(),
-        Some(12.0)
-    );
+    assert_eq!(active_aura.remaining_duration(), Some(12.0));
 
     enqueue_corruption(&mut app, caster, target);
 
     app.update();
 
-    let active_auras = app
-        .world()
-        .get::<ActiveAuras>(target)
-        .unwrap();
+    let active_auras = app.world().get::<ActiveAuras>(target).unwrap();
 
-    assert_eq!(
-        active_auras.len(),
-        1
-    );
+    assert_eq!(active_auras.len(), 1);
 
-    assert_eq!(
-        active_auras.stacks(&corruption_aura_id()),
-        1
-    );
+    assert_eq!(active_auras.stacks(&corruption_aura_id()), 1);
 
-    let active_aura = active_auras
-        .get(&corruption_aura_id())
-        .unwrap();
+    let active_aura = active_auras.get(&corruption_aura_id()).unwrap();
 
     assert_eq!(active_aura.source(), Some(caster));
-    assert_eq!(
-        active_aura.remaining_duration(),
-        Some(23.4)
-    );
+    assert_eq!(active_aura.remaining_duration(), Some(23.4));
 
-    advance_corruption_tick(
-        &mut app,
-        target,
-        726.0,
-        589.0,
-    );
+    advance_corruption_tick(&mut app, target, 726.0, 589.0);
 
     let active_aura = app
         .world()
@@ -356,21 +236,14 @@ fn corruption_repeats_periodic_ticks_and_preserves_pandemic_carryover() {
         .get(&corruption_aura_id())
         .unwrap();
 
-    assert_eq!(
-        active_aura.remaining_duration(),
-        Some(20.4)
-    );
+    assert_eq!(active_aura.remaining_duration(), Some(20.4));
 
-    assert_eq!(
-        active_aura.stacks(),
-        1
-    );
+    assert_eq!(active_aura.stacks(), 1);
 }
 
 #[test]
 fn corruption_from_two_casters_stacks_independently_and_ticks_both_sources() {
-    let (mut app, first_caster, target) =
-        setup_corruption_scenario();
+    let (mut app, first_caster, target) = setup_corruption_scenario();
 
     let second_caster = spawn_corruption_caster(&mut app);
 
@@ -379,16 +252,10 @@ fn corruption_from_two_casters_stacks_independently_and_ticks_both_sources() {
 
     app.update();
 
-    let active_auras = app
-        .world()
-        .get::<ActiveAuras>(target)
-        .unwrap();
+    let active_auras = app.world().get::<ActiveAuras>(target).unwrap();
 
     assert_eq!(active_auras.len(), 2);
-    assert_eq!(
-        active_auras.stacks(&corruption_aura_id()),
-        2
-    );
+    assert_eq!(active_auras.stacks(&corruption_aura_id()), 2);
 
     assert_eq!(
         active_auras
@@ -413,19 +280,11 @@ fn corruption_from_two_casters_stacks_independently_and_ticks_both_sources() {
     app.update();
 
     assert_eq!(
-        app.world()
-            .get::<HealthPool>(target)
-            .unwrap()
-            .current(),
+        app.world().get::<HealthPool>(target).unwrap().current(),
         1000.0
     );
 
-    assert_eq!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .len(),
-        2
-    );
+    assert_eq!(app.world().resource::<PendingCombatEffects>().len(), 2);
 
     app.world_mut()
         .resource_mut::<Time>()
@@ -434,10 +293,7 @@ fn corruption_from_two_casters_stacks_independently_and_ticks_both_sources() {
     app.update();
 
     assert_eq!(
-        app.world()
-            .get::<HealthPool>(target)
-            .unwrap()
-            .current(),
+        app.world().get::<HealthPool>(target).unwrap().current(),
         726.0
     );
 
@@ -449,56 +305,30 @@ fn corruption_from_two_casters_stacks_independently_and_ticks_both_sources() {
         726.0
     );
 
-    assert!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingCombatEffects>().is_empty());
 
-    assert!(
-        app.world()
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<CombatEventQueue>().is_empty());
 }
 
 #[test]
 fn corruption_executes_final_tick_at_expiration_and_stops_afterward() {
-    let (mut app, caster, target) =
-        setup_corruption_scenario();
+    let (mut app, caster, target) = setup_corruption_scenario();
 
     enqueue_corruption(&mut app, caster, target);
 
     app.update();
 
-    let expected_health_values = [
-        863.0,
-        726.0,
-        589.0,
-        452.0,
-        315.0,
-        178.0,
-    ];
+    let expected_health_values = [863.0, 726.0, 589.0, 452.0, 315.0, 178.0];
 
     let mut previous_health = 1000.0;
 
     for expected_health in expected_health_values {
-        advance_corruption_tick(
-            &mut app,
-            target,
-            previous_health,
-            expected_health,
-        );
+        advance_corruption_tick(&mut app, target, previous_health, expected_health);
 
         previous_health = expected_health;
     }
 
-    assert!(
-        app.world()
-            .get::<ActiveAuras>(target)
-            .unwrap()
-            .is_empty()
-    );
+    assert!(app.world().get::<ActiveAuras>(target).unwrap().is_empty());
 
     app.world_mut()
         .resource_mut::<Time>()
@@ -507,22 +337,11 @@ fn corruption_executes_final_tick_at_expiration_and_stops_afterward() {
     app.update();
 
     assert_eq!(
-        app.world()
-            .get::<HealthPool>(target)
-            .unwrap()
-            .current(),
+        app.world().get::<HealthPool>(target).unwrap().current(),
         178.0
     );
 
-    assert!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingCombatEffects>().is_empty());
 
-    assert!(
-        app.world()
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<CombatEventQueue>().is_empty());
 }

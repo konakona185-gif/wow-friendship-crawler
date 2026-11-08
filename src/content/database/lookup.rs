@@ -1,17 +1,7 @@
 use super::{
-    AbilityDefinition,
-    AuraDefinition,
-    CombatAttributeDefinition,
-    ContentDatabase,
-    ContentDatabaseError,
-    ContentId,
-    ContentPackManifest,
-    ContentPackRegistry,
-    CreatureDefinition,
-    DamageSchoolDefinition,
-    EffectDefinition,
-    ResourceDefinition,
-    TalentDefinition,
+    AbilityDefinition, AuraDefinition, CombatAttributeDefinition, ContentDatabase,
+    ContentDatabaseError, ContentId, ContentPackManifest, ContentPackRegistry, CreatureDefinition,
+    DamageSchoolDefinition, EffectDefinition, ResourceDefinition, TalentDefinition,
     TalentTreeDefinition,
 };
 
@@ -28,17 +18,11 @@ impl ContentDatabase {
         self.creatures.get(id)
     }
 
-    pub fn damage_school(
-        &self,
-        id: &ContentId,
-    ) -> Option<&DamageSchoolDefinition> {
+    pub fn damage_school(&self, id: &ContentId) -> Option<&DamageSchoolDefinition> {
         self.damage_schools.get(id)
     }
 
-    pub fn combat_attribute(
-        &self,
-        id: &ContentId,
-    ) -> Option<&CombatAttributeDefinition> {
+    pub fn combat_attribute(&self, id: &ContentId) -> Option<&CombatAttributeDefinition> {
         self.combat_attributes.get(id)
     }
 
@@ -50,10 +34,7 @@ impl ContentDatabase {
         self.abilities.get(id)
     }
 
-    pub fn talent_tree(
-        &self,
-        id: &ContentId,
-    ) -> Option<&TalentTreeDefinition> {
+    pub fn talent_tree(&self, id: &ContentId) -> Option<&TalentTreeDefinition> {
         self.talent_trees.get(id)
     }
 
@@ -113,9 +94,7 @@ impl ContentDatabase {
             + self.talent_count()
     }
 
-    pub fn pack_load_order(
-        &self,
-    ) -> Result<Vec<&ContentPackManifest>, ContentDatabaseError> {
+    pub fn pack_load_order(&self) -> Result<Vec<&ContentPackManifest>, ContentDatabaseError> {
         self.packs
             .load_order()
             .map_err(ContentDatabaseError::InvalidPackRegistry)

@@ -9,10 +9,7 @@ fn target() -> Entity {
 }
 
 fn content_id(value: &str) -> ContentId {
-    ContentId::new(
-        format!("classic_1_12_1:{value}"),
-    )
-    .unwrap()
+    ContentId::new(format!("classic_1_12_1:{value}")).unwrap()
 }
 
 fn valid_context(trigger: EffectTrigger) -> CombatEventContext {
@@ -20,9 +17,7 @@ fn valid_context(trigger: EffectTrigger) -> CombatEventContext {
         trigger,
         source: Some(source()),
         target: Some(target()),
-        ability: Some(
-            content_id("ability.test"),
-        ),
+        ability: Some(content_id("ability.test")),
         effect: None,
         outcome: None,
     }
@@ -39,11 +34,7 @@ fn damage_outcome() -> CombatEventOutcome {
     CombatEventOutcome::Damage(
         DamageResolution::new(
             request,
-            super::super::super::DamageMitigationResult::new(
-                100.0,
-                25.0,
-            )
-            .unwrap(),
+            super::super::super::DamageMitigationResult::new(100.0, 25.0).unwrap(),
         )
         .unwrap(),
     )
@@ -56,9 +47,7 @@ fn healing_outcome() -> CombatEventOutcome {
         base_amount: 100.0,
     };
 
-    CombatEventOutcome::Healing(
-        HealingResolution::new(request, 75.0).unwrap(),
-    )
+    CombatEventOutcome::Healing(HealingResolution::new(request, 75.0).unwrap())
 }
 
 fn resource_outcome() -> CombatEventOutcome {
@@ -70,9 +59,7 @@ fn resource_outcome() -> CombatEventOutcome {
         base_amount: 50.0,
     };
 
-    CombatEventOutcome::Resource(
-        ResourceResolution::new(request, 30.0).unwrap(),
-    )
+    CombatEventOutcome::Resource(ResourceResolution::new(request, 30.0).unwrap())
 }
 
 fn aura_applied_outcome(total_stacks: u32) -> CombatEventOutcome {

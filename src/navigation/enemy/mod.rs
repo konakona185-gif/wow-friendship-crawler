@@ -16,9 +16,6 @@ impl Plugin for EnemyNavigationPlugin {
             )
                 .chain(),
         )
-        .add_systems(
-            PostUpdate,
-            targets::sync_enemy_navigation_targets,
-        );
+        .add_systems(PostUpdate, targets::sync_enemy_navigation_targets);
     }
 }

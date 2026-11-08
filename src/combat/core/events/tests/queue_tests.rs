@@ -36,22 +36,12 @@ fn event_queue_preserves_generation_metadata() {
     let first = valid_context(EffectTrigger::OnCast);
     let second = valid_context(EffectTrigger::OnDamageDealt);
 
-    queue
-        .enqueue_with_generation(first.clone(), 0)
-        .unwrap();
-    queue
-        .enqueue_with_generation(second.clone(), 7)
-        .unwrap();
+    queue.enqueue_with_generation(first.clone(), 0).unwrap();
+    queue.enqueue_with_generation(second.clone(), 7).unwrap();
 
     let drained = queue.drain_with_generation();
 
-    assert_eq!(
-        drained,
-        vec![
-            (first, 0),
-            (second, 7),
-        ]
-    );
+    assert_eq!(drained, vec![(first, 0), (second, 7),]);
     assert!(queue.is_empty());
 }
 
@@ -62,10 +52,7 @@ fn event_queue_uses_generation_zero_for_standard_enqueue() {
 
     queue.enqueue(event.clone()).unwrap();
 
-    assert_eq!(
-        queue.drain_with_generation(),
-        vec![(event, 0)]
-    );
+    assert_eq!(queue.drain_with_generation(), vec![(event, 0)]);
 }
 
 #[test]

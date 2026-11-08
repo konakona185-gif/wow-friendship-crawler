@@ -3,19 +3,11 @@ use std::fmt::{Display, Formatter};
 
 use bevy::prelude::{Component, Entity, Resource};
 
-use crate::content::{
-    ContentId,
-    EffectTrigger,
-    PeriodicEffectStackScaling,
-};
+use crate::content::{ContentId, EffectTrigger, PeriodicEffectStackScaling};
 
 use crate::combat::{
-    DamageResolution,
-    DamageResolutionError,
-    HealingResolution,
-    HealingResolutionError,
-    ResourceResolution,
-    ResourceResolutionError,
+    DamageResolution, DamageResolutionError, HealingResolution, HealingResolutionError,
+    ResourceResolution, ResourceResolutionError,
 };
 
 pub const MAX_REACTIVE_EFFECT_GENERATIONS: u8 = 16;
@@ -62,117 +54,76 @@ impl CombatEventContext {
                     .validate()
                     .map_err(CombatEventContextError::InvalidDamage)?;
 
-                self.validate_participants(
-                    resolution.request.source,
-                    resolution.request.target,
-                )?;
+                self.validate_participants(resolution.request.source, resolution.request.target)?;
             }
             Some(CombatEventOutcome::Healing(resolution)) => {
                 resolution
                     .validate()
                     .map_err(CombatEventContextError::InvalidHealing)?;
 
-                self.validate_participants(
-                    resolution.request.source,
-                    resolution.request.target,
-                )?;
+                self.validate_participants(resolution.request.source, resolution.request.target)?;
             }
             Some(CombatEventOutcome::Resource(resolution)) => {
                 resolution
                     .validate()
                     .map_err(CombatEventContextError::InvalidResource)?;
 
-                self.validate_participants(
-                    resolution.request.source,
-                    resolution.request.target,
-                )?;
+                self.validate_participants(resolution.request.source, resolution.request.target)?;
             }
-            Some(CombatEventOutcome::AuraApplied {
-                total_stacks,
-                ..
-            }) => {
+            Some(CombatEventOutcome::AuraApplied { total_stacks, .. }) => {
                 if self.trigger != EffectTrigger::OnAuraApplied {
-                    return Err(
-                        CombatEventContextError::AuraApplicationTriggerMismatch,
-                    );
+                    return Err(CombatEventContextError::AuraApplicationTriggerMismatch);
                 }
 
                 if *total_stacks == 0 {
-                    return Err(
-                        CombatEventContextError::ZeroAppliedAuraStacks,
-                    );
+                    return Err(CombatEventContextError::ZeroAppliedAuraStacks);
                 }
 
                 if self.target.is_none() {
-                    return Err(
-                        CombatEventContextError::MissingAuraApplicationTarget,
-                    );
+                    return Err(CombatEventContextError::MissingAuraApplicationTarget);
                 }
             }
-            Some(CombatEventOutcome::AuraRemoved {
-                removed_stacks,
-                ..
-            }) => {
+            Some(CombatEventOutcome::AuraRemoved { removed_stacks, .. }) => {
                 if self.trigger != EffectTrigger::OnAuraRemoved {
-                    return Err(
-                        CombatEventContextError::AuraRemovalTriggerMismatch,
-                    );
+                    return Err(CombatEventContextError::AuraRemovalTriggerMismatch);
                 }
 
                 if *removed_stacks == 0 {
-                    return Err(
-                        CombatEventContextError::ZeroRemovedAuraStacks,
-                    );
+                    return Err(CombatEventContextError::ZeroRemovedAuraStacks);
                 }
 
                 if self.target.is_none() {
-                    return Err(
-                        CombatEventContextError::MissingAuraRemovalTarget,
-                    );
+                    return Err(CombatEventContextError::MissingAuraRemovalTarget);
                 }
             }
             Some(CombatEventOutcome::AuraExpired { stacks, .. }) => {
                 if self.trigger != EffectTrigger::OnExpire {
-                    return Err(
-                        CombatEventContextError::AuraExpirationTriggerMismatch,
-                    );
+                    return Err(CombatEventContextError::AuraExpirationTriggerMismatch);
                 }
 
                 if *stacks == 0 {
-                    return Err(
-                        CombatEventContextError::ZeroExpiredAuraStacks,
-                    );
+                    return Err(CombatEventContextError::ZeroExpiredAuraStacks);
                 }
 
                 if self.target.is_none() {
-                    return Err(
-                        CombatEventContextError::MissingAuraExpirationTarget,
-                    );
+                    return Err(CombatEventContextError::MissingAuraExpirationTarget);
                 }
             }
             Some(CombatEventOutcome::PeriodicTick { stacks, .. }) => {
                 if self.trigger != EffectTrigger::OnPeriodicTick {
-                    return Err(
-                        CombatEventContextError::PeriodicTickTriggerMismatch,
-                    );
+                    return Err(CombatEventContextError::PeriodicTickTriggerMismatch);
                 }
 
                 if *stacks == 0 {
-                    return Err(
-                        CombatEventContextError::ZeroPeriodicTickStacks,
-                    );
+                    return Err(CombatEventContextError::ZeroPeriodicTickStacks);
                 }
 
                 if self.target.is_none() {
-                    return Err(
-                        CombatEventContextError::MissingPeriodicTickTarget,
-                    );
+                    return Err(CombatEventContextError::MissingPeriodicTickTarget);
                 }
 
                 if self.effect.is_none() {
-                    return Err(
-                        CombatEventContextError::MissingPeriodicTickEffect,
-                    );
+                    return Err(CombatEventContextError::MissingPeriodicTickEffect);
                 }
             }
             None => {}
@@ -257,10 +208,7 @@ pub struct CombatEventQueue {
 }
 
 impl CombatEventQueue {
-    pub fn enqueue(
-        &mut self,
-        event: CombatEventContext,
-    ) -> Result<(), CombatEventContextError> {
+    pub fn enqueue(&mut self, event: CombatEventContext) -> Result<(), CombatEventContextError> {
         self.enqueue_with_generation(event, 0)
     }
 
@@ -337,87 +285,54 @@ impl Display for CombatEventContextError {
                 write!(formatter, "Risultato della risorsa non valido: {error}")
             }
             Self::SourceMismatch => {
-                formatter.write_str(
-                    "La sorgente dell'evento non corrisponde al risultato",
-                )
+                formatter.write_str("La sorgente dell'evento non corrisponde al risultato")
             }
             Self::TargetMismatch => {
-                formatter.write_str(
-                    "Il bersaglio dell'evento non corrisponde al risultato",
-                )
+                formatter.write_str("Il bersaglio dell'evento non corrisponde al risultato")
             }
             Self::AuraApplicationTriggerMismatch => {
-                formatter.write_str(
-                    "Un evento di applicazione richiede il trigger OnAuraApplied",
-                )
+                formatter.write_str("Un evento di applicazione richiede il trigger OnAuraApplied")
             }
             Self::ZeroAppliedAuraStacks => {
-                formatter.write_str(
-                    "Un evento di applicazione deve contenere almeno uno stack",
-                )
+                formatter.write_str("Un evento di applicazione deve contenere almeno uno stack")
             }
             Self::MissingAuraApplicationTarget => {
-                formatter.write_str(
-                    "Un evento di applicazione richiede il bersaglio dell'aura",
-                )
+                formatter.write_str("Un evento di applicazione richiede il bersaglio dell'aura")
             }
             Self::AuraRemovalTriggerMismatch => {
-                formatter.write_str(
-                    "Un evento di rimozione richiede il trigger OnAuraRemoved",
-                )
+                formatter.write_str("Un evento di rimozione richiede il trigger OnAuraRemoved")
             }
-            Self::ZeroRemovedAuraStacks => {
-                formatter.write_str(
-                    "Un evento di rimozione deve contenere almeno uno stack rimosso",
-                )
-            }
+            Self::ZeroRemovedAuraStacks => formatter
+                .write_str("Un evento di rimozione deve contenere almeno uno stack rimosso"),
             Self::MissingAuraRemovalTarget => {
-                formatter.write_str(
-                    "Un evento di rimozione richiede il bersaglio dell'aura",
-                )
+                formatter.write_str("Un evento di rimozione richiede il bersaglio dell'aura")
             }
             Self::AuraExpirationTriggerMismatch => {
-                formatter.write_str(
-                    "Un evento di scadenza richiede il trigger OnExpire",
-                )
+                formatter.write_str("Un evento di scadenza richiede il trigger OnExpire")
             }
             Self::ZeroExpiredAuraStacks => {
-                formatter.write_str(
-                    "Un evento di scadenza deve contenere almeno uno stack",
-                )
+                formatter.write_str("Un evento di scadenza deve contenere almeno uno stack")
             }
             Self::MissingAuraExpirationTarget => {
-                formatter.write_str(
-                    "Un evento di scadenza richiede il bersaglio dell'aura",
-                )
+                formatter.write_str("Un evento di scadenza richiede il bersaglio dell'aura")
             }
             Self::PeriodicTickTriggerMismatch => {
-                formatter.write_str(
-                    "Un evento periodico richiede il trigger OnPeriodicTick",
-                )
+                formatter.write_str("Un evento periodico richiede il trigger OnPeriodicTick")
             }
             Self::ZeroPeriodicTickStacks => {
-                formatter.write_str(
-                    "Un tick periodico deve contenere almeno uno stack",
-                )
+                formatter.write_str("Un tick periodico deve contenere almeno uno stack")
             }
             Self::MissingPeriodicTickTarget => {
-                formatter.write_str(
-                    "Un tick periodico richiede il bersaglio dell'aura",
-                )
+                formatter.write_str("Un tick periodico richiede il bersaglio dell'aura")
             }
             Self::MissingPeriodicTickEffect => {
-                formatter.write_str(
-                    "Un tick periodico richiede l'ID del suo effetto",
-                )
+                formatter.write_str("Un tick periodico richiede l'ID del suo effetto")
             }
         }
     }
 }
 
 impl std::error::Error for CombatEventContextError {}
-
-
 
 #[cfg(test)]
 mod tests;

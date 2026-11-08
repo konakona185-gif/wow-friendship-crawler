@@ -62,9 +62,7 @@ fn event_context_rejects_aura_expiration_with_wrong_trigger() {
 
     assert_eq!(
         context.validate(),
-        Err(
-            CombatEventContextError::AuraExpirationTriggerMismatch
-        )
+        Err(CombatEventContextError::AuraExpirationTriggerMismatch)
     );
 }
 
@@ -82,9 +80,7 @@ fn event_context_rejects_aura_application_with_wrong_trigger() {
 
     assert_eq!(
         context.validate(),
-        Err(
-            CombatEventContextError::AuraApplicationTriggerMismatch
-        )
+        Err(CombatEventContextError::AuraApplicationTriggerMismatch)
     );
 }
 
@@ -107,9 +103,7 @@ fn event_context_rejects_aura_application_without_target() {
 
     assert_eq!(
         context.validate(),
-        Err(
-            CombatEventContextError::MissingAuraApplicationTarget
-        )
+        Err(CombatEventContextError::MissingAuraApplicationTarget)
     );
 }
 
@@ -120,9 +114,7 @@ fn event_context_rejects_aura_removal_with_wrong_trigger() {
 
     assert_eq!(
         context.validate(),
-        Err(
-            CombatEventContextError::AuraRemovalTriggerMismatch
-        )
+        Err(CombatEventContextError::AuraRemovalTriggerMismatch)
     );
 }
 
@@ -145,9 +137,7 @@ fn event_context_rejects_aura_removal_without_target() {
 
     assert_eq!(
         context.validate(),
-        Err(
-            CombatEventContextError::MissingAuraRemovalTarget
-        )
+        Err(CombatEventContextError::MissingAuraRemovalTarget)
     );
 }
 
@@ -170,9 +160,7 @@ fn event_context_rejects_aura_expiration_without_target() {
 
     assert_eq!(
         context.validate(),
-        Err(
-            CombatEventContextError::MissingAuraExpirationTarget
-        )
+        Err(CombatEventContextError::MissingAuraExpirationTarget)
     );
 }
 

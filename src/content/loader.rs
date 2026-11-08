@@ -2,19 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 use super::{
-    AbilityDefinition,
-    AuraDefinition,
-    CombatAttributeDefinition,
-    ContentDatabase,
-    ContentDatabaseError,
-    ContentId,
-    ContentMetadata,
-    ContentPackManifest,
-    CreatureDefinition,
-    DamageSchoolDefinition,
-    EffectDefinition,
-    ResourceDefinition,
-    TalentDefinition,
+    AbilityDefinition, AuraDefinition, CombatAttributeDefinition, ContentDatabase,
+    ContentDatabaseError, ContentId, ContentMetadata, ContentPackManifest, CreatureDefinition,
+    DamageSchoolDefinition, EffectDefinition, ResourceDefinition, TalentDefinition,
     TalentTreeDefinition,
 };
 
@@ -68,10 +58,7 @@ impl ContentPackLoader {
             .map_err(ContentPackLoaderError::Database)?;
 
         for school in pack.damage_schools {
-            validate_content_pack(
-                &school.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&school.metadata, &expected_pack)?;
 
             staged_database
                 .register_damage_school(school)
@@ -79,10 +66,7 @@ impl ContentPackLoader {
         }
 
         for attribute in pack.combat_attributes {
-            validate_content_pack(
-                &attribute.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&attribute.metadata, &expected_pack)?;
 
             staged_database
                 .register_combat_attribute(attribute)
@@ -90,10 +74,7 @@ impl ContentPackLoader {
         }
 
         for resource in pack.resources {
-            validate_content_pack(
-                &resource.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&resource.metadata, &expected_pack)?;
 
             staged_database
                 .register_resource(resource)
@@ -101,10 +82,7 @@ impl ContentPackLoader {
         }
 
         for creature in pack.creatures {
-            validate_content_pack(
-                &creature.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&creature.metadata, &expected_pack)?;
 
             staged_database
                 .register_creature(creature)
@@ -112,10 +90,7 @@ impl ContentPackLoader {
         }
 
         for effect in pack.effects {
-            validate_content_pack(
-                &effect.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&effect.metadata, &expected_pack)?;
 
             staged_database
                 .register_effect(effect)
@@ -123,10 +98,7 @@ impl ContentPackLoader {
         }
 
         for aura in pack.auras {
-            validate_content_pack(
-                &aura.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&aura.metadata, &expected_pack)?;
 
             staged_database
                 .register_aura(aura)
@@ -134,10 +106,7 @@ impl ContentPackLoader {
         }
 
         for ability in pack.abilities {
-            validate_content_pack(
-                &ability.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&ability.metadata, &expected_pack)?;
 
             staged_database
                 .register_ability(ability)
@@ -145,10 +114,7 @@ impl ContentPackLoader {
         }
 
         for tree in pack.talent_trees {
-            validate_content_pack(
-                &tree.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&tree.metadata, &expected_pack)?;
 
             staged_database
                 .register_talent_tree(tree)
@@ -156,10 +122,7 @@ impl ContentPackLoader {
         }
 
         for talent in pack.talents {
-            validate_content_pack(
-                &talent.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&talent.metadata, &expected_pack)?;
 
             staged_database
                 .register_talent(talent)

@@ -2,10 +2,7 @@ use super::*;
 
 #[test]
 fn effect_runtime_enqueues_summon_request() {
-    let database = summon_test_database(
-        EffectTarget::Caster,
-        true,
-    );
+    let database = summon_test_database(EffectTarget::Caster, true);
 
     let mut app = summon_runtime_app(database);
 
@@ -16,11 +13,7 @@ fn effect_runtime_enqueues_summon_request() {
         .spawn(Transform::from_translation(spawn_position))
         .id();
 
-    enqueue_summon_effect(
-        &mut app,
-        Some(owner),
-        EffectTargetSelection::Caster,
-    );
+    enqueue_summon_effect(&mut app, Some(owner), EffectTargetSelection::Caster);
 
     app.update();
 
@@ -39,10 +32,7 @@ fn effect_runtime_enqueues_summon_request() {
 
 #[test]
 fn effect_runtime_uses_resolved_target_spawn_position() {
-    let database = summon_test_database(
-        EffectTarget::SelectedTarget,
-        true,
-    );
+    let database = summon_test_database(EffectTarget::SelectedTarget, true);
 
     let mut app = summon_runtime_app(database);
 
@@ -78,10 +68,7 @@ fn effect_runtime_uses_resolved_target_spawn_position() {
 
 #[test]
 fn effect_runtime_rejects_summon_without_source() {
-    let database = summon_test_database(
-        EffectTarget::SelectedTarget,
-        true,
-    );
+    let database = summon_test_database(EffectTarget::SelectedTarget, true);
 
     let mut app = summon_runtime_app(database);
 
@@ -90,34 +77,20 @@ fn effect_runtime_rejects_summon_without_source() {
         .spawn(Transform::from_xyz(2.0, 0.0, 2.0))
         .id();
 
-    enqueue_summon_effect(
-        &mut app,
-        None,
-        EffectTargetSelection::Selected(target),
-    );
+    enqueue_summon_effect(&mut app, None, EffectTargetSelection::Selected(target));
 
     app.update();
 
-    assert!(
-        app.world()
-            .resource::<PendingSummons>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingSummons>().is_empty());
 }
 
 #[test]
 fn effect_runtime_rejects_owner_without_transform() {
-    let database = summon_test_database(
-        EffectTarget::SelectedTarget,
-        true,
-    );
+    let database = summon_test_database(EffectTarget::SelectedTarget, true);
 
     let mut app = summon_runtime_app(database);
 
-    let owner = app
-        .world_mut()
-        .spawn_empty()
-        .id();
+    let owner = app.world_mut().spawn_empty().id();
 
     let target = app
         .world_mut()
@@ -132,31 +105,18 @@ fn effect_runtime_rejects_owner_without_transform() {
 
     app.update();
 
-    assert!(
-        app.world()
-            .resource::<PendingSummons>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingSummons>().is_empty());
 }
 
 #[test]
 fn effect_runtime_rejects_target_without_transform() {
-    let database = summon_test_database(
-        EffectTarget::SelectedTarget,
-        true,
-    );
+    let database = summon_test_database(EffectTarget::SelectedTarget, true);
 
     let mut app = summon_runtime_app(database);
 
-    let owner = app
-        .world_mut()
-        .spawn(Transform::IDENTITY)
-        .id();
+    let owner = app.world_mut().spawn(Transform::IDENTITY).id();
 
-    let target = app
-        .world_mut()
-        .spawn_empty()
-        .id();
+    let target = app.world_mut().spawn_empty().id();
 
     enqueue_summon_effect(
         &mut app,
@@ -166,59 +126,33 @@ fn effect_runtime_rejects_target_without_transform() {
 
     app.update();
 
-    assert!(
-        app.world()
-            .resource::<PendingSummons>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingSummons>().is_empty());
 }
 
 #[test]
 fn effect_runtime_rejects_unregistered_creature() {
-    let database = summon_test_database(
-        EffectTarget::Caster,
-        false,
-    );
+    let database = summon_test_database(EffectTarget::Caster, false);
 
     let mut app = summon_runtime_app(database);
 
-    let owner = app
-        .world_mut()
-        .spawn(Transform::IDENTITY)
-        .id();
+    let owner = app.world_mut().spawn(Transform::IDENTITY).id();
 
-    enqueue_summon_effect(
-        &mut app,
-        Some(owner),
-        EffectTargetSelection::Caster,
-    );
+    enqueue_summon_effect(&mut app, Some(owner), EffectTargetSelection::Caster);
 
     app.update();
 
-    assert!(
-        app.world()
-            .resource::<PendingSummons>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingSummons>().is_empty());
 }
 
 #[test]
 fn effect_runtime_rejects_invalid_summon_parameters() {
-    let database = summon_test_database(
-        EffectTarget::Caster,
-        true,
-    );
+    let database = summon_test_database(EffectTarget::Caster, true);
 
     let mut app = summon_runtime_app(database);
 
-    let owner = app
-        .world_mut()
-        .spawn(Transform::IDENTITY)
-        .id();
+    let owner = app.world_mut().spawn(Transform::IDENTITY).id();
 
-    let mut pending = app
-        .world_mut()
-        .resource_mut::<PendingCombatEffects>();
+    let mut pending = app.world_mut().resource_mut::<PendingCombatEffects>();
 
     pending.enqueue(ResolvedEffect {
         effect: effect_id(),
@@ -248,9 +182,5 @@ fn effect_runtime_rejects_invalid_summon_parameters() {
 
     app.update();
 
-    assert!(
-        app.world()
-            .resource::<PendingSummons>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingSummons>().is_empty());
 }

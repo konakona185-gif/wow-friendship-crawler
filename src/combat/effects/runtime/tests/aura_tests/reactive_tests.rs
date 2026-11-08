@@ -2,9 +2,7 @@ use super::*;
 
 #[test]
 fn aura_application_dispatches_reactive_effect_to_original_applier() {
-    let mut app = aura_reactive_runtime_app(
-        EffectTrigger::OnAuraApplied,
-    );
+    let mut app = aura_reactive_runtime_app(EffectTrigger::OnAuraApplied);
 
     let applier = app
         .world_mut()
@@ -19,8 +17,7 @@ fn aura_application_dispatches_reactive_effect_to_original_applier() {
         ))
         .id();
 
-    let mut subscriptions =
-        CombatEffectSubscriptions::default();
+    let mut subscriptions = CombatEffectSubscriptions::default();
 
     subscriptions.subscribe(aura_reactive_effect_id());
 
@@ -49,33 +46,18 @@ fn aura_application_dispatches_reactive_effect_to_original_applier() {
     app.update();
 
     assert_eq!(
-        app.world()
-            .get::<HealthPool>(applier)
-            .unwrap()
-            .current(),
+        app.world().get::<HealthPool>(applier).unwrap().current(),
         50.0
     );
 
-    assert_eq!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .len(),
-        1
-    );
+    assert_eq!(app.world().resource::<PendingCombatEffects>().len(), 1);
 
-    assert!(
-        app.world()
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<CombatEventQueue>().is_empty());
 
     app.update();
 
     assert_eq!(
-        app.world()
-            .get::<HealthPool>(applier)
-            .unwrap()
-            .current(),
+        app.world().get::<HealthPool>(applier).unwrap().current(),
         60.0
     );
 
@@ -87,18 +69,12 @@ fn aura_application_dispatches_reactive_effect_to_original_applier() {
         60.0
     );
 
-    assert!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingCombatEffects>().is_empty());
 }
 
 #[test]
 fn aura_removal_dispatches_reactive_effect_to_remover() {
-    let mut app = aura_reactive_runtime_app(
-        EffectTrigger::OnAuraRemoved,
-    );
+    let mut app = aura_reactive_runtime_app(EffectTrigger::OnAuraRemoved);
 
     let remover = app
         .world_mut()
@@ -113,29 +89,19 @@ fn aura_removal_dispatches_reactive_effect_to_remover() {
         ))
         .id();
 
-    let mut subscriptions =
-        CombatEffectSubscriptions::default();
+    let mut subscriptions = CombatEffectSubscriptions::default();
 
     subscriptions.subscribe(aura_reactive_effect_id());
 
     let mut active_auras = ActiveAuras::default();
 
     active_auras
-        .apply(
-            &aura_definition(),
-            Some(remover),
-            2,
-            Some(20.0),
-        )
+        .apply(&aura_definition(), Some(remover), 2, Some(20.0))
         .unwrap();
 
     let aura_owner = app
         .world_mut()
-        .spawn((
-            active_auras,
-            subscriptions,
-            CombatAttributes::default(),
-        ))
+        .spawn((active_auras, subscriptions, CombatAttributes::default()))
         .id();
 
     enqueue(
@@ -161,27 +127,16 @@ fn aura_removal_dispatches_reactive_effect_to_remover() {
     );
 
     assert_eq!(
-        app.world()
-            .get::<HealthPool>(remover)
-            .unwrap()
-            .current(),
+        app.world().get::<HealthPool>(remover).unwrap().current(),
         50.0
     );
 
-    assert_eq!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .len(),
-        1
-    );
+    assert_eq!(app.world().resource::<PendingCombatEffects>().len(), 1);
 
     app.update();
 
     assert_eq!(
-        app.world()
-            .get::<HealthPool>(remover)
-            .unwrap()
-            .current(),
+        app.world().get::<HealthPool>(remover).unwrap().current(),
         60.0
     );
 
@@ -193,21 +148,14 @@ fn aura_removal_dispatches_reactive_effect_to_remover() {
         60.0
     );
 
-    assert!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingCombatEffects>().is_empty());
 }
 
 #[test]
 fn removing_nonexistent_aura_does_not_enqueue_reactive_event() {
     let mut app = runtime_app(true);
 
-    let target = app
-        .world_mut()
-        .spawn(ActiveAuras::default())
-        .id();
+    let target = app.world_mut().spawn(ActiveAuras::default()).id();
 
     enqueue(
         &mut app,
@@ -222,22 +170,9 @@ fn removing_nonexistent_aura_does_not_enqueue_reactive_event() {
 
     app.update();
 
-    assert!(
-        app.world()
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<CombatEventQueue>().is_empty());
 
-    assert!(
-        app.world()
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(app.world().resource::<PendingCombatEffects>().is_empty());
 
-    assert!(
-        app.world()
-            .get::<ActiveAuras>(target)
-            .unwrap()
-            .is_empty()
-    );
+    assert!(app.world().get::<ActiveAuras>(target).unwrap().is_empty());
 }

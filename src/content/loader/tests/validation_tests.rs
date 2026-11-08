@@ -25,10 +25,7 @@ fn loader_rejects_content_from_another_pack_transactionally() {
         },
     });
 
-    let result = ContentPackLoader::load(
-        &mut database,
-        pack,
-    );
+    let result = ContentPackLoader::load(&mut database, pack);
 
     assert!(matches!(
         result,

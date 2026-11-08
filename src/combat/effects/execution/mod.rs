@@ -1,31 +1,14 @@
-
 use std::fmt::{Display, Formatter};
 
 use bevy::prelude::Entity;
 
-use crate::content::{
-    ContentDatabase,
-    ContentId,
-    ContentIdError,
-};
+use crate::content::{ContentDatabase, ContentId, ContentIdError};
 
 use crate::combat::{
-    CombatAttributes,
-    CombatLevel,
-    CombatResources,
-    DamageResolution,
-    EnemyThreat,
-    HealingRequestError,
-    HealingResolution,
-    HealingResolutionError,
-    HealthPool,
-    HealthPoolError,
-    ResourceApplicationError,
-    ResourceOperation,
-    ResourceRequest,
-    ResourceResolution,
-    ResolvedEffect,
-    ResolvedEffectOperation,
+    CombatAttributes, CombatLevel, CombatResources, DamageResolution, EnemyThreat,
+    HealingRequestError, HealingResolution, HealingResolutionError, HealthPool, HealthPoolError,
+    ResolvedEffect, ResolvedEffectOperation, ResourceApplicationError, ResourceOperation,
+    ResourceRequest, ResourceResolution,
 };
 
 pub struct EffectExecutionContext<'a> {
@@ -59,36 +42,24 @@ pub fn execute_resolved_effect(
 ) -> Result<EffectExecutionResult, EffectExecutionError> {
     match &effect.operation {
         ResolvedEffectOperation::Damage(request) => {
-            if request.source != effect.source
-                || request.target != effect.target
-            {
+            if request.source != effect.source || request.target != effect.target {
                 return Err(EffectExecutionError::ContextMismatch);
             }
 
             let school = context
                 .database
                 .damage_school(&request.school)
-                .ok_or_else(|| {
-                    EffectExecutionError::MissingDamageSchool(
-                        request.school.clone(),
-                    )
-                })?;
+                .ok_or_else(|| EffectExecutionError::MissingDamageSchool(request.school.clone()))?;
 
-            let armor_attribute = ContentId::new(
-                "classic_1_12_1:stat.armor",
-            )
-            .map_err(EffectExecutionError::InvalidArmorAttributeId)?;
+            let armor_attribute = ContentId::new("classic_1_12_1:stat.armor")
+                .map_err(EffectExecutionError::InvalidArmorAttributeId)?;
 
             if context
                 .database
                 .combat_attribute(&armor_attribute)
                 .is_none()
             {
-                return Err(
-                    EffectExecutionError::MissingArmorAttribute(
-                        armor_attribute,
-                    ),
-                );
+                return Err(EffectExecutionError::MissingArmorAttribute(armor_attribute));
             }
 
             let attacker_level = context
@@ -123,9 +94,7 @@ pub fn execute_resolved_effect(
             })
         }
         ResolvedEffectOperation::Heal(request) => {
-            if request.source != effect.source
-                || request.target != effect.target
-            {
+            if request.source != effect.source || request.target != effect.target {
                 return Err(EffectExecutionError::ContextMismatch);
             }
 
@@ -138,15 +107,10 @@ pub fn execute_resolved_effect(
                 .as_deref_mut()
                 .ok_or(EffectExecutionError::MissingTargetHealth)?;
 
-            let effective_amount = target_health
-                .remaining_capacity()
-                .min(request.base_amount);
+            let effective_amount = target_health.remaining_capacity().min(request.base_amount);
 
-            let resolution = HealingResolution::new(
-                request.clone(),
-                effective_amount,
-            )
-            .map_err(EffectExecutionError::InvalidHealingResolution)?;
+            let resolution = HealingResolution::new(request.clone(), effective_amount)
+                .map_err(EffectExecutionError::InvalidHealingResolution)?;
 
             let applied_amount = target_health
                 .apply_healing_resolution(&resolution)
@@ -158,40 +122,24 @@ pub fn execute_resolved_effect(
             })
         }
         ResolvedEffectOperation::GainResource(request) => {
-            execute_resource_request(
-                effect,
-                request,
-                ResourceOperation::Gain,
-                &mut context,
-            )
+            execute_resource_request(effect, request, ResourceOperation::Gain, &mut context)
         }
         ResolvedEffectOperation::SpendResource(request) => {
-            execute_resource_request(
-                effect,
-                request,
-                ResourceOperation::Spend,
-                &mut context,
-            )
+            execute_resource_request(effect, request, ResourceOperation::Spend, &mut context)
         }
         ResolvedEffectOperation::ModifyThreat { amount } => {
             let source = effect
                 .source
-                .ok_or(
-                    EffectExecutionError::MissingSourceForThreatModification,
-                )?;
+                .ok_or(EffectExecutionError::MissingSourceForThreatModification)?;
 
             if !amount.is_finite() {
-                return Err(
-                    EffectExecutionError::InvalidThreatAmount,
-                );
+                return Err(EffectExecutionError::InvalidThreatAmount);
             }
 
             let target_threat = context
                 .target_threat
                 .as_deref_mut()
-                .ok_or(
-                    EffectExecutionError::MissingTargetThreat,
-                )?;
+                .ok_or(EffectExecutionError::MissingTargetThreat)?;
 
             target_threat.modify_threat(source, *amount);
 
@@ -209,9 +157,7 @@ fn execute_resource_request(
     expected_operation: ResourceOperation,
     context: &mut EffectExecutionContext<'_>,
 ) -> Result<EffectExecutionResult, EffectExecutionError> {
-    if request.source != effect.source
-        || request.target != effect.target
-    {
+    if request.source != effect.source || request.target != effect.target {
         return Err(EffectExecutionError::ContextMismatch);
     }
 
@@ -220,11 +166,9 @@ fn execute_resource_request(
     }
 
     if context.database.resource(&request.resource).is_none() {
-        return Err(
-            EffectExecutionError::MissingResourceDefinition(
-                request.resource.clone(),
-            ),
-        );
+        return Err(EffectExecutionError::MissingResourceDefinition(
+            request.resource.clone(),
+        ));
     }
 
     let target_resources = context
@@ -265,17 +209,11 @@ pub enum EffectExecutionError {
 impl Display for EffectExecutionError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ContextMismatch => {
-                formatter.write_str(
-                    "La sorgente o il bersaglio dell'operazione non corrispondono all'effetto",
-                )
-            }
+            Self::ContextMismatch => formatter.write_str(
+                "La sorgente o il bersaglio dell'operazione non corrispondono all'effetto",
+            ),
             Self::MissingDamageSchool(id) => {
-                write!(
-                    formatter,
-                    "Scuola di danno non registrata: {}",
-                    id.as_str()
-                )
+                write!(formatter, "Scuola di danno non registrata: {}", id.as_str())
             }
             Self::MissingArmorAttribute(id) => {
                 write!(
@@ -292,39 +230,25 @@ impl Display for EffectExecutionError {
                 )
             }
             Self::MissingAttackerLevel => {
-                formatter.write_str(
-                    "Il calcolo del danno richiede il livello dell'attaccante",
-                )
+                formatter.write_str("Il calcolo del danno richiede il livello dell'attaccante")
             }
             Self::MissingTargetAttributes => {
-                formatter.write_str(
-                    "Il calcolo del danno richiede gli attributi del bersaglio",
-                )
+                formatter.write_str("Il calcolo del danno richiede gli attributi del bersaglio")
             }
             Self::MissingTargetHealth => {
-                formatter.write_str(
-                    "Il bersaglio non possiede una HealthPool",
-                )
+                formatter.write_str("Il bersaglio non possiede una HealthPool")
             }
             Self::MissingTargetResources => {
-                formatter.write_str(
-                    "Il bersaglio non possiede CombatResources",
-                )
+                formatter.write_str("Il bersaglio non possiede CombatResources")
             }
             Self::MissingSourceForThreatModification => {
-                formatter.write_str(
-                    "La modifica della minaccia richiede una sorgente",
-                )
+                formatter.write_str("La modifica della minaccia richiede una sorgente")
             }
             Self::MissingTargetThreat => {
-                formatter.write_str(
-                    "Il bersaglio non possiede EnemyThreat",
-                )
+                formatter.write_str("Il bersaglio non possiede EnemyThreat")
             }
             Self::InvalidThreatAmount => {
-                formatter.write_str(
-                    "La quantità di minaccia da modificare non è valida",
-                )
+                formatter.write_str("La quantità di minaccia da modificare non è valida")
             }
             Self::InvalidArmorAttributeId(error) => {
                 write!(
@@ -333,16 +257,10 @@ impl Display for EffectExecutionError {
                 )
             }
             Self::InvalidDamageResolution(error) => {
-                write!(
-                    formatter,
-                    "Risoluzione del danno non valida: {error}"
-                )
+                write!(formatter, "Risoluzione del danno non valida: {error}")
             }
             Self::InvalidHealingRequest(error) => {
-                write!(
-                    formatter,
-                    "Richiesta di guarigione non valida: {error}"
-                )
+                write!(formatter, "Richiesta di guarigione non valida: {error}")
             }
             Self::InvalidHealingResolution(error) => {
                 write!(
@@ -356,11 +274,8 @@ impl Display for EffectExecutionError {
                     "Applicazione alla HealthPool non riuscita: {error}"
                 )
             }
-            Self::ResourceOperationMismatch => {
-                formatter.write_str(
-                    "Il tipo di operazione della risorsa non corrisponde all'effetto",
-                )
-            }
+            Self::ResourceOperationMismatch => formatter
+                .write_str("Il tipo di operazione della risorsa non corrisponde all'effetto"),
             Self::ResourceApplication(error) => {
                 write!(
                     formatter,
@@ -368,16 +283,13 @@ impl Display for EffectExecutionError {
                 )
             }
             Self::UnsupportedOperation => {
-                formatter.write_str(
-                    "L'operazione dell'effetto non è ancora supportata",
-                )
+                formatter.write_str("L'operazione dell'effetto non è ancora supportata")
             }
         }
     }
 }
 
 impl std::error::Error for EffectExecutionError {}
-
 
 #[cfg(test)]
 mod tests;

@@ -1,9 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use crate::content::{
-    EffectMagnitude,
-    EffectValidationError,
-};
+use crate::content::{EffectMagnitude, EffectValidationError};
 
 use crate::combat::CombatAttributes;
 
@@ -11,22 +8,14 @@ pub fn calculate_effect_magnitude(
     magnitude: &EffectMagnitude,
     source_attributes: &CombatAttributes,
 ) -> Result<f32, EffectMagnitudeError> {
-    calculate_effect_magnitude_with_sign(
-        magnitude,
-        source_attributes,
-        false,
-    )
+    calculate_effect_magnitude_with_sign(magnitude, source_attributes, false)
 }
 
 pub fn calculate_signed_effect_magnitude(
     magnitude: &EffectMagnitude,
     source_attributes: &CombatAttributes,
 ) -> Result<f32, EffectMagnitudeError> {
-    calculate_effect_magnitude_with_sign(
-        magnitude,
-        source_attributes,
-        true,
-    )
+    calculate_effect_magnitude_with_sign(magnitude, source_attributes, true)
 }
 
 fn calculate_effect_magnitude_with_sign(
@@ -50,10 +39,7 @@ fn calculate_effect_magnitude_with_sign(
         amount += attribute_value as f64 * scaling.coefficient as f64;
     }
 
-    if !amount.is_finite()
-        || (!allow_negative && amount < 0.0)
-        || amount.abs() > f32::MAX as f64
-    {
+    if !amount.is_finite() || (!allow_negative && amount < 0.0) || amount.abs() > f32::MAX as f64 {
         return Err(EffectMagnitudeError::InvalidCalculatedAmount);
     }
 
@@ -79,9 +65,7 @@ impl Display for EffectMagnitudeError {
                 write!(formatter, "Magnitudine dell'effetto non valida: {error}")
             }
             Self::InvalidCalculatedAmount => {
-                formatter.write_str(
-                    "Il valore calcolato dell'effetto non è valido",
-                )
+                formatter.write_str("Il valore calcolato dell'effetto non è valido")
             }
         }
     }
@@ -93,10 +77,7 @@ impl std::error::Error for EffectMagnitudeError {}
 mod tests {
     use super::*;
 
-    use crate::content::{
-        ContentId,
-        EffectScaling,
-    };
+    use crate::content::{ContentId, EffectScaling};
 
     fn stat_id(name: &str) -> ContentId {
         ContentId::new(format!("classic_1_12_1:stat.{name}")).unwrap()
@@ -117,11 +98,8 @@ mod tests {
 
     #[test]
     fn effect_magnitude_uses_base_without_scaling() {
-        let result = calculate_effect_magnitude(
-            &magnitude(30.0),
-            &CombatAttributes::default(),
-        )
-        .unwrap();
+        let result =
+            calculate_effect_magnitude(&magnitude(30.0), &CombatAttributes::default()).unwrap();
 
         assert_eq!(result, 30.0);
     }
@@ -138,8 +116,7 @@ mod tests {
 
         let attributes = attributes_with("spell_power", 100.0);
 
-        let result =
-            calculate_effect_magnitude(&magnitude, &attributes).unwrap();
+        let result = calculate_effect_magnitude(&magnitude, &attributes).unwrap();
 
         assert_eq!(result, 60.0);
     }
@@ -161,15 +138,10 @@ mod tests {
         };
 
         let mut attributes = CombatAttributes::default();
-        attributes
-            .set(stat_id("spell_power"), 100.0)
-            .unwrap();
-        attributes
-            .set(stat_id("attack_power"), 40.0)
-            .unwrap();
+        attributes.set(stat_id("spell_power"), 100.0).unwrap();
+        attributes.set(stat_id("attack_power"), 40.0).unwrap();
 
-        let result =
-            calculate_effect_magnitude(&magnitude, &attributes).unwrap();
+        let result = calculate_effect_magnitude(&magnitude, &attributes).unwrap();
 
         assert_eq!(result, 70.0);
     }
@@ -184,11 +156,7 @@ mod tests {
             }],
         };
 
-        let result = calculate_effect_magnitude(
-            &magnitude,
-            &CombatAttributes::default(),
-        )
-        .unwrap();
+        let result = calculate_effect_magnitude(&magnitude, &CombatAttributes::default()).unwrap();
 
         assert_eq!(result, 25.0);
     }
@@ -205,18 +173,14 @@ mod tests {
 
         let attributes = attributes_with("spell_power", 50.0);
 
-        let result =
-            calculate_effect_magnitude(&magnitude, &attributes).unwrap();
+        let result = calculate_effect_magnitude(&magnitude, &attributes).unwrap();
 
         assert_eq!(result, 75.0);
     }
 
     #[test]
     fn effect_magnitude_rejects_negative_base_values() {
-        let result = calculate_effect_magnitude(
-            &magnitude(-10.0),
-            &CombatAttributes::default(),
-        );
+        let result = calculate_effect_magnitude(&magnitude(-10.0), &CombatAttributes::default());
 
         assert_eq!(
             result,
@@ -236,10 +200,7 @@ mod tests {
             }],
         };
 
-        let result = calculate_effect_magnitude(
-            &magnitude,
-            &CombatAttributes::default(),
-        );
+        let result = calculate_effect_magnitude(&magnitude, &CombatAttributes::default());
 
         assert_eq!(
             result,
@@ -287,11 +248,9 @@ mod tests {
 
     #[test]
     fn signed_effect_magnitude_accepts_negative_base_values() {
-        let result = calculate_signed_effect_magnitude(
-            &magnitude(-10.0),
-            &CombatAttributes::default(),
-        )
-        .unwrap();
+        let result =
+            calculate_signed_effect_magnitude(&magnitude(-10.0), &CombatAttributes::default())
+                .unwrap();
 
         assert_eq!(result, -10.0);
     }
@@ -308,9 +267,7 @@ mod tests {
 
         let attributes = attributes_with("spell_power", 20.0);
 
-        let result =
-            calculate_signed_effect_magnitude(&magnitude, &attributes)
-                .unwrap();
+        let result = calculate_signed_effect_magnitude(&magnitude, &attributes).unwrap();
 
         assert_eq!(result, -10.0);
     }
@@ -327,9 +284,7 @@ mod tests {
 
         let attributes = attributes_with("spell_power", 40.0);
 
-        let result =
-            calculate_signed_effect_magnitude(&magnitude, &attributes)
-                .unwrap();
+        let result = calculate_signed_effect_magnitude(&magnitude, &attributes).unwrap();
 
         assert_eq!(result, 10.0);
     }
@@ -344,10 +299,7 @@ mod tests {
             }],
         };
 
-        let result = calculate_signed_effect_magnitude(
-            &magnitude,
-            &CombatAttributes::default(),
-        );
+        let result = calculate_signed_effect_magnitude(&magnitude, &CombatAttributes::default());
 
         assert_eq!(
             result,
@@ -363,7 +315,7 @@ mod tests {
             base: f32::MAX,
             scaling: vec![EffectScaling {
                 stat: stat_id("spell_power"),
-               coefficient: -3.0,
+                coefficient: -3.0,
             }],
         };
 

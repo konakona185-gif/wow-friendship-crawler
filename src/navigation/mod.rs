@@ -1,33 +1,19 @@
-
 use avian3d::prelude::{Collider, CollisionLayers};
 use avian_rerecast::prelude::AvianBackendPlugin;
 mod enemy;
 
 pub use enemy::EnemyNavigationPlugin;
 
-use bevy::prelude::*;
-use bevy_landmass::prelude::{
-    Archipelago3d,
-    ArchipelagoOptions,
-    ArchipelagoRef3d,
-    FromAgentRadius,
-    Island,
-    Landmass3dPlugin,
-};
-use bevy_rerecast::prelude::{
-    Navmesh,
-    NavmeshGenerator,
-    NavmeshPlugins,
-    NavmeshReady,
-    NavmeshSettings,
-};
 use benilla_world::collision::ColliderEpoch;
 use benilla_world::terrain_stream::WorldLoadProgress;
-use landmass_rerecast::{
-    Island3dBundle,
-    LandmassRerecastPlugin,
-    NavMeshHandle3d,
+use bevy::prelude::*;
+use bevy_landmass::prelude::{
+    Archipelago3d, ArchipelagoOptions, ArchipelagoRef3d, FromAgentRadius, Island, Landmass3dPlugin,
 };
+use bevy_rerecast::prelude::{
+    Navmesh, NavmeshGenerator, NavmeshPlugins, NavmeshReady, NavmeshSettings,
+};
+use landmass_rerecast::{Island3dBundle, LandmassRerecastPlugin, NavMeshHandle3d};
 
 const NAVIGATION_AGENT_RADIUS: f32 = 1.0 / 3.0;
 const NAVIGATION_AGENT_HEIGHT: f32 = 2.027_777_7;
@@ -52,11 +38,7 @@ impl Plugin for NavigationPlugin {
         .init_resource::<NavigationState>()
         .add_systems(
             Update,
-            (
-                exclude_non_walkable_colliders,
-                generate_navmesh_when_ready,
-            )
-                .chain(),
+            (exclude_non_walkable_colliders, generate_navmesh_when_ready).chain(),
         )
         .add_observer(create_navigation_island);
     }
@@ -89,9 +71,7 @@ fn generate_navmesh_when_ready(
     collider_epoch: Option<Res<ColliderEpoch>>,
     mut state: ResMut<NavigationState>,
 ) {
-    let (Some(progress), Some(collider_epoch)) =
-        (progress, collider_epoch)
-    else {
+    let (Some(progress), Some(collider_epoch)) = (progress, collider_epoch) else {
         return;
     };
 
@@ -105,10 +85,7 @@ fn generate_navmesh_when_ready(
         return;
     }
 
-    let settings = NavmeshSettings::from_agent_3d(
-        NAVIGATION_AGENT_RADIUS,
-        NAVIGATION_AGENT_HEIGHT,
-    );
+    let settings = NavmeshSettings::from_agent_3d(NAVIGATION_AGENT_RADIUS, NAVIGATION_AGENT_HEIGHT);
 
     if let Some(handle) = &state.navmesh {
         if generator.regenerate(handle, settings) {
@@ -142,11 +119,9 @@ fn create_navigation_island(
     }
 
     let archipelago = commands
-        .spawn(Archipelago3d::new(
-            ArchipelagoOptions::from_agent_radius(
-                NAVIGATION_AGENT_RADIUS,
-            ),
-        ))
+        .spawn(Archipelago3d::new(ArchipelagoOptions::from_agent_radius(
+            NAVIGATION_AGENT_RADIUS,
+        )))
         .id();
 
     commands.spawn(Island3dBundle {

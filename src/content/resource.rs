@@ -27,10 +27,7 @@ impl Display for ResourceValidationError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidMetadata(error) => {
-                write!(
-                    formatter,
-                    "Metadati della risorsa non validi: {error}"
-                )
+                write!(formatter, "Metadati della risorsa non validi: {error}")
             }
         }
     }
@@ -46,14 +43,8 @@ mod tests {
     fn valid_resource() -> ResourceDefinition {
         ResourceDefinition {
             metadata: ContentMetadata {
-                id: ContentId::new(
-                    "classic_1_12_1:resource.mana",
-                )
-                .unwrap(),
-                pack_id: ContentId::new(
-                    "pack:classic_1_12_1",
-                )
-                .unwrap(),
+                id: ContentId::new("classic_1_12_1:resource.mana").unwrap(),
+                pack_id: ContentId::new("pack:classic_1_12_1").unwrap(),
                 name: "Mana".to_string(),
                 description: String::new(),
                 icon: None,
@@ -85,8 +76,7 @@ mod tests {
         let original = valid_resource();
 
         let serialized = ron::to_string(&original).unwrap();
-        let restored: ResourceDefinition =
-            ron::from_str(&serialized).unwrap();
+        let restored: ResourceDefinition = ron::from_str(&serialized).unwrap();
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());

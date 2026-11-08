@@ -55,14 +55,8 @@ mod tests {
     fn valid_attribute() -> CombatAttributeDefinition {
         CombatAttributeDefinition {
             metadata: ContentMetadata {
-                id: ContentId::new(
-                    "classic_1_12_1:stat.armor",
-                )
-                .unwrap(),
-                pack_id: ContentId::new(
-                    "pack:classic_1_12_1",
-                )
-                .unwrap(),
+                id: ContentId::new("classic_1_12_1:stat.armor").unwrap(),
+                pack_id: ContentId::new("pack:classic_1_12_1").unwrap(),
                 name: "Armor".to_string(),
                 description: String::new(),
                 icon: None,
@@ -101,8 +95,7 @@ mod tests {
             original.value_kind = value_kind;
 
             let serialized = ron::to_string(&original).unwrap();
-            let restored: CombatAttributeDefinition =
-                ron::from_str(&serialized).unwrap();
+            let restored: CombatAttributeDefinition = ron::from_str(&serialized).unwrap();
 
             assert_eq!(original, restored);
             assert!(restored.validate().is_ok());

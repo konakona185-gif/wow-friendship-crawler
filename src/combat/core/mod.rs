@@ -5,38 +5,15 @@ mod resources;
 mod stats;
 
 pub use events::{
-    CombatEffectSubscriptions,
-    CombatEventContext,
-    CombatEventContextError,
-    CombatEventOutcome,
-    CombatEventQueue,
-    MAX_REACTIVE_EFFECT_GENERATIONS,
+    CombatEffectSubscriptions, CombatEventContext, CombatEventContextError, CombatEventOutcome,
+    CombatEventQueue, MAX_REACTIVE_EFFECT_GENERATIONS,
 };
-pub use healing::{
-    HealingRequest,
-    HealingRequestError,
-    HealingResolution,
-    HealingResolutionError,
-};
-pub use health::{
-    HealthPool,
-    HealthPoolError,
-};
+pub use healing::{HealingRequest, HealingRequestError, HealingResolution, HealingResolutionError};
+pub use health::{HealthPool, HealthPoolError};
 pub use resources::{
-    CombatResources,
-    ResourceApplicationError,
-    ResourceOperation,
-    ResourcePool,
-    ResourcePoolError,
-    ResourceRequest,
-    ResourceRequestError,
-    ResourceResolution,
-    ResourceResolutionError,
+    CombatResources, ResourceApplicationError, ResourceOperation, ResourcePool, ResourcePoolError,
+    ResourceRequest, ResourceRequestError, ResourceResolution, ResourceResolutionError,
 };
 pub use stats::{
-    CombatAttributeError,
-    CombatAttributes,
-    CombatLevel,
-    CombatLevelError,
-    CombatStats,
+    CombatAttributeError, CombatAttributes, CombatLevel, CombatLevelError, CombatStats,
 };

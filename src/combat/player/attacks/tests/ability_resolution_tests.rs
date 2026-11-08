@@ -5,36 +5,45 @@ fn player_damage_never_reduces_enemy_health_below_zero() {
     let mut app = App::new();
     app.add_systems(Update, player_cast_system);
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        CombatStats {
-            current_health: 5.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            CombatStats {
+                current_health: 5.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        ))
+        .id();
 
-    let player = app.world_mut().spawn((
-        Character,
-        FellowshipRole::Tank,
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-        Target {
-            entity: Some(enemy),
-        },
-        CharacterCommand {
-            ability_1: true,
-            ..default()
-        },
-    )).id();
+    let player = app
+        .world_mut()
+        .spawn((
+            Character,
+            FellowshipRole::Tank,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        ))
+        .id();
 
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(enemy).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(enemy)
+            .unwrap()
+            .current_health,
         0.0
     );
 
@@ -49,33 +58,39 @@ fn tank_damage_generates_weighted_threat() {
     let mut app = App::new();
     app.add_systems(Update, player_cast_system);
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi::default(),
-        EnemyThreat::default(),
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi::default(),
+            EnemyThreat::default(),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        ))
+        .id();
 
-    let player = app.world_mut().spawn((
-        Character,
-        FellowshipRole::Tank,
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-        Target {
-            entity: Some(enemy),
-        },
-        CharacterCommand {
-            ability_1: true,
-            ..default()
-        },
-    )).id();
+    let player = app
+        .world_mut()
+        .spawn((
+            Character,
+            FellowshipRole::Tank,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        ))
+        .id();
 
     app.update();
 
@@ -92,12 +107,7 @@ fn dps_special_uses_health_pool_and_generates_correct_threat() {
     let mut app = setup_player_cast_test_app();
 
     let enemy = spawn_enemy_with_health_pool(&mut app, 100.0);
-    let player = spawn_player_for_cast(
-        &mut app,
-        enemy,
-        FellowshipRole::Dps,
-        100.0,
-    );
+    let player = spawn_player_for_cast(&mut app, enemy, FellowshipRole::Dps, 100.0);
 
     app.update();
 
@@ -117,12 +127,7 @@ fn dps_basic_uses_health_pool_and_generates_correct_threat() {
     let mut app = setup_player_cast_test_app();
 
     let enemy = spawn_enemy_with_health_pool(&mut app, 100.0);
-    let player = spawn_player_for_cast(
-        &mut app,
-        enemy,
-        FellowshipRole::Dps,
-        0.0,
-    );
+    let player = spawn_player_for_cast(&mut app, enemy, FellowshipRole::Dps, 0.0);
 
     app.update();
 
@@ -142,12 +147,7 @@ fn healer_spell_uses_health_pool_and_generates_correct_threat() {
     let mut app = setup_player_cast_test_app();
 
     let enemy = spawn_enemy_with_health_pool(&mut app, 100.0);
-    let player = spawn_player_for_cast(
-        &mut app,
-        enemy,
-        FellowshipRole::Healer,
-        20.0,
-    );
+    let player = spawn_player_for_cast(&mut app, enemy, FellowshipRole::Healer, 20.0);
 
     app.update();
 
@@ -167,12 +167,7 @@ fn tank_health_pool_damage_is_capped_at_remaining_health() {
     let mut app = setup_player_cast_test_app();
 
     let enemy = spawn_enemy_with_health_pool(&mut app, 5.0);
-    let player = spawn_player_for_cast(
-        &mut app,
-        enemy,
-        FellowshipRole::Tank,
-        0.0,
-    );
+    let player = spawn_player_for_cast(&mut app, enemy, FellowshipRole::Tank, 0.0);
 
     app.update();
 
@@ -195,19 +190,17 @@ fn tank_health_pool_damage_is_capped_at_remaining_health() {
 fn player_can_attack_enemy_with_only_health_pool() {
     let mut app = setup_player_cast_test_app();
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi::default(),
-        EnemyThreat::default(),
-        HealthPool::new(100.0, 120.0).unwrap(),
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi::default(),
+            EnemyThreat::default(),
+            HealthPool::new(100.0, 120.0).unwrap(),
+        ))
+        .id();
 
-    let player = spawn_player_for_cast(
-        &mut app,
-        enemy,
-        FellowshipRole::Tank,
-        0.0,
-    );
+    let player = spawn_player_for_cast(&mut app, enemy, FellowshipRole::Tank, 0.0);
 
     app.update();
 
@@ -230,18 +223,12 @@ fn player_can_attack_enemy_with_only_health_pool() {
 fn player_cannot_attack_enemy_without_health_components() {
     let mut app = setup_player_cast_test_app();
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi::default(),
-        EnemyThreat::default(),
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((Enemy, EnemyAi::default(), EnemyThreat::default()))
+        .id();
 
-    let player = spawn_player_for_cast(
-        &mut app,
-        enemy,
-        FellowshipRole::Dps,
-        0.0,
-    );
+    let player = spawn_player_for_cast(&mut app, enemy, FellowshipRole::Dps, 0.0);
 
     app.update();
 

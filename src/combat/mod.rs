@@ -3,12 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use crate::interaction::WorldInteractionSet;
-use crate::player::{
-    Character,
-    CharacterCommand,
-    CharacterInputSet,
-    FellowshipRole,
-};
+use crate::player::{Character, CharacterCommand, CharacterInputSet, FellowshipRole};
 
 mod aura;
 mod core;
@@ -21,86 +16,33 @@ mod player;
 mod summon;
 mod targeting;
 
-pub use aura::{
-    ActiveAura,
-    ActiveAuras,
-    AuraRuntimeError,
-    ExpiredAura,
-};
-pub use effects::{
-    CustomEffectHandler,
-    CustomEffectHandlers,
-    CustomEffectRegistryError,
-    execute_resolved_effect,
-    EffectExecutionContext,
-    EffectExecutionError,
-    EffectExecutionResult,
-    calculate_effect_magnitude,
-    calculate_signed_effect_magnitude,
-    EffectMagnitudeError,
-    resolve_effect,
-    EffectResolutionError,
-    EffectTargetSelection,
-    ResolvedEffect,
-    ResolvedEffectOperation,
-    PendingCombatEffects,
-};
-pub use displacement::{
-    DisplacementError,
-    PendingDisplacement,
+pub use crate::content::EffectTrigger;
+pub use aura::{ActiveAura, ActiveAuras, AuraRuntimeError, ExpiredAura};
+pub use core::{
+    CombatAttributeError, CombatAttributes, CombatEffectSubscriptions, CombatEventContext,
+    CombatEventContextError, CombatEventOutcome, CombatEventQueue, CombatLevel, CombatLevelError,
+    CombatResources, CombatStats, HealingRequest, HealingRequestError, HealingResolution,
+    HealingResolutionError, HealthPool, HealthPoolError, ResourceApplicationError,
+    ResourceOperation, ResourcePool, ResourcePoolError, ResourceRequest, ResourceRequestError,
+    ResourceResolution, ResourceResolutionError, MAX_REACTIVE_EFFECT_GENERATIONS,
 };
 pub use damage::{
-    calculate_armor_mitigation,
-    calculate_armor_mitigation_from_attributes,
-    calculate_critical_strike,
-    calculate_damage_mitigation,
-    ArmorMitigationError,
-    CriticalStrikeError,
-    CriticalStrikeResult,
-    DamageMitigationError,
-    DamageMitigationResult,
-    DamageRequest,
-    DamageRequestError,
-    DamageResolution,
-    DamageResolutionError,
+    calculate_armor_mitigation, calculate_armor_mitigation_from_attributes,
+    calculate_critical_strike, calculate_damage_mitigation, ArmorMitigationError,
+    CriticalStrikeError, CriticalStrikeResult, DamageMitigationError, DamageMitigationResult,
+    DamageRequest, DamageRequestError, DamageResolution, DamageResolutionError,
     DamageSchoolMitigationError,
 };
-pub use crate::content::EffectTrigger;
-pub use core::{
-    CombatEffectSubscriptions,
-    CombatEventContext,
-    CombatEventContextError,
-    CombatEventOutcome,
-    CombatEventQueue,
-    MAX_REACTIVE_EFFECT_GENERATIONS,
-    HealthPool,
-    HealthPoolError,
-    HealingRequest,
-    HealingRequestError,
-    HealingResolution,
-    HealingResolutionError,
-    CombatResources,
-    ResourceApplicationError,
-    ResourceOperation,
-    ResourcePool,
-    ResourcePoolError,
-    ResourceRequest,
-    ResourceRequestError,
-    ResourceResolution,
-    ResourceResolutionError,
-    CombatAttributeError,
-    CombatAttributes,
-    CombatLevel,
-    CombatLevelError,
-    CombatStats,
-};
-pub use summon::{
-    AllySummon,
-    AllySummonAi,
-    SummonFaction,
-    SummonedCreature,
+pub use displacement::{DisplacementError, PendingDisplacement};
+pub use effects::{
+    calculate_effect_magnitude, calculate_signed_effect_magnitude, execute_resolved_effect,
+    resolve_effect, CustomEffectHandler, CustomEffectHandlers, CustomEffectRegistryError,
+    EffectExecutionContext, EffectExecutionError, EffectExecutionResult, EffectMagnitudeError,
+    EffectResolutionError, EffectTargetSelection, PendingCombatEffects, ResolvedEffect,
+    ResolvedEffectOperation,
 };
 pub(crate) use summon::SummonCombatProfile;
+pub use summon::{AllySummon, AllySummonAi, SummonFaction, SummonedCreature};
 
 const DEFAULT_ENEMY_AGGRO_RANGE: f32 = 20.0;
 const DEFAULT_ENEMY_LEASH_RANGE: f32 = 40.0;
@@ -114,7 +56,7 @@ const DEFAULT_TANK_THREAT_MULTIPLIER: f32 = 3.0;
 #[require(
     crate::combat::ActiveAuras,
     crate::combat::EnemyThreat,
-    crate::combat::PendingDisplacement,
+    crate::combat::PendingDisplacement
 )]
 pub struct Enemy;
 
@@ -236,17 +178,11 @@ mod tests {
 
         threat.modify_threat(player, 100.0);
 
-        assert_eq!(
-            threat.values.get(&player),
-            Some(&100.0)
-        );
+        assert_eq!(threat.values.get(&player), Some(&100.0));
 
         threat.modify_threat(player, -35.0);
 
-        assert_eq!(
-            threat.values.get(&player),
-            Some(&65.0)
-        );
+        assert_eq!(threat.values.get(&player), Some(&65.0));
     }
 
     #[test]
@@ -258,9 +194,7 @@ mod tests {
         threat.modify_threat(player, 25.0);
         threat.modify_threat(player, -50.0);
 
-        assert!(
-            !threat.values.contains_key(&player)
-        );
+        assert!(!threat.values.contains_key(&player));
     }
 
     #[test]
@@ -274,10 +208,7 @@ mod tests {
         threat.modify_threat(player, f32::INFINITY);
         threat.modify_threat(player, 0.0);
 
-        assert_eq!(
-            threat.values.get(&player),
-            Some(&50.0)
-        );
+        assert_eq!(threat.values.get(&player), Some(&50.0));
     }
 
     #[test]
@@ -289,10 +220,7 @@ mod tests {
         threat.modify_threat(player, f32::MAX);
         threat.modify_threat(player, f32::MAX);
 
-        assert_eq!(
-            threat.values.get(&player),
-            Some(&f32::MAX)
-        );
+        assert_eq!(threat.values.get(&player), Some(&f32::MAX));
     }
 
     #[test]
@@ -304,10 +232,7 @@ mod tests {
         threat.add_threat(player, 20.0);
         threat.add_threat(player, -10.0);
 
-        assert_eq!(
-            threat.values.get(&player),
-            Some(&20.0)
-        );
+        assert_eq!(threat.values.get(&player), Some(&20.0));
     }
 
     #[test]
@@ -327,12 +252,8 @@ mod tests {
 
         app.add_plugins(CombatPlugin);
 
-        assert!(
-            app.world().contains_resource::<CustomEffectHandlers>()
-        );
+        assert!(app.world().contains_resource::<CustomEffectHandlers>());
 
-        assert!(
-            app.world().contains_resource::<summon::PendingSummons>()
-        );
+        assert!(app.world().contains_resource::<summon::PendingSummons>());
     }
 }

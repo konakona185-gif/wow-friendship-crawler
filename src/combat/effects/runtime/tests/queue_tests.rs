@@ -15,12 +15,8 @@ fn pending_effects_accept_single_effects() {
     assert_eq!(pending.len(), 1);
     assert!(!pending.is_empty());
 
-    assert_eq!(
-        pending.pending.front().unwrap().generation,
-        0
-    );
+    assert_eq!(pending.pending.front().unwrap().generation, 0);
 }
-
 
 #[test]
 fn pending_effects_accept_multiple_effects() {
@@ -45,14 +41,8 @@ fn pending_effects_accept_multiple_effects() {
 
     assert_eq!(pending.len(), 2);
 
-    assert!(
-        pending
-            .pending
-            .iter()
-            .all(|effect| effect.generation == 0)
-    );
+    assert!(pending.pending.iter().all(|effect| effect.generation == 0));
 }
-
 
 #[test]
 fn pending_effects_preserve_fifo_order() {
@@ -83,13 +73,9 @@ fn pending_effects_preserve_fifo_order() {
 
     assert_eq!(
         queued_ids,
-        vec![
-            content_id("effect.first"),
-            content_id("effect.second"),
-        ]
+        vec![content_id("effect.first"), content_id("effect.second"),]
     );
 }
-
 
 #[test]
 fn pending_effects_preserve_explicit_generation() {
@@ -106,12 +92,8 @@ fn pending_effects_preserve_explicit_generation() {
         5,
     );
 
-    assert_eq!(
-        pending.pending.front().unwrap().generation,
-        5
-    );
+    assert_eq!(pending.pending.front().unwrap().generation, 5);
 }
-
 
 #[test]
 fn pending_effects_apply_generation_to_multiple_effects() {
@@ -138,14 +120,8 @@ fn pending_effects_apply_generation_to_multiple_effects() {
     );
 
     assert_eq!(pending.len(), 2);
-    assert!(
-        pending
-            .pending
-            .iter()
-            .all(|effect| effect.generation == 3)
-    );
+    assert!(pending.pending.iter().all(|effect| effect.generation == 3));
 }
-
 
 #[test]
 fn pending_effects_start_empty() {
@@ -155,12 +131,9 @@ fn pending_effects_start_empty() {
     assert_eq!(pending.len(), 0);
 }
 
-
 #[test]
 fn database_effects_are_resolved_and_enqueued() {
-    let (database, effect_id) = test_database(
-        EffectTarget::SelectedTarget,
-    );
+    let (database, effect_id) = test_database(EffectTarget::SelectedTarget);
 
     let mut pending = PendingCombatEffects::default();
 
@@ -189,12 +162,9 @@ fn database_effects_are_resolved_and_enqueued() {
     assert_eq!(queued.generation, 0);
 }
 
-
 #[test]
 fn database_effects_preserve_requested_generation() {
-    let (database, effect_id) = test_database(
-        EffectTarget::SelectedTarget,
-    );
+    let (database, effect_id) = test_database(EffectTarget::SelectedTarget);
 
     let mut pending = PendingCombatEffects::default();
 
@@ -210,20 +180,12 @@ fn database_effects_preserve_requested_generation() {
         .unwrap();
 
     assert_eq!(count, 1);
-    assert_eq!(
-        pending.pending.front().unwrap().generation,
-        4
-    );
+    assert_eq!(pending.pending.front().unwrap().generation, 4);
 }
-
 
 #[test]
 fn area_effects_are_enqueued_in_target_order() {
-    let (database, effect_id) = test_database(
-        EffectTarget::EnemiesInRadius {
-            radius: 10.0,
-        },
-    );
+    let (database, effect_id) = test_database(EffectTarget::EnemiesInRadius { radius: 10.0 });
 
     let mut pending = PendingCombatEffects::default();
 
@@ -232,10 +194,7 @@ fn area_effects_are_enqueued_in_target_order() {
             &database,
             &effect_id,
             Some(source()),
-            EffectTargetSelection::Area(vec![
-                target(),
-                target_two(),
-            ]),
+            EffectTargetSelection::Area(vec![target(), target_two()]),
             &CombatAttributes::default(),
         )
         .unwrap();
@@ -249,18 +208,12 @@ fn area_effects_are_enqueued_in_target_order() {
         .map(|queued| queued.effect.target)
         .collect();
 
-    assert_eq!(
-        targets,
-        vec![target(), target_two()]
-    );
+    assert_eq!(targets, vec![target(), target_two()]);
 }
-
 
 #[test]
 fn missing_effect_definition_does_not_change_queue() {
-    let (database, _) = test_database(
-        EffectTarget::SelectedTarget,
-    );
+    let (database, _) = test_database(EffectTarget::SelectedTarget);
 
     let mut pending = PendingCombatEffects::default();
 
@@ -282,20 +235,17 @@ fn missing_effect_definition_does_not_change_queue() {
 
     assert_eq!(
         result,
-        Err(EffectQueueError::MissingEffectDefinition(
-            content_id("effect.missing")
-        ))
+        Err(EffectQueueError::MissingEffectDefinition(content_id(
+            "effect.missing"
+        )))
     );
 
     assert_eq!(pending.len(), 1);
 }
 
-
 #[test]
 fn failed_resolution_does_not_change_queue() {
-    let (database, effect_id) = test_database(
-        EffectTarget::SelectedTarget,
-    );
+    let (database, effect_id) = test_database(EffectTarget::SelectedTarget);
 
     let mut pending = PendingCombatEffects::default();
 

@@ -7,19 +7,10 @@ use crate::content::ContentId;
 use crate::player::Character;
 
 use crate::combat::{
-    AllySummonAi,
-    CombatStats,
-    EnemyAi,
-    HealthPool,
-    SummonedCreature,
-    Target,
-    TargetIndicator,
+    AllySummonAi, CombatStats, EnemyAi, HealthPool, SummonedCreature, Target, TargetIndicator,
 };
 
-fn combatant_is_alive(
-    stats: Option<&CombatStats>,
-    health_pool: Option<&HealthPool>,
-) -> bool {
+fn combatant_is_alive(stats: Option<&CombatStats>, health_pool: Option<&HealthPool>) -> bool {
     let current_health = health_pool
         .map(|pool| pool.current())
         .or_else(|| stats.map(|stats| stats.current_health));
@@ -33,52 +24,30 @@ fn combatant_is_alive(
 pub(super) fn summon_lifecycle_system(
     time: Res<Time>,
     mut commands: Commands,
-    mut summon_query: Query<
-        (
-            Entity,
-            &mut SummonedCreature,
-            Option<&CombatStats>,
-            Option<&HealthPool>,
-        ),
-    >,
-    owner_query: Query<(
+    mut summon_query: Query<(
+        Entity,
+        &mut SummonedCreature,
         Option<&CombatStats>,
         Option<&HealthPool>,
     )>,
+    owner_query: Query<(Option<&CombatStats>, Option<&HealthPool>)>,
     mut enemy_ai_query: Query<&mut EnemyAi>,
     mut ally_summon_ai_query: Query<&mut AllySummonAi>,
-    mut player_target_query: Query<
-        &mut Target,
-        With<Character>,
-    >,
+    mut player_target_query: Query<&mut Target, With<Character>>,
     indicator_query: Query<(Entity, &TargetIndicator)>,
 ) {
     let delta = time.delta_secs();
     let mut summon_owners = Vec::new();
     let mut despawned_summons = HashSet::new();
 
-    for (
-        summon_entity,
-        mut summon,
-        summon_stats,
-        summon_health_pool,
-    ) in &mut summon_query
-    {
-        summon_owners.push((
-            summon_entity,
-            summon.owner,
-        ));
+    for (summon_entity, mut summon, summon_stats, summon_health_pool) in &mut summon_query {
+        summon_owners.push((summon_entity, summon.owner));
 
         let owner_alive = owner_query
             .get(summon.owner)
-            .is_ok_and(|(stats, health_pool)| {
-                combatant_is_alive(stats, health_pool)
-            });
+            .is_ok_and(|(stats, health_pool)| combatant_is_alive(stats, health_pool));
 
-        let summon_alive = combatant_is_alive(
-            summon_stats,
-            summon_health_pool,
-        );
+        let summon_alive = combatant_is_alive(summon_stats, summon_health_pool);
 
         let expired = summon.tick_lifetime(delta);
 
@@ -91,9 +60,7 @@ pub(super) fn summon_lifecycle_system(
         let newly_despawned: Vec<Entity> = summon_owners
             .iter()
             .filter_map(|(summon_entity, owner)| {
-                if despawned_summons.contains(owner)
-                    && !despawned_summons.contains(summon_entity)
-                {
+                if despawned_summons.contains(owner) && !despawned_summons.contains(summon_entity) {
                     Some(*summon_entity)
                 } else {
                     None
@@ -161,15 +128,17 @@ mod tests {
     }
 
     fn spawn_living_owner(world: &mut World) -> Entity {
-        world.spawn((
-            Character,
-            CombatStats {
-                current_health: 100.0,
-                max_health: 100.0,
-                resource: 0.0,
-            },
-            HealthPool::new(100.0, 100.0).unwrap(),
-        )).id()
+        world
+            .spawn((
+                Character,
+                CombatStats {
+                    current_health: 100.0,
+                    max_health: 100.0,
+                    resource: 0.0,
+                },
+                HealthPool::new(100.0, 100.0).unwrap(),
+            ))
+            .id()
     }
 
     fn spawn_summon(
@@ -178,21 +147,23 @@ mod tests {
         duration: Option<f32>,
         health: f32,
     ) -> Entity {
-        world.spawn((
-            SummonedCreature::new(
-                owner,
-                creature_id(),
-                super::super::SummonFaction::Allies,
-                duration,
-            ),
-            CombatStats {
-                current_health: health,
-                max_health: 100.0,
-                resource: 0.0,
-            },
-            HealthPool::new(health, 100.0).unwrap(),
-            Transform::IDENTITY,
-        )).id()
+        world
+            .spawn((
+                SummonedCreature::new(
+                    owner,
+                    creature_id(),
+                    super::super::SummonFaction::Allies,
+                    duration,
+                ),
+                CombatStats {
+                    current_health: health,
+                    max_health: 100.0,
+                    resource: 0.0,
+                },
+                HealthPool::new(health, 100.0).unwrap(),
+                Transform::IDENTITY,
+            ))
+            .id()
     }
 
     #[test]
@@ -201,19 +172,12 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let summon = spawn_summon(
-            app.world_mut(),
-            owner,
-            Some(5.0),
-            100.0,
-        );
+        let summon = spawn_summon(app.world_mut(), owner, Some(5.0), 100.0);
 
         advance_test_time(&mut app, 4.0);
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_some()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_some());
 
         assert_eq!(
             app.world()
@@ -226,9 +190,7 @@ mod tests {
         advance_test_time(&mut app, 1.0);
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_none());
     }
 
     #[test]
@@ -237,19 +199,12 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let summon = spawn_summon(
-            app.world_mut(),
-            owner,
-            None,
-            100.0,
-        );
+        let summon = spawn_summon(app.world_mut(), owner, None, 100.0);
 
         advance_test_time(&mut app, 120.0);
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_some()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_some());
     }
 
     #[test]
@@ -258,18 +213,11 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let summon = spawn_summon(
-            app.world_mut(),
-            owner,
-            None,
-            0.0,
-        );
+        let summon = spawn_summon(app.world_mut(), owner, None, 0.0);
 
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_none());
     }
 
     #[test]
@@ -278,37 +226,29 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let summon = world_spawn_summon_with_only_stats(
-            app.world_mut(),
-            owner,
-            0.0,
-        );
+        let summon = world_spawn_summon_with_only_stats(app.world_mut(), owner, 0.0);
 
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_none());
     }
 
-    fn world_spawn_summon_with_only_stats(
-        world: &mut World,
-        owner: Entity,
-        health: f32,
-    ) -> Entity {
-        world.spawn((
-            SummonedCreature::new(
-                owner,
-                creature_id(),
-                super::super::SummonFaction::Allies,
-                None,
-            ),
-            CombatStats {
-                current_health: health,
-                max_health: 100.0,
-                resource: 0.0,
-            },
-        )).id()
+    fn world_spawn_summon_with_only_stats(world: &mut World, owner: Entity, health: f32) -> Entity {
+        world
+            .spawn((
+                SummonedCreature::new(
+                    owner,
+                    creature_id(),
+                    super::super::SummonFaction::Allies,
+                    None,
+                ),
+                CombatStats {
+                    current_health: health,
+                    max_health: 100.0,
+                    resource: 0.0,
+                },
+            ))
+            .id()
     }
 
     #[test]
@@ -317,20 +257,13 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let summon = spawn_summon(
-            app.world_mut(),
-            owner,
-            None,
-            100.0,
-        );
+        let summon = spawn_summon(app.world_mut(), owner, None, 100.0);
 
         app.world_mut().despawn(owner);
 
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_none());
     }
 
     #[test]
@@ -339,12 +272,7 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let summon = spawn_summon(
-            app.world_mut(),
-            owner,
-            None,
-            100.0,
-        );
+        let summon = spawn_summon(app.world_mut(), owner, None, 100.0);
 
         app.world_mut()
             .get_mut::<HealthPool>(owner)
@@ -354,9 +282,7 @@ mod tests {
 
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_none());
     }
 
     #[test]
@@ -365,12 +291,7 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let summon = spawn_summon(
-            app.world_mut(),
-            owner,
-            None,
-            100.0,
-        );
+        let summon = spawn_summon(app.world_mut(), owner, None, 100.0);
 
         app.world_mut()
             .get_mut::<HealthPool>(owner)
@@ -380,9 +301,7 @@ mod tests {
 
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_none());
     }
 
     #[test]
@@ -391,20 +310,19 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let summon = app.world_mut().spawn((
-            SummonedCreature::new(
+        let summon = app
+            .world_mut()
+            .spawn((SummonedCreature::new(
                 owner,
                 creature_id(),
                 super::super::SummonFaction::Allies,
                 None,
-            ),
-        )).id();
+            ),))
+            .id();
 
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_some()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_some());
     }
 
     #[test]
@@ -413,69 +331,59 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let summon = spawn_summon(
-            app.world_mut(),
-            owner,
-            None,
-            0.0,
-        );
+        let summon = spawn_summon(app.world_mut(), owner, None, 0.0);
 
-        let enemy = app.world_mut().spawn((
-            crate::combat::Enemy,
-            EnemyAi {
-                target: Some(summon),
-                ..EnemyAi::default()
-            },
-        )).id();
+        let enemy = app
+            .world_mut()
+            .spawn((
+                crate::combat::Enemy,
+                EnemyAi {
+                    target: Some(summon),
+                    ..EnemyAi::default()
+                },
+            ))
+            .id();
 
-        let ally_summon = app.world_mut().spawn((
-            crate::combat::AllySummon,
-            AllySummonAi {
-                target: Some(summon),
-                aggro_range: 15.0,
-            },
-        )).id();
+        let ally_summon = app
+            .world_mut()
+            .spawn((
+                crate::combat::AllySummon,
+                AllySummonAi {
+                    target: Some(summon),
+                    aggro_range: 15.0,
+                },
+            ))
+            .id();
 
-        let player = app.world_mut().spawn((
-            Character,
-            Target {
-                entity: Some(summon),
-            },
-        )).id();
+        let player = app
+            .world_mut()
+            .spawn((
+                Character,
+                Target {
+                    entity: Some(summon),
+                },
+            ))
+            .id();
 
-        let indicator = app.world_mut().spawn(
-            TargetIndicator {
-                enemy: summon,
-            },
-        ).id();
+        let indicator = app
+            .world_mut()
+            .spawn(TargetIndicator { enemy: summon })
+            .id();
 
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(summon).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(summon).is_none());
+
+        assert_eq!(app.world().get::<EnemyAi>(enemy).unwrap().target, None);
 
         assert_eq!(
-            app.world().get::<EnemyAi>(enemy).unwrap().target,
+            app.world().get::<AllySummonAi>(ally_summon).unwrap().target,
             None
         );
 
-        assert_eq!(
-            app.world()
-                .get::<AllySummonAi>(ally_summon)
-                .unwrap()
-                .target,
-            None
-        );
+        assert_eq!(app.world().get::<Target>(player).unwrap().entity, None);
 
-        assert_eq!(
-            app.world().get::<Target>(player).unwrap().entity,
-            None
-        );
-
-        assert!(
-            app.world().get::<TargetIndicator>(indicator).is_none()
-        );
+        assert!(app.world().get::<TargetIndicator>(indicator).is_none());
     }
 
     #[test]
@@ -484,40 +392,19 @@ mod tests {
 
         let owner = spawn_living_owner(app.world_mut());
 
-        let parent = spawn_summon(
-            app.world_mut(),
-            owner,
-            Some(1.0),
-            100.0,
-        );
+        let parent = spawn_summon(app.world_mut(), owner, Some(1.0), 100.0);
 
-        let child = spawn_summon(
-            app.world_mut(),
-            parent,
-            None,
-            100.0,
-        );
+        let child = spawn_summon(app.world_mut(), parent, None, 100.0);
 
-        let grandchild = spawn_summon(
-            app.world_mut(),
-            child,
-            None,
-            100.0,
-        );
+        let grandchild = spawn_summon(app.world_mut(), child, None, 100.0);
 
         advance_test_time(&mut app, 1.0);
         app.update();
 
-        assert!(
-            app.world().get::<SummonedCreature>(parent).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(parent).is_none());
 
-        assert!(
-            app.world().get::<SummonedCreature>(child).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(child).is_none());
 
-        assert!(
-            app.world().get::<SummonedCreature>(grandchild).is_none()
-        );
+        assert!(app.world().get::<SummonedCreature>(grandchild).is_none());
     }
 }

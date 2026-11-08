@@ -19,10 +19,7 @@ fn timed_summons_expire_after_their_duration_end_to_end() {
 
     let spawned_summons = {
         let world = app.world_mut();
-        let mut summon_query = world.query_filtered::<
-            Entity,
-            With<SummonedCreature>,
-        >();
+        let mut summon_query = world.query_filtered::<Entity, With<SummonedCreature>>();
 
         summon_query.iter(world).collect::<Vec<_>>()
     };
@@ -34,17 +31,13 @@ fn timed_summons_expire_after_their_duration_end_to_end() {
 
     let remaining_summons = {
         let world = app.world_mut();
-        let mut summon_query = world.query_filtered::<
-            Entity,
-            With<SummonedCreature>,
-        >();
+        let mut summon_query = world.query_filtered::<Entity, With<SummonedCreature>>();
 
         summon_query.iter(world).count()
     };
 
     assert_eq!(remaining_summons, 0);
 }
-
 
 #[test]
 fn summons_are_despawned_when_their_owner_is_removed_end_to_end() {
@@ -65,10 +58,7 @@ fn summons_are_despawned_when_their_owner_is_removed_end_to_end() {
 
     let spawned_summons = {
         let world = app.world_mut();
-        let mut summon_query = world.query_filtered::<
-            Entity,
-            With<SummonedCreature>,
-        >();
+        let mut summon_query = world.query_filtered::<Entity, With<SummonedCreature>>();
 
         summon_query.iter(world).collect::<Vec<_>>()
     };
@@ -80,17 +70,13 @@ fn summons_are_despawned_when_their_owner_is_removed_end_to_end() {
 
     let remaining_summons = {
         let world = app.world_mut();
-        let mut summon_query = world.query_filtered::<
-            Entity,
-            With<SummonedCreature>,
-        >();
+        let mut summon_query = world.query_filtered::<Entity, With<SummonedCreature>>();
 
         summon_query.iter(world).count()
     };
 
     assert_eq!(remaining_summons, 0);
 }
-
 
 #[test]
 fn recursive_summons_inherit_faction_and_are_cleaned_up_with_root_owner_end_to_end() {
@@ -111,8 +97,7 @@ fn recursive_summons_inherit_faction_and_are_cleaned_up_with_root_owner_end_to_e
 
     let parent_summon = {
         let world = app.world_mut();
-        let mut summon_query =
-            world.query_filtered::<Entity, With<AllySummon>>();
+        let mut summon_query = world.query_filtered::<Entity, With<AllySummon>>();
 
         summon_query.iter(world).next().unwrap()
     };
@@ -123,51 +108,33 @@ fn recursive_summons_inherit_faction_and_are_cleaned_up_with_root_owner_end_to_e
 
     let child_summons = {
         let world = app.world_mut();
-        let mut summon_query =
-            world.query::<(Entity, &SummonedCreature)>();
+        let mut summon_query = world.query::<(Entity, &SummonedCreature)>();
 
         summon_query
             .iter(world)
-            .filter_map(|(entity, summon)| {
-                (summon.owner == parent_summon).then_some(entity)
-            })
+            .filter_map(|(entity, summon)| (summon.owner == parent_summon).then_some(entity))
             .collect::<Vec<_>>()
     };
 
     assert_eq!(child_summons.len(), 2);
 
     for child in &child_summons {
-        let summon = app
-            .world()
-            .get::<SummonedCreature>(*child)
-            .unwrap();
+        let summon = app.world().get::<SummonedCreature>(*child).unwrap();
 
-        let level = app
-            .world()
-            .get::<CombatLevel>(*child)
-            .unwrap();
+        let level = app.world().get::<CombatLevel>(*child).unwrap();
 
         assert_eq!(summon.owner, parent_summon);
         assert_eq!(summon.faction, SummonFaction::Allies);
         assert_eq!(level.value(), 60);
 
-        assert!(
-            app.world()
-                .get::<AllySummon>(*child)
-                .is_some()
-        );
+        assert!(app.world().get::<AllySummon>(*child).is_some());
 
-        assert!(
-            app.world()
-                .get::<Enemy>(*child)
-                .is_none()
-        );
+        assert!(app.world().get::<Enemy>(*child).is_none());
     }
 
     let total_summons = {
         let world = app.world_mut();
-        let mut summon_query =
-            world.query_filtered::<Entity, With<SummonedCreature>>();
+        let mut summon_query = world.query_filtered::<Entity, With<SummonedCreature>>();
 
         summon_query.iter(world).count()
     };
@@ -179,15 +146,13 @@ fn recursive_summons_inherit_faction_and_are_cleaned_up_with_root_owner_end_to_e
 
     let remaining_summons = {
         let world = app.world_mut();
-        let mut summon_query =
-            world.query_filtered::<Entity, With<SummonedCreature>>();
+        let mut summon_query = world.query_filtered::<Entity, With<SummonedCreature>>();
 
         summon_query.iter(world).count()
     };
 
     assert_eq!(remaining_summons, 0);
 }
-
 
 #[test]
 fn recursive_enemy_summons_inherit_faction_and_are_cleaned_up_with_root_owner_end_to_end() {
@@ -209,10 +174,8 @@ fn recursive_enemy_summons_inherit_faction_and_are_cleaned_up_with_root_owner_en
 
     let parent_summon = {
         let world = app.world_mut();
-        let mut summon_query = world.query_filtered::<
-            Entity,
-            (With<Enemy>, With<SummonedCreature>),
-        >();
+        let mut summon_query =
+            world.query_filtered::<Entity, (With<Enemy>, With<SummonedCreature>)>();
 
         summon_query.iter(world).next().unwrap()
     };
@@ -223,51 +186,33 @@ fn recursive_enemy_summons_inherit_faction_and_are_cleaned_up_with_root_owner_en
 
     let child_summons = {
         let world = app.world_mut();
-        let mut summon_query =
-            world.query::<(Entity, &SummonedCreature)>();
+        let mut summon_query = world.query::<(Entity, &SummonedCreature)>();
 
         summon_query
             .iter(world)
-            .filter_map(|(entity, summon)| {
-                (summon.owner == parent_summon).then_some(entity)
-            })
+            .filter_map(|(entity, summon)| (summon.owner == parent_summon).then_some(entity))
             .collect::<Vec<_>>()
     };
 
     assert_eq!(child_summons.len(), 2);
 
     for child in &child_summons {
-        let summon = app
-            .world()
-            .get::<SummonedCreature>(*child)
-            .unwrap();
+        let summon = app.world().get::<SummonedCreature>(*child).unwrap();
 
-        let level = app
-            .world()
-            .get::<CombatLevel>(*child)
-            .unwrap();
+        let level = app.world().get::<CombatLevel>(*child).unwrap();
 
         assert_eq!(summon.owner, parent_summon);
         assert_eq!(summon.faction, SummonFaction::Enemies);
         assert_eq!(level.value(), 60);
 
-        assert!(
-            app.world()
-                .get::<Enemy>(*child)
-                .is_some()
-        );
+        assert!(app.world().get::<Enemy>(*child).is_some());
 
-        assert!(
-            app.world()
-                .get::<AllySummon>(*child)
-                .is_none()
-        );
+        assert!(app.world().get::<AllySummon>(*child).is_none());
     }
 
     let total_summons = {
         let world = app.world_mut();
-        let mut summon_query =
-            world.query_filtered::<Entity, With<SummonedCreature>>();
+        let mut summon_query = world.query_filtered::<Entity, With<SummonedCreature>>();
 
         summon_query.iter(world).count()
     };
@@ -279,8 +224,7 @@ fn recursive_enemy_summons_inherit_faction_and_are_cleaned_up_with_root_owner_en
 
     let remaining_summons = {
         let world = app.world_mut();
-        let mut summon_query =
-            world.query_filtered::<Entity, With<SummonedCreature>>();
+        let mut summon_query = world.query_filtered::<Entity, With<SummonedCreature>>();
 
         summon_query.iter(world).count()
     };

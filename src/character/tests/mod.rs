@@ -159,31 +159,11 @@ fn faction_assignments_are_correct() {
 
 #[test]
 fn custom_class_exceptions_are_valid() {
-    assert!(
-        CharacterBuild::new(
-            CharacterRace::Dwarf,
-            CharacterClass::Shaman
-        ).is_some()
-    );
+    assert!(CharacterBuild::new(CharacterRace::Dwarf, CharacterClass::Shaman).is_some());
 
-    assert!(
-        CharacterBuild::new(
-            CharacterRace::Tauren,
-            CharacterClass::Paladin
-        ).is_some()
-    );
+    assert!(CharacterBuild::new(CharacterRace::Tauren, CharacterClass::Paladin).is_some());
 
-    assert!(
-        CharacterBuild::new(
-            CharacterRace::Gnome,
-            CharacterClass::Shaman
-        ).is_none()
-    );
+    assert!(CharacterBuild::new(CharacterRace::Gnome, CharacterClass::Shaman).is_none());
 
-    assert!(
-        CharacterBuild::new(
-            CharacterRace::Orc,
-            CharacterClass::Paladin
-        ).is_none()
-    );
+    assert!(CharacterBuild::new(CharacterRace::Orc, CharacterClass::Paladin).is_none());
 }

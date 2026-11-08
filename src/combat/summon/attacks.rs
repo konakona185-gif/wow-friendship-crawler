@@ -1,14 +1,7 @@
 use bevy::prelude::*;
 
-use crate::combat::{
-    AllySummon,
-    AllySummonAi,
-    CombatStats,
-    Enemy,
-    EnemyThreat,
-    HealthPool,
-};
 use super::SummonCombatProfile;
+use crate::combat::{AllySummon, AllySummonAi, CombatStats, Enemy, EnemyThreat, HealthPool};
 
 #[derive(Component)]
 pub(super) struct AllySummonAttackState {
@@ -27,10 +20,7 @@ pub(super) fn ally_summon_attack_system(
             &SummonCombatProfile,
             Option<&mut AllySummonAttackState>,
         ),
-        (
-            With<AllySummon>,
-            Without<Enemy>,
-        ),
+        (With<AllySummon>, Without<Enemy>),
     >,
     mut enemy_query: Query<
         (
@@ -39,20 +29,10 @@ pub(super) fn ally_summon_attack_system(
             Option<&mut HealthPool>,
             Option<&mut EnemyThreat>,
         ),
-        (
-            With<Enemy>,
-            Without<AllySummon>,
-        ),
+        (With<Enemy>, Without<AllySummon>),
     >,
 ) {
-    for (
-        summon_entity,
-        summon_transform,
-        summon_ai,
-        profile,
-        attack_state,
-    ) in &mut summon_query
-    {
+    for (summon_entity, summon_transform, summon_ai, profile, attack_state) in &mut summon_query {
         let Some(target_entity) = summon_ai.target else {
             if let Some(mut state) = attack_state {
                 state.cooldown.reset();
@@ -82,12 +62,8 @@ pub(super) fn ally_summon_attack_system(
             continue;
         }
 
-        let Ok((
-            enemy_transform,
-            mut enemy_stats,
-            mut enemy_health_pool,
-            mut enemy_threat,
-        )) = enemy_query.get_mut(target_entity)
+        let Ok((enemy_transform, mut enemy_stats, mut enemy_health_pool, mut enemy_threat)) =
+            enemy_query.get_mut(target_entity)
         else {
             if let Some(mut state) = attack_state {
                 state.cooldown.reset();
@@ -99,11 +75,7 @@ pub(super) fn ally_summon_attack_system(
         let current_health = enemy_health_pool
             .as_deref()
             .map(|pool| pool.current())
-            .or_else(|| {
-                enemy_stats
-                    .as_deref()
-                    .map(|stats| stats.current_health)
-            });
+            .or_else(|| enemy_stats.as_deref().map(|stats| stats.current_health));
 
         let Some(current_health) = current_health else {
             if let Some(mut state) = attack_state {
@@ -113,10 +85,9 @@ pub(super) fn ally_summon_attack_system(
             continue;
         };
 
-        if let (Some(pool), Some(stats)) = (
-            enemy_health_pool.as_deref(),
-            enemy_stats.as_deref_mut(),
-        ) {
+        if let (Some(pool), Some(stats)) =
+            (enemy_health_pool.as_deref(), enemy_stats.as_deref_mut())
+        {
             stats.current_health = pool.current();
             stats.max_health = pool.maximum();
         }
@@ -130,15 +101,12 @@ pub(super) fn ally_summon_attack_system(
         }
 
         let Some(mut state) = attack_state else {
-            commands.entity(summon_entity).insert(
-                AllySummonAttackState {
+            commands
+                .entity(summon_entity)
+                .insert(AllySummonAttackState {
                     target: target_entity,
-                    cooldown: Timer::from_seconds(
-                        attack_interval,
-                        TimerMode::Repeating,
-                    ),
-                },
-            );
+                    cooldown: Timer::from_seconds(attack_interval, TimerMode::Repeating),
+                });
 
             continue;
         };
@@ -152,9 +120,7 @@ pub(super) fn ally_summon_attack_system(
             .translation
             .distance_squared(enemy_transform.translation);
 
-        if !distance_squared.is_finite()
-            || distance_squared > melee_range_squared
-        {
+        if !distance_squared.is_finite() || distance_squared > melee_range_squared {
             state.cooldown.reset();
             continue;
         }
@@ -165,54 +131,38 @@ pub(super) fn ally_summon_attack_system(
             continue;
         }
 
-        let damage_result =
-            if let Some(pool) = enemy_health_pool.as_deref_mut() {
-                match pool.apply_damage(attack_damage) {
-                    Ok(effective_damage) => {
-                        let current_health = pool.current();
-                        let maximum_health = pool.maximum();
+        let damage_result = if let Some(pool) = enemy_health_pool.as_deref_mut() {
+            match pool.apply_damage(attack_damage) {
+                Ok(effective_damage) => {
+                    let current_health = pool.current();
+                    let maximum_health = pool.maximum();
 
-                        if let Some(stats) = enemy_stats.as_deref_mut() {
-                            stats.current_health = current_health;
-                            stats.max_health = maximum_health;
-                        }
-
-                        Some((
-                            effective_damage,
-                            current_health,
-                            maximum_health,
-                        ))
+                    if let Some(stats) = enemy_stats.as_deref_mut() {
+                        stats.current_health = current_health;
+                        stats.max_health = maximum_health;
                     }
-                    Err(error) => {
-                        warn!(
+
+                    Some((effective_damage, current_health, maximum_health))
+                }
+                Err(error) => {
+                    warn!(
                             "Impossibile applicare il danno dell'evocazione alla HealthPool del nemico: {error}"
                         );
 
-                        None
-                    }
+                    None
                 }
-            } else if let Some(stats) = enemy_stats.as_deref_mut() {
-                let effective_damage =
-                    stats.current_health.min(attack_damage).max(0.0);
+            }
+        } else if let Some(stats) = enemy_stats.as_deref_mut() {
+            let effective_damage = stats.current_health.min(attack_damage).max(0.0);
 
-                stats.current_health =
-                    (stats.current_health - attack_damage).max(0.0);
+            stats.current_health = (stats.current_health - attack_damage).max(0.0);
 
-                Some((
-                    effective_damage,
-                    stats.current_health,
-                    stats.max_health,
-                ))
-            } else {
-                None
-            };
+            Some((effective_damage, stats.current_health, stats.max_health))
+        } else {
+            None
+        };
 
-        let Some((
-            effective_damage,
-            enemy_current_health,
-            enemy_max_health,
-        )) = damage_result
-        else {
+        let Some((effective_damage, enemy_current_health, enemy_max_health)) = damage_result else {
             continue;
         };
 
@@ -222,11 +172,7 @@ pub(super) fn ally_summon_attack_system(
 
         info!(
             "Evocazione alleata {:?} attacca il nemico {:?}. Danno: {}. Vita: {}/{}",
-            summon_entity,
-            target_entity,
-            effective_damage,
-            enemy_current_health,
-            enemy_max_health
+            summon_entity, target_entity, effective_damage, enemy_current_health, enemy_max_health
         );
     }
 }
@@ -252,22 +198,19 @@ mod tests {
             .advance_by(Duration::from_secs_f32(seconds));
     }
 
-    fn spawn_enemy(
-        world: &mut World,
-        position: Vec3,
-        health: f32,
-        maximum: f32,
-    ) -> Entity {
-        world.spawn((
-            Enemy,
-            Transform::from_translation(position),
-            CombatStats {
-                current_health: health,
-                max_health: maximum,
-                resource: 0.0,
-            },
-            HealthPool::new(health, maximum).unwrap(),
-        )).id()
+    fn spawn_enemy(world: &mut World, position: Vec3, health: f32, maximum: f32) -> Entity {
+        world
+            .spawn((
+                Enemy,
+                Transform::from_translation(position),
+                CombatStats {
+                    current_health: health,
+                    max_health: maximum,
+                    resource: 0.0,
+                },
+                HealthPool::new(health, maximum).unwrap(),
+            ))
+            .id()
     }
 
     fn spawn_enemy_with_health_pool(
@@ -276,11 +219,13 @@ mod tests {
         health: f32,
         maximum: f32,
     ) -> Entity {
-        world.spawn((
-            Enemy,
-            Transform::from_translation(position),
-            HealthPool::new(health, maximum).unwrap(),
-        )).id()
+        world
+            .spawn((
+                Enemy,
+                Transform::from_translation(position),
+                HealthPool::new(health, maximum).unwrap(),
+            ))
+            .id()
     }
 
     fn spawn_ally_summon(
@@ -294,40 +239,30 @@ mod tests {
         let mut ai = AllySummonAi::new(15.0);
         ai.target = target;
 
-        world.spawn((
-            AllySummon,
-            ai,
-            SummonCombatProfile {
-                attack_damage: damage,
-                attack_interval_seconds: interval,
-                melee_range,
-                aggro_range: 15.0,
-                leash_range: 40.0,
-                movement_speed: 5.0,
-            },
-            Transform::from_translation(position),
-        )).id()
+        world
+            .spawn((
+                AllySummon,
+                ai,
+                SummonCombatProfile {
+                    attack_damage: damage,
+                    attack_interval_seconds: interval,
+                    melee_range,
+                    aggro_range: 15.0,
+                    leash_range: 40.0,
+                    movement_speed: 5.0,
+                },
+                Transform::from_translation(position),
+            ))
+            .id()
     }
 
     #[test]
     fn ally_summon_attacks_enemy_after_configured_cooldown() {
         let mut app = setup_test_app();
 
-        let enemy = spawn_enemy(
-            app.world_mut(),
-            Vec3::new(0.0, 0.0, 2.0),
-            100.0,
-            100.0,
-        );
+        let enemy = spawn_enemy(app.world_mut(), Vec3::new(0.0, 0.0, 2.0), 100.0, 100.0);
 
-        let summon = spawn_ally_summon(
-            app.world_mut(),
-            Vec3::ZERO,
-            Some(enemy),
-            12.0,
-            2.0,
-            2.5,
-        );
+        let summon = spawn_ally_summon(app.world_mut(), Vec3::ZERO, Some(enemy), 12.0, 2.0, 2.5);
 
         app.update();
 
@@ -340,31 +275,17 @@ mod tests {
 
         assert_eq!(health_pool.current(), 88.0);
         assert_eq!(stats.current_health, 88.0);
-        assert_eq!(
-            threat.values.get(&summon),
-            Some(&12.0)
-        );
+        assert_eq!(threat.values.get(&summon), Some(&12.0));
     }
 
     #[test]
     fn ally_summon_uses_health_pool_without_combat_stats() {
         let mut app = setup_test_app();
 
-        let enemy = spawn_enemy_with_health_pool(
-            app.world_mut(),
-            Vec3::new(0.0, 0.0, 2.0),
-            100.0,
-            150.0,
-        );
+        let enemy =
+            spawn_enemy_with_health_pool(app.world_mut(), Vec3::new(0.0, 0.0, 2.0), 100.0, 150.0);
 
-        let summon = spawn_ally_summon(
-            app.world_mut(),
-            Vec3::ZERO,
-            Some(enemy),
-            15.0,
-            1.0,
-            2.5,
-        );
+        let summon = spawn_ally_summon(app.world_mut(), Vec3::ZERO, Some(enemy), 15.0, 1.0, 2.5);
 
         app.update();
 
@@ -377,31 +298,16 @@ mod tests {
         assert_eq!(health_pool.current(), 85.0);
         assert_eq!(health_pool.maximum(), 150.0);
         assert!(app.world().get::<CombatStats>(enemy).is_none());
-        assert_eq!(
-            threat.values.get(&summon),
-            Some(&15.0)
-        );
+        assert_eq!(threat.values.get(&summon), Some(&15.0));
     }
 
     #[test]
     fn ally_summon_damage_cannot_exceed_remaining_health() {
         let mut app = setup_test_app();
 
-        let enemy = spawn_enemy(
-            app.world_mut(),
-            Vec3::new(0.0, 0.0, 2.0),
-            5.0,
-            100.0,
-        );
+        let enemy = spawn_enemy(app.world_mut(), Vec3::new(0.0, 0.0, 2.0), 5.0, 100.0);
 
-        let summon = spawn_ally_summon(
-            app.world_mut(),
-            Vec3::ZERO,
-            Some(enemy),
-            20.0,
-            1.0,
-            2.5,
-        );
+        let summon = spawn_ally_summon(app.world_mut(), Vec3::ZERO, Some(enemy), 20.0, 1.0, 2.5);
 
         app.update();
 
@@ -414,31 +320,16 @@ mod tests {
 
         assert_eq!(health_pool.current(), 0.0);
         assert_eq!(stats.current_health, 0.0);
-        assert_eq!(
-            threat.values.get(&summon),
-            Some(&5.0)
-        );
+        assert_eq!(threat.values.get(&summon), Some(&5.0));
     }
 
     #[test]
     fn ally_summon_does_not_attack_outside_melee_range() {
         let mut app = setup_test_app();
 
-        let enemy = spawn_enemy(
-            app.world_mut(),
-            Vec3::new(0.0, 0.0, 5.0),
-            100.0,
-            100.0,
-        );
+        let enemy = spawn_enemy(app.world_mut(), Vec3::new(0.0, 0.0, 5.0), 100.0, 100.0);
 
-        let summon = spawn_ally_summon(
-            app.world_mut(),
-            Vec3::ZERO,
-            Some(enemy),
-            10.0,
-            2.0,
-            2.5,
-        );
+        let summon = spawn_ally_summon(app.world_mut(), Vec3::ZERO, Some(enemy), 10.0, 2.0, 2.5);
 
         app.update();
 
@@ -485,19 +376,9 @@ mod tests {
     fn ally_summon_resets_cooldown_when_target_changes() {
         let mut app = setup_test_app();
 
-        let first_enemy = spawn_enemy(
-            app.world_mut(),
-            Vec3::new(0.0, 0.0, 1.0),
-            100.0,
-            100.0,
-        );
+        let first_enemy = spawn_enemy(app.world_mut(), Vec3::new(0.0, 0.0, 1.0), 100.0, 100.0);
 
-        let second_enemy = spawn_enemy(
-            app.world_mut(),
-            Vec3::new(0.0, 0.0, 2.0),
-            100.0,
-            100.0,
-        );
+        let second_enemy = spawn_enemy(app.world_mut(), Vec3::new(0.0, 0.0, 2.0), 100.0, 100.0);
 
         let summon = spawn_ally_summon(
             app.world_mut(),
@@ -522,12 +403,18 @@ mod tests {
         app.update();
 
         assert_eq!(
-            app.world().get::<HealthPool>(first_enemy).unwrap().current(),
+            app.world()
+                .get::<HealthPool>(first_enemy)
+                .unwrap()
+                .current(),
             100.0
         );
 
         assert_eq!(
-            app.world().get::<HealthPool>(second_enemy).unwrap().current(),
+            app.world()
+                .get::<HealthPool>(second_enemy)
+                .unwrap()
+                .current(),
             100.0
         );
 
@@ -535,7 +422,10 @@ mod tests {
         app.update();
 
         assert_eq!(
-            app.world().get::<HealthPool>(second_enemy).unwrap().current(),
+            app.world()
+                .get::<HealthPool>(second_enemy)
+                .unwrap()
+                .current(),
             100.0
         );
 
@@ -543,7 +433,10 @@ mod tests {
         app.update();
 
         assert_eq!(
-            app.world().get::<HealthPool>(second_enemy).unwrap().current(),
+            app.world()
+                .get::<HealthPool>(second_enemy)
+                .unwrap()
+                .current(),
             90.0
         );
     }
@@ -552,21 +445,9 @@ mod tests {
     fn ally_summon_does_not_attack_defeated_enemy() {
         let mut app = setup_test_app();
 
-        let enemy = spawn_enemy(
-            app.world_mut(),
-            Vec3::new(0.0, 0.0, 1.0),
-            0.0,
-            100.0,
-        );
+        let enemy = spawn_enemy(app.world_mut(), Vec3::new(0.0, 0.0, 1.0), 0.0, 100.0);
 
-        let summon = spawn_ally_summon(
-            app.world_mut(),
-            Vec3::ZERO,
-            Some(enemy),
-            10.0,
-            1.0,
-            2.5,
-        );
+        let summon = spawn_ally_summon(app.world_mut(), Vec3::ZERO, Some(enemy), 10.0, 1.0, 2.5);
 
         app.update();
 
@@ -576,11 +457,7 @@ mod tests {
         let health_pool = app.world().get::<HealthPool>(enemy).unwrap();
         let stats = app.world().get::<CombatStats>(enemy).unwrap();
 
-        assert!(
-            app.world()
-                .get::<AllySummonAttackState>(summon)
-                .is_none()
-        );
+        assert!(app.world().get::<AllySummonAttackState>(summon).is_none());
 
         assert_eq!(health_pool.current(), 0.0);
         assert_eq!(stats.current_health, 0.0);
@@ -590,21 +467,9 @@ mod tests {
     fn ally_summon_without_target_does_not_attack() {
         let mut app = setup_test_app();
 
-        let enemy = spawn_enemy(
-            app.world_mut(),
-            Vec3::new(0.0, 0.0, 1.0),
-            100.0,
-            100.0,
-        );
+        let enemy = spawn_enemy(app.world_mut(), Vec3::new(0.0, 0.0, 1.0), 100.0, 100.0);
 
-        spawn_ally_summon(
-            app.world_mut(),
-            Vec3::ZERO,
-            None,
-            10.0,
-            1.0,
-            2.5,
-        );
+        spawn_ally_summon(app.world_mut(), Vec3::ZERO, None, 10.0, 1.0, 2.5);
 
         app.update();
 
@@ -621,21 +486,9 @@ mod tests {
     fn ally_summon_rejects_invalid_attack_profile() {
         let mut app = setup_test_app();
 
-        let enemy = spawn_enemy(
-            app.world_mut(),
-            Vec3::new(0.0, 0.0, 1.0),
-            100.0,
-            100.0,
-        );
+        let enemy = spawn_enemy(app.world_mut(), Vec3::new(0.0, 0.0, 1.0), 100.0, 100.0);
 
-        let summon = spawn_ally_summon(
-            app.world_mut(),
-            Vec3::ZERO,
-            Some(enemy),
-            10.0,
-            0.0,
-            2.5,
-        );
+        let summon = spawn_ally_summon(app.world_mut(), Vec3::ZERO, Some(enemy), 10.0, 0.0, 2.5);
 
         app.update();
 
@@ -647,10 +500,6 @@ mod tests {
             100.0
         );
 
-        assert!(
-            app.world()
-                .get::<AllySummonAttackState>(summon)
-                .is_none()
-        );
+        assert!(app.world().get::<AllySummonAttackState>(summon).is_none());
     }
 }

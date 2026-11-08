@@ -21,11 +21,9 @@ fn summon_effect_creates_ally_summons_end_to_end() {
 
     let world = app.world_mut();
 
-    let mut summon_query =
-        world.query_filtered::<Entity, With<AllySummon>>();
+    let mut summon_query = world.query_filtered::<Entity, With<AllySummon>>();
 
-    let spawned_entities: Vec<Entity> =
-        summon_query.iter(world).collect();
+    let spawned_entities: Vec<Entity> = summon_query.iter(world).collect();
 
     assert_eq!(spawned_entities.len(), 2);
 
@@ -61,13 +59,8 @@ fn summon_effect_creates_ally_summons_end_to_end() {
         assert!(world.get::<Enemy>(entity).is_none());
     }
 
-    assert!(
-        world
-            .resource::<PendingSummons>()
-            .is_empty()
-    );
+    assert!(world.resource::<PendingSummons>().is_empty());
 }
-
 
 #[test]
 fn summon_effect_creates_enemy_summons_end_to_end() {
@@ -91,13 +84,9 @@ fn summon_effect_creates_enemy_summons_end_to_end() {
 
     let world = app.world_mut();
 
-    let mut summon_query = world.query_filtered::<
-        Entity,
-        (With<Enemy>, With<SummonedCreature>),
-    >();
+    let mut summon_query = world.query_filtered::<Entity, (With<Enemy>, With<SummonedCreature>)>();
 
-    let spawned_entities: Vec<Entity> =
-        summon_query.iter(world).collect();
+    let spawned_entities: Vec<Entity> = summon_query.iter(world).collect();
 
     assert_eq!(spawned_entities.len(), 2);
 
@@ -138,13 +127,8 @@ fn summon_effect_creates_enemy_summons_end_to_end() {
         assert!(world.get::<AllySummon>(entity).is_none());
     }
 
-    assert!(
-        world
-            .resource::<PendingSummons>()
-            .is_empty()
-    );
+    assert!(world.resource::<PendingSummons>().is_empty());
 }
-
 
 #[test]
 fn displacement_effect_supports_both_summon_factions() {
@@ -177,13 +161,10 @@ fn displacement_effect_supports_both_summon_factions() {
     let (ally_summons, enemy_summons) = {
         let world = app.world_mut();
 
-        let mut ally_query =
-            world.query_filtered::<Entity, With<AllySummon>>();
+        let mut ally_query = world.query_filtered::<Entity, With<AllySummon>>();
 
-        let mut enemy_query = world.query_filtered::<
-            Entity,
-            (With<Enemy>, With<SummonedCreature>),
-        >();
+        let mut enemy_query =
+            world.query_filtered::<Entity, (With<Enemy>, With<SummonedCreature>)>();
 
         (
             ally_query.iter(world).collect::<Vec<_>>(),
@@ -195,59 +176,30 @@ fn displacement_effect_supports_both_summon_factions() {
     assert_eq!(enemy_summons.len(), 2);
 
     for entity in ally_summons.iter().chain(enemy_summons.iter()) {
-        assert!(
-            app.world()
-                .get::<PendingDisplacement>(*entity)
-                .is_some()
-        );
+        assert!(app.world().get::<PendingDisplacement>(*entity).is_some());
     }
 
-    let displacement_source = app
-        .world_mut()
-        .spawn(Transform::IDENTITY)
-        .id();
+    let displacement_source = app.world_mut().spawn(Transform::IDENTITY).id();
 
     for entity in &ally_summons {
-        enqueue_displacement_effect(
-            &mut app,
-            displacement_source,
-            *entity,
-            3.0,
-        );
+        enqueue_displacement_effect(&mut app, displacement_source, *entity, 3.0);
     }
 
     for entity in &enemy_summons {
-        enqueue_displacement_effect(
-            &mut app,
-            displacement_source,
-            *entity,
-            3.0,
-        );
+        enqueue_displacement_effect(&mut app, displacement_source, *entity, 3.0);
     }
 
     app.update();
 
     for entity in &ally_summons {
-        let displacement = app
-            .world()
-            .get::<PendingDisplacement>(*entity)
-            .unwrap();
+        let displacement = app.world().get::<PendingDisplacement>(*entity).unwrap();
 
-        assert_eq!(
-            displacement.pending_translation(),
-            Vec3::X * 3.0
-        );
+        assert_eq!(displacement.pending_translation(), Vec3::X * 3.0);
     }
 
     for entity in &enemy_summons {
-        let displacement = app
-            .world()
-            .get::<PendingDisplacement>(*entity)
-            .unwrap();
+        let displacement = app.world().get::<PendingDisplacement>(*entity).unwrap();
 
-        assert_eq!(
-            displacement.pending_translation(),
-            Vec3::NEG_X * 3.0
-        );
+        assert_eq!(displacement.pending_translation(), Vec3::NEG_X * 3.0);
     }
 }

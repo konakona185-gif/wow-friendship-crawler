@@ -7,7 +7,4 @@ mod tests;
 
 pub use build::CharacterBuild;
 pub use class::CharacterClass;
-pub use race::{
-    CharacterFaction,
-    CharacterRace,
-};
+pub use race::{CharacterFaction, CharacterRace};

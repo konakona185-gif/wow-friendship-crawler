@@ -5,10 +5,7 @@ use bevy::prelude::Resource;
 
 use crate::content::ContentId;
 
-use super::execution::{
-    EffectExecutionContext,
-    EffectExecutionError,
-};
+use super::execution::{EffectExecutionContext, EffectExecutionError};
 use crate::combat::ResolvedEffect;
 
 pub trait CustomEffectHandler: Send + Sync + 'static {
@@ -61,9 +58,7 @@ impl CustomEffectHandlers {
         handler: Box<dyn CustomEffectHandler>,
     ) -> Result<(), CustomEffectRegistryError> {
         if self.handlers.contains_key(&id) {
-            return Err(
-                CustomEffectRegistryError::DuplicateHandler(id),
-            );
+            return Err(CustomEffectRegistryError::DuplicateHandler(id));
         }
 
         self.handlers.insert(id, handler);
@@ -87,10 +82,7 @@ impl CustomEffectHandlers {
         self.handlers.is_empty()
     }
 
-    pub(crate) fn get(
-        &self,
-        id: &ContentId,
-    ) -> Option<&dyn CustomEffectHandler> {
+    pub(crate) fn get(&self, id: &ContentId) -> Option<&dyn CustomEffectHandler> {
         self.handlers.get(id).map(Box::as_ref)
     }
 }
@@ -133,10 +125,7 @@ mod tests {
     }
 
     fn handler_id() -> ContentId {
-        ContentId::new(
-            "classic_1_12_1:handler.test",
-        )
-        .unwrap()
+        ContentId::new("classic_1_12_1:handler.test").unwrap()
     }
 
     #[test]
@@ -153,9 +142,7 @@ mod tests {
         let mut handlers = CustomEffectHandlers::default();
         let id = handler_id();
 
-        assert!(
-            handlers.register(id.clone(), TestHandler).is_ok()
-        );
+        assert!(handlers.register(id.clone(), TestHandler).is_ok());
 
         assert!(handlers.contains(&id));
         assert_eq!(handlers.len(), 1);
@@ -167,9 +154,7 @@ mod tests {
         let mut handlers = CustomEffectHandlers::default();
         let id = handler_id();
 
-        handlers
-            .register(id.clone(), TestHandler)
-            .unwrap();
+        handlers.register(id.clone(), TestHandler).unwrap();
 
         assert_eq!(
             handlers.register(id.clone(), TestHandler),
@@ -185,9 +170,7 @@ mod tests {
         let mut handlers = CustomEffectHandlers::default();
         let id = handler_id();
 
-        handlers
-            .register(id.clone(), TestHandler)
-            .unwrap();
+        handlers.register(id.clone(), TestHandler).unwrap();
 
         assert!(handlers.unregister(&id));
         assert!(!handlers.contains(&id));
@@ -207,10 +190,7 @@ mod tests {
         let mut handlers = CustomEffectHandlers::default();
         let id = handler_id();
 
-        let handler = |
-            _effect: &ResolvedEffect,
-            _context: &mut EffectExecutionContext<'_>,
-        | {
+        let handler = |_effect: &ResolvedEffect, _context: &mut EffectExecutionContext<'_>| {
             Err(EffectExecutionError::UnsupportedOperation)
         };
 
@@ -223,12 +203,7 @@ mod tests {
         let mut handlers = CustomEffectHandlers::default();
         let id = handler_id();
 
-        let handler = |
-            _effect: &ResolvedEffect,
-            _context: &mut EffectExecutionContext<'_>,
-        | {
-            Ok(())
-        };
+        let handler = |_effect: &ResolvedEffect, _context: &mut EffectExecutionContext<'_>| Ok(());
 
         assert!(handlers.register(id.clone(), handler).is_ok());
         assert!(handlers.get(&id).is_some());

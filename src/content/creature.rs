@@ -29,9 +29,7 @@ impl CreatureDefinition {
             return Err(CreatureValidationError::InvalidAttackDamage);
         }
 
-        if !self.attack_interval_seconds.is_finite()
-            || self.attack_interval_seconds <= 0.0
-        {
+        if !self.attack_interval_seconds.is_finite() || self.attack_interval_seconds <= 0.0 {
             return Err(CreatureValidationError::InvalidAttackInterval);
         }
 
@@ -43,9 +41,7 @@ impl CreatureDefinition {
             return Err(CreatureValidationError::InvalidAggroRange);
         }
 
-        if !self.leash_range.is_finite()
-            || self.leash_range < self.aggro_range
-        {
+        if !self.leash_range.is_finite() || self.leash_range < self.aggro_range {
             return Err(CreatureValidationError::InvalidLeashRange);
         }
 
@@ -73,32 +69,19 @@ impl Display for CreatureValidationError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         let message = match self {
             Self::InvalidMetadata(error) => {
-                return write!(
-                    formatter,
-                    "Metadati della creatura non validi: {error}"
-                );
+                return write!(formatter, "Metadati della creatura non validi: {error}");
             }
-            Self::InvalidHealth => {
-                "La salute della creatura deve essere finita e positiva"
-            }
-            Self::InvalidAttackDamage => {
-                "Il danno della creatura deve essere finito e positivo"
-            }
+            Self::InvalidHealth => "La salute della creatura deve essere finita e positiva",
+            Self::InvalidAttackDamage => "Il danno della creatura deve essere finito e positivo",
             Self::InvalidAttackInterval => {
                 "L'intervallo degli attacchi deve essere finito e positivo"
             }
-            Self::InvalidMeleeRange => {
-                "La gittata degli attacchi deve essere finita e positiva"
-            }
-            Self::InvalidAggroRange => {
-                "Il raggio di aggro deve essere finito e positivo"
-            }
+            Self::InvalidMeleeRange => "La gittata degli attacchi deve essere finita e positiva",
+            Self::InvalidAggroRange => "Il raggio di aggro deve essere finito e positivo",
             Self::InvalidLeashRange => {
                 "Il raggio di leash deve essere finito e almeno pari al raggio di aggro"
             }
-            Self::InvalidMovementSpeed => {
-                "La velocità di movimento deve essere finita e positiva"
-            }
+            Self::InvalidMovementSpeed => "La velocità di movimento deve essere finita e positiva",
         };
 
         formatter.write_str(message)
@@ -115,14 +98,8 @@ mod tests {
     fn valid_creature() -> CreatureDefinition {
         CreatureDefinition {
             metadata: ContentMetadata {
-                id: ContentId::new(
-                    "classic_1_12_1:creature.wolf_companion",
-                )
-                .unwrap(),
-                pack_id: ContentId::new(
-                    "pack:classic_1_12_1",
-                )
-                .unwrap(),
+                id: ContentId::new("classic_1_12_1:creature.wolf_companion").unwrap(),
+                pack_id: ContentId::new("pack:classic_1_12_1").unwrap(),
                 name: "Wolf Companion".to_string(),
                 description: String::new(),
                 icon: None,
@@ -216,8 +193,7 @@ mod tests {
         let original = valid_creature();
 
         let serialized = ron::to_string(&original).unwrap();
-        let restored: CreatureDefinition =
-            ron::from_str(&serialized).unwrap();
+        let restored: CreatureDefinition = ron::from_str(&serialized).unwrap();
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());

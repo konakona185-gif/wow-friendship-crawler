@@ -4,19 +4,12 @@ use super::*;
 fn enemy_summon_uses_its_custom_attack_damage_and_interval() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = spawn_living_player(
-        app.world_mut(),
-        Vec3::new(0.0, 0.0, 1.0),
-    );
+    let player = spawn_living_player(app.world_mut(), Vec3::new(0.0, 0.0, 1.0));
 
     spawn_enemy_summon(
         app.world_mut(),
         player,
-        test_summon_combat_profile(
-            17.0,
-            1.5,
-            4.0,
-        ),
+        test_summon_combat_profile(17.0, 1.5, 4.0),
     );
 
     app.update();
@@ -25,7 +18,10 @@ fn enemy_summon_uses_its_custom_attack_damage_and_interval() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         100.0
     );
 
@@ -33,7 +29,10 @@ fn enemy_summon_uses_its_custom_attack_damage_and_interval() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         83.0
     );
 }
@@ -67,15 +66,9 @@ fn enemy_attack_uses_health_pool_when_present() {
     let health_pool = app.world().get::<HealthPool>(player).unwrap();
     let combat_stats = app.world().get::<CombatStats>(player).unwrap();
 
-    assert_eq!(
-        health_pool.current(),
-        100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
-    );
+    assert_eq!(health_pool.current(), 100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE);
 
-    assert_eq!(
-        combat_stats.current_health,
-        health_pool.current()
-    );
+    assert_eq!(combat_stats.current_health, health_pool.current());
 }
 
 #[test]
@@ -158,15 +151,18 @@ fn enemy_attack_uses_health_pool_liveness_when_stats_are_stale() {
         120.0,
     );
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi {
-            target: Some(player),
-            ..EnemyAi::default()
-        },
-        test_enemy_attack_state(player),
-        Transform::default(),
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi {
+                target: Some(player),
+                ..EnemyAi::default()
+            },
+            test_enemy_attack_state(player),
+            Transform::default(),
+        ))
+        .id();
 
     advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
     app.update();
@@ -174,15 +170,9 @@ fn enemy_attack_uses_health_pool_liveness_when_stats_are_stale() {
     let health_pool = app.world().get::<HealthPool>(player).unwrap();
     let combat_stats = app.world().get::<CombatStats>(player).unwrap();
 
-    assert_eq!(
-        health_pool.current(),
-        100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
-    );
+    assert_eq!(health_pool.current(), 100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE);
 
-    assert_eq!(
-        combat_stats.current_health,
-        health_pool.current()
-    );
+    assert_eq!(combat_stats.current_health, health_pool.current());
 
     assert_eq!(combat_stats.max_health, 120.0);
 
@@ -205,15 +195,18 @@ fn enemy_attack_resets_cooldown_when_health_pool_is_depleted() {
         120.0,
     );
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi {
-            target: Some(player),
-            ..EnemyAi::default()
-        },
-        test_enemy_attack_state(player),
-        Transform::default(),
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi {
+                target: Some(player),
+                ..EnemyAi::default()
+            },
+            test_enemy_attack_state(player),
+            Transform::default(),
+        ))
+        .id();
 
     advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
     app.update();

@@ -6,10 +6,7 @@ fn runtime_executes_damage_and_synchronizes_health_components() {
 
     let mut app = App::new();
 
-    let source_entity = app
-        .world_mut()
-        .spawn(CombatLevel::new(60).unwrap())
-        .id();
+    let source_entity = app.world_mut().spawn(CombatLevel::new(60).unwrap()).id();
 
     let target_entity = app
         .world_mut()
@@ -48,24 +45,16 @@ fn runtime_executes_damage_and_synchronizes_health_components() {
     {
         let world = app.world();
 
-        let health = world
-            .get::<HealthPool>(target_entity)
-            .unwrap();
+        let health = world.get::<HealthPool>(target_entity).unwrap();
 
-        let stats = world
-            .get::<CombatStats>(target_entity)
-            .unwrap();
+        let stats = world.get::<CombatStats>(target_entity).unwrap();
 
         assert_eq!(health.current(), 60.0);
         assert_eq!(health.maximum(), 100.0);
         assert_eq!(stats.current_health, 60.0);
         assert_eq!(stats.max_health, 100.0);
 
-        assert!(
-            world
-                .resource::<PendingCombatEffects>()
-                .is_empty()
-        );
+        assert!(world.resource::<PendingCombatEffects>().is_empty());
     }
 
     let events = app
@@ -74,14 +63,8 @@ fn runtime_executes_damage_and_synchronizes_health_components() {
         .drain_with_generation();
 
     assert_eq!(events.len(), 2);
-    assert_eq!(
-        events[0].0.trigger,
-        EffectTrigger::OnDamageDealt
-    );
-    assert_eq!(
-        events[1].0.trigger,
-        EffectTrigger::OnDamageTaken
-    );
+    assert_eq!(events[0].0.trigger, EffectTrigger::OnDamageDealt);
+    assert_eq!(events[1].0.trigger, EffectTrigger::OnDamageTaken);
 
     for (event, generation) in &events {
         assert_eq!(event.source, Some(source_entity));
@@ -95,7 +78,6 @@ fn runtime_executes_damage_and_synchronizes_health_components() {
     }
 }
 
-
 #[test]
 fn runtime_preserves_generation_when_emitting_events() {
     let request = crate::combat::DamageRequest {
@@ -107,11 +89,7 @@ fn runtime_preserves_generation_when_emitting_events() {
 
     let resolution = crate::combat::DamageResolution::new(
         request,
-        crate::combat::DamageMitigationResult::new(
-            100.0,
-            25.0,
-        )
-        .unwrap(),
+        crate::combat::DamageMitigationResult::new(100.0, 25.0).unwrap(),
     )
     .unwrap();
 
@@ -123,23 +101,13 @@ fn runtime_preserves_generation_when_emitting_events() {
     let effect = event_test_effect();
     let mut event_queue = CombatEventQueue::default();
 
-    enqueue_execution_events(
-        &mut event_queue,
-        &effect,
-        &result,
-        6,
-    );
+    enqueue_execution_events(&mut event_queue, &effect, &result, 6);
 
     let events = event_queue.drain_with_generation();
 
     assert_eq!(events.len(), 2);
-    assert!(
-        events
-            .iter()
-            .all(|(_, generation)| *generation == 6)
-    );
+    assert!(events.iter().all(|(_, generation)| *generation == 6));
 }
-
 
 #[test]
 fn runtime_does_not_emit_damage_events_when_no_damage_is_applied() {
@@ -147,10 +115,7 @@ fn runtime_does_not_emit_damage_events_when_no_damage_is_applied() {
 
     let mut app = App::new();
 
-    let source_entity = app
-        .world_mut()
-        .spawn(CombatLevel::new(60).unwrap())
-        .id();
+    let source_entity = app.world_mut().spawn(CombatLevel::new(60).unwrap()).id();
 
     let target_entity = app
         .world_mut()
@@ -184,21 +149,15 @@ fn runtime_does_not_emit_damage_events_when_no_damage_is_applied() {
 
     app.update();
 
-    let events = app
-        .world_mut()
-        .resource_mut::<CombatEventQueue>()
-        .drain();
+    let events = app.world_mut().resource_mut::<CombatEventQueue>().drain();
 
     assert!(events.is_empty());
 
     let world = app.world();
-    let health = world
-        .get::<HealthPool>(target_entity)
-        .unwrap();
+    let health = world.get::<HealthPool>(target_entity).unwrap();
 
     assert_eq!(health.current(), 0.0);
 }
-
 
 #[test]
 fn runtime_emits_healing_dealt_and_taken_events() {
@@ -208,11 +167,7 @@ fn runtime_emits_healing_dealt_and_taken_events() {
         base_amount: 25.0,
     };
 
-    let resolution = crate::combat::HealingResolution::new(
-        request,
-        25.0,
-    )
-    .unwrap();
+    let resolution = crate::combat::HealingResolution::new(request, 25.0).unwrap();
 
     let result = EffectExecutionResult::Healing {
         resolution,
@@ -222,24 +177,13 @@ fn runtime_emits_healing_dealt_and_taken_events() {
     let effect = event_test_effect();
     let mut event_queue = CombatEventQueue::default();
 
-    enqueue_execution_events(
-        &mut event_queue,
-        &effect,
-        &result,
-        0,
-    );
+    enqueue_execution_events(&mut event_queue, &effect, &result, 0);
 
     let events = event_queue.drain();
 
     assert_eq!(events.len(), 2);
-    assert_eq!(
-        events[0].trigger,
-        EffectTrigger::OnHealDealt
-    );
-    assert_eq!(
-        events[1].trigger,
-        EffectTrigger::OnHealTaken
-    );
+    assert_eq!(events[0].trigger, EffectTrigger::OnHealDealt);
+    assert_eq!(events[1].trigger, EffectTrigger::OnHealTaken);
 
     for event in &events {
         assert_eq!(event.source, Some(source()));
@@ -251,18 +195,11 @@ fn runtime_emits_healing_dealt_and_taken_events() {
     }
 }
 
-
 #[test]
 fn runtime_uses_the_correct_resource_event_trigger() {
     for (operation, expected_trigger) in [
-        (
-            ResourceOperation::Gain,
-            EffectTrigger::OnResourceGained,
-        ),
-        (
-            ResourceOperation::Spend,
-            EffectTrigger::OnResourceSpent,
-        ),
+        (ResourceOperation::Gain, EffectTrigger::OnResourceGained),
+        (ResourceOperation::Spend, EffectTrigger::OnResourceSpent),
     ] {
         let request = crate::combat::ResourceRequest {
             source: Some(source()),
@@ -272,23 +209,14 @@ fn runtime_uses_the_correct_resource_event_trigger() {
             base_amount: 20.0,
         };
 
-        let resolution = crate::combat::ResourceResolution::new(
-            request,
-            20.0,
-        )
-        .unwrap();
+        let resolution = crate::combat::ResourceResolution::new(request, 20.0).unwrap();
 
         let result = EffectExecutionResult::Resource(resolution);
 
         let effect = event_test_effect();
         let mut event_queue = CombatEventQueue::default();
 
-        enqueue_execution_events(
-            &mut event_queue,
-            &effect,
-            &result,
-            0,
-        );
+        enqueue_execution_events(&mut event_queue, &effect, &result, 0);
 
         let events = event_queue.drain();
 
@@ -303,7 +231,6 @@ fn runtime_uses_the_correct_resource_event_trigger() {
     }
 }
 
-
 #[test]
 fn runtime_does_not_emit_healing_or_resource_events_for_zero_amounts() {
     let healing_request = crate::combat::HealingRequest {
@@ -312,11 +239,7 @@ fn runtime_does_not_emit_healing_or_resource_events_for_zero_amounts() {
         base_amount: 25.0,
     };
 
-    let healing_resolution = crate::combat::HealingResolution::new(
-        healing_request,
-        0.0,
-    )
-    .unwrap();
+    let healing_resolution = crate::combat::HealingResolution::new(healing_request, 0.0).unwrap();
 
     let healing_result = EffectExecutionResult::Healing {
         resolution: healing_resolution,
@@ -331,36 +254,20 @@ fn runtime_does_not_emit_healing_or_resource_events_for_zero_amounts() {
         base_amount: 20.0,
     };
 
-    let resource_resolution = crate::combat::ResourceResolution::new(
-        resource_request,
-        0.0,
-    )
-    .unwrap();
+    let resource_resolution =
+        crate::combat::ResourceResolution::new(resource_request, 0.0).unwrap();
 
-    let resource_result = EffectExecutionResult::Resource(
-        resource_resolution,
-    );
+    let resource_result = EffectExecutionResult::Resource(resource_resolution);
 
     let effect = event_test_effect();
     let mut event_queue = CombatEventQueue::default();
 
-    enqueue_execution_events(
-        &mut event_queue,
-        &effect,
-        &healing_result,
-        0,
-    );
+    enqueue_execution_events(&mut event_queue, &effect, &healing_result, 0);
 
-    enqueue_execution_events(
-        &mut event_queue,
-        &effect,
-        &resource_result,
-        0,
-    );
+    enqueue_execution_events(&mut event_queue, &effect, &resource_result, 0);
 
     assert!(event_queue.is_empty());
 }
-
 
 #[test]
 fn runtime_executes_threat_modification_without_emitting_events() {
@@ -368,15 +275,9 @@ fn runtime_executes_threat_modification_without_emitting_events() {
 
     let mut app = App::new();
 
-    let source_entity = app
-        .world_mut()
-        .spawn_empty()
-        .id();
+    let source_entity = app.world_mut().spawn_empty().id();
 
-    let target_entity = app
-        .world_mut()
-        .spawn(EnemyThreat::default())
-        .id();
+    let target_entity = app.world_mut().spawn(EnemyThreat::default()).id();
 
     let mut pending = PendingCombatEffects::default();
 
@@ -401,28 +302,14 @@ fn runtime_executes_threat_modification_without_emitting_events() {
 
     let world = app.world();
 
-    let threat = world
-        .get::<EnemyThreat>(target_entity)
-        .unwrap();
+    let threat = world.get::<EnemyThreat>(target_entity).unwrap();
 
-    assert_eq!(
-        threat.values.get(&source_entity),
-        Some(&35.0)
-    );
+    assert_eq!(threat.values.get(&source_entity), Some(&35.0));
 
-    assert!(
-        world
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(world.resource::<CombatEventQueue>().is_empty());
 
-    assert!(
-        world
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(world.resource::<PendingCombatEffects>().is_empty());
 }
-
 
 #[test]
 fn runtime_executes_negative_threat_modification_without_emitting_events() {
@@ -430,20 +317,12 @@ fn runtime_executes_negative_threat_modification_without_emitting_events() {
 
     let mut app = App::new();
 
-    let source_entity = app
-        .world_mut()
-        .spawn_empty()
-        .id();
+    let source_entity = app.world_mut().spawn_empty().id();
 
     let mut initial_threat = EnemyThreat::default();
-    initial_threat
-        .values
-        .insert(source_entity, 50.0);
+    initial_threat.values.insert(source_entity, 50.0);
 
-    let target_entity = app
-        .world_mut()
-        .spawn(initial_threat)
-        .id();
+    let target_entity = app.world_mut().spawn(initial_threat).id();
 
     let mut pending = PendingCombatEffects::default();
 
@@ -468,28 +347,14 @@ fn runtime_executes_negative_threat_modification_without_emitting_events() {
 
     let world = app.world();
 
-    let threat = world
-        .get::<EnemyThreat>(target_entity)
-        .unwrap();
+    let threat = world.get::<EnemyThreat>(target_entity).unwrap();
 
-    assert_eq!(
-        threat.values.get(&source_entity),
-        Some(&30.0)
-    );
+    assert_eq!(threat.values.get(&source_entity), Some(&30.0));
 
-    assert!(
-        world
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(world.resource::<CombatEventQueue>().is_empty());
 
-    assert!(
-        world
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(world.resource::<PendingCombatEffects>().is_empty());
 }
-
 
 #[test]
 fn generation_limit_is_available_to_runtime() {

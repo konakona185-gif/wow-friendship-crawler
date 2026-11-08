@@ -1,26 +1,11 @@
-
-use super::super::{
-    execute_pending_effects,
-    PendingCombatEffects,
-};
+use super::super::{execute_pending_effects, PendingCombatEffects};
 
 use crate::combat::{
-    CombatAttributes,
-    CombatEventQueue,
-    CustomEffectHandler,
-    CustomEffectHandlers,
-    EffectExecutionContext,
-    EffectExecutionError,
-    EffectTargetSelection,
-    HealthPool,
+    CombatAttributes, CombatEventQueue, CustomEffectHandler, CustomEffectHandlers,
+    EffectExecutionContext, EffectExecutionError, EffectTargetSelection, HealthPool,
     ResolvedEffect,
 };
-use crate::content::{
-    ContentDatabase,
-    ContentId,
-    ContentPackLoader,
-    EffectKind,
-};
+use crate::content::{ContentDatabase, ContentId, ContentPackLoader, EffectKind};
 
 struct HealingCustomEffectHandler;
 
@@ -44,10 +29,7 @@ impl CustomEffectHandler for HealingCustomEffectHandler {
 }
 
 fn content_id(value: &str) -> ContentId {
-    ContentId::new(
-        format!("classic_1_12_1:{value}"),
-    )
-    .unwrap()
+    ContentId::new(format!("classic_1_12_1:{value}")).unwrap()
 }
 
 fn handler_id() -> ContentId {
@@ -91,11 +73,7 @@ fn custom_test_database() -> (ContentDatabase, ContentId) {
 )
 "#;
 
-    ContentPackLoader::load_ron(
-        &mut database,
-        pack_ron,
-    )
-    .unwrap();
+    ContentPackLoader::load_ron(&mut database, pack_ron).unwrap();
 
     assert_eq!(
         database.effect(&effect_id).unwrap().kind,
@@ -107,23 +85,16 @@ fn custom_test_database() -> (ContentDatabase, ContentId) {
     (database, effect_id)
 }
 
-fn app_with_custom_effect(
-    custom_handlers: CustomEffectHandlers,
-) -> (App, Entity) {
+fn app_with_custom_effect(custom_handlers: CustomEffectHandlers) -> (App, Entity) {
     let (database, effect_id) = custom_test_database();
 
     let mut app = App::new();
 
-    let source_entity = app
-        .world_mut()
-        .spawn_empty()
-        .id();
+    let source_entity = app.world_mut().spawn_empty().id();
 
     let target_entity = app
         .world_mut()
-        .spawn(
-            HealthPool::new(40.0, 100.0).unwrap(),
-        )
+        .spawn(HealthPool::new(40.0, 100.0).unwrap())
         .id();
 
     let mut pending = PendingCombatEffects::default();
@@ -156,34 +127,21 @@ fn runtime_executes_registered_custom_effect_handler() {
     let mut handlers = CustomEffectHandlers::default();
 
     handlers
-        .register(
-            handler_id(),
-            HealingCustomEffectHandler,
-        )
+        .register(handler_id(), HealingCustomEffectHandler)
         .unwrap();
 
     let (app, target_entity) = app_with_custom_effect(handlers);
 
     let world = app.world();
 
-    let health = world
-        .get::<HealthPool>(target_entity)
-        .unwrap();
+    let health = world.get::<HealthPool>(target_entity).unwrap();
 
     assert_eq!(health.current(), 55.0);
     assert_eq!(health.maximum(), 100.0);
 
-    assert!(
-        world
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(world.resource::<PendingCombatEffects>().is_empty());
 
-    assert!(
-        world
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(world.resource::<CombatEventQueue>().is_empty());
 }
 
 #[test]
@@ -194,22 +152,12 @@ fn runtime_ignores_custom_effect_without_registered_handler() {
 
     let world = app.world();
 
-    let health = world
-        .get::<HealthPool>(target_entity)
-        .unwrap();
+    let health = world.get::<HealthPool>(target_entity).unwrap();
 
     assert_eq!(health.current(), 40.0);
     assert_eq!(health.maximum(), 100.0);
 
-    assert!(
-        world
-            .resource::<PendingCombatEffects>()
-            .is_empty()
-    );
+    assert!(world.resource::<PendingCombatEffects>().is_empty());
 
-    assert!(
-        world
-            .resource::<CombatEventQueue>()
-            .is_empty()
-    );
+    assert!(world.resource::<CombatEventQueue>().is_empty());
 }

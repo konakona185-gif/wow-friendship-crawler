@@ -4,10 +4,7 @@ use super::*;
 fn enemy_attacks_a_living_player_after_the_melee_cooldown() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = spawn_living_player(
-        app.world_mut(),
-        Vec3::new(0.0, 0.0, 1.0),
-    );
+    let player = spawn_living_player(app.world_mut(), Vec3::new(0.0, 0.0, 1.0));
 
     app.world_mut().spawn((
         Enemy,
@@ -17,10 +14,7 @@ fn enemy_attacks_a_living_player_after_the_melee_cooldown() {
         },
         EnemyAttackState {
             target: player,
-            cooldown: Timer::from_seconds(
-                DEFAULT_ENEMY_ATTACK_INTERVAL,
-                TimerMode::Repeating,
-            ),
+            cooldown: Timer::from_seconds(DEFAULT_ENEMY_ATTACK_INTERVAL, TimerMode::Repeating),
         },
         Transform::default(),
     ));
@@ -29,7 +23,10 @@ fn enemy_attacks_a_living_player_after_the_melee_cooldown() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
     );
 }
@@ -63,34 +60,21 @@ fn enemy_attacks_ally_summon_after_the_melee_cooldown() {
     let health_pool = app.world().get::<HealthPool>(ally_summon).unwrap();
     let combat_stats = app.world().get::<CombatStats>(ally_summon).unwrap();
 
-    assert_eq!(
-        health_pool.current(),
-        100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
-    );
+    assert_eq!(health_pool.current(), 100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE);
 
-    assert_eq!(
-        combat_stats.current_health,
-        health_pool.current()
-    );
+    assert_eq!(combat_stats.current_health, health_pool.current());
 }
 
 #[test]
 fn enemy_summon_uses_its_custom_melee_range() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = spawn_living_player(
-        app.world_mut(),
-        Vec3::new(0.0, 0.0, 3.5),
-    );
+    let player = spawn_living_player(app.world_mut(), Vec3::new(0.0, 0.0, 3.5));
 
     spawn_enemy_summon(
         app.world_mut(),
         player,
-        test_summon_combat_profile(
-            18.0,
-            1.0,
-            4.0,
-        ),
+        test_summon_combat_profile(18.0, 1.0, 4.0),
     );
 
     app.update();
@@ -99,7 +83,10 @@ fn enemy_summon_uses_its_custom_melee_range() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         82.0
     );
 }
@@ -108,19 +95,12 @@ fn enemy_summon_uses_its_custom_melee_range() {
 fn enemy_summon_does_not_attack_outside_its_custom_melee_range() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = spawn_living_player(
-        app.world_mut(),
-        Vec3::new(0.0, 0.0, 4.5),
-    );
+    let player = spawn_living_player(app.world_mut(), Vec3::new(0.0, 0.0, 4.5));
 
     spawn_enemy_summon(
         app.world_mut(),
         player,
-        test_summon_combat_profile(
-            18.0,
-            1.0,
-            4.0,
-        ),
+        test_summon_combat_profile(18.0, 1.0, 4.0),
     );
 
     app.update();
@@ -129,7 +109,10 @@ fn enemy_summon_does_not_attack_outside_its_custom_melee_range() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         100.0
     );
 }
@@ -138,11 +121,14 @@ fn enemy_summon_does_not_attack_outside_its_custom_melee_range() {
 fn enemy_attacks_ally_summon_with_only_health_pool() {
     let mut app = setup_enemy_attack_test_app();
 
-    let ally_summon = app.world_mut().spawn((
-        AllySummon,
-        Transform::from_xyz(0.0, 0.0, 1.0),
-        HealthPool::new(100.0, 120.0).unwrap(),
-    )).id();
+    let ally_summon = app
+        .world_mut()
+        .spawn((
+            AllySummon,
+            Transform::from_xyz(0.0, 0.0, 1.0),
+            HealthPool::new(100.0, 120.0).unwrap(),
+        ))
+        .id();
 
     app.world_mut().spawn((
         Enemy,
@@ -159,10 +145,7 @@ fn enemy_attacks_ally_summon_with_only_health_pool() {
 
     let health_pool = app.world().get::<HealthPool>(ally_summon).unwrap();
 
-    assert_eq!(
-        health_pool.current(),
-        100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
-    );
+    assert_eq!(health_pool.current(), 100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE);
     assert_eq!(health_pool.maximum(), 120.0);
     assert!(app.world().get::<CombatStats>(ally_summon).is_none());
 }
@@ -171,11 +154,14 @@ fn enemy_attacks_ally_summon_with_only_health_pool() {
 fn enemy_attacks_player_with_only_health_pool() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = app.world_mut().spawn((
-        Character,
-        Transform::from_xyz(0.0, 0.0, 1.0),
-        HealthPool::new(100.0, 120.0).unwrap(),
-    )).id();
+    let player = app
+        .world_mut()
+        .spawn((
+            Character,
+            Transform::from_xyz(0.0, 0.0, 1.0),
+            HealthPool::new(100.0, 120.0).unwrap(),
+        ))
+        .id();
 
     app.world_mut().spawn((
         Enemy,
@@ -192,10 +178,7 @@ fn enemy_attacks_player_with_only_health_pool() {
 
     let health_pool = app.world().get::<HealthPool>(player).unwrap();
 
-    assert_eq!(
-        health_pool.current(),
-        100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
-    );
+    assert_eq!(health_pool.current(), 100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE);
     assert_eq!(health_pool.maximum(), 120.0);
     assert!(app.world().get::<CombatStats>(player).is_none());
 }
@@ -204,20 +187,23 @@ fn enemy_attacks_player_with_only_health_pool() {
 fn enemy_does_not_attack_player_without_health_components() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = app.world_mut().spawn((
-        Character,
-        Transform::from_xyz(0.0, 0.0, 1.0),
-    )).id();
+    let player = app
+        .world_mut()
+        .spawn((Character, Transform::from_xyz(0.0, 0.0, 1.0)))
+        .id();
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi {
-            target: Some(player),
-            ..EnemyAi::default()
-        },
-        test_enemy_attack_state(player),
-        Transform::default(),
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi {
+                target: Some(player),
+                ..EnemyAi::default()
+            },
+            test_enemy_attack_state(player),
+            Transform::default(),
+        ))
+        .id();
 
     advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
     app.update();
@@ -252,7 +238,10 @@ fn enemy_does_not_attack_outside_melee_range() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         100.0
     );
 
@@ -265,7 +254,10 @@ fn enemy_does_not_attack_outside_melee_range() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         100.0
     );
 
@@ -273,7 +265,10 @@ fn enemy_does_not_attack_outside_melee_range() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         100.0 - DEFAULT_ENEMY_ATTACK_DAMAGE
     );
 }
@@ -282,10 +277,7 @@ fn enemy_does_not_attack_outside_melee_range() {
 fn returning_enemies_do_not_attack_players() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = spawn_living_player(
-        app.world_mut(),
-        Vec3::new(0.0, 0.0, 1.0),
-    );
+    let player = spawn_living_player(app.world_mut(), Vec3::new(0.0, 0.0, 1.0));
 
     app.world_mut().spawn((
         Enemy,
@@ -302,7 +294,10 @@ fn returning_enemies_do_not_attack_players() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         100.0
     );
 }
@@ -311,15 +306,18 @@ fn returning_enemies_do_not_attack_players() {
 fn defeated_players_cannot_be_damaged_by_enemy_attacks() {
     let mut app = setup_enemy_attack_test_app();
 
-    let player = app.world_mut().spawn((
-        Character,
-        Transform::from_xyz(0.0, 0.0, 1.0),
-        CombatStats {
-            current_health: 0.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-    )).id();
+    let player = app
+        .world_mut()
+        .spawn((
+            Character,
+            Transform::from_xyz(0.0, 0.0, 1.0),
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        ))
+        .id();
 
     app.world_mut().spawn((
         Enemy,
@@ -335,7 +333,10 @@ fn defeated_players_cannot_be_damaged_by_enemy_attacks() {
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(player).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(player)
+            .unwrap()
+            .current_health,
         0.0
     );
 }
@@ -353,15 +354,18 @@ fn defeated_ally_summons_cannot_be_damaged_by_enemy_attacks() {
         100.0,
     );
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi {
-            target: Some(ally_summon),
-            ..EnemyAi::default()
-        },
-        test_enemy_attack_state(ally_summon),
-        Transform::default(),
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi {
+                target: Some(ally_summon),
+                ..EnemyAi::default()
+            },
+            test_enemy_attack_state(ally_summon),
+            Transform::default(),
+        ))
+        .id();
 
     advance_test_time(&mut app, DEFAULT_ENEMY_ATTACK_INTERVAL);
     app.update();

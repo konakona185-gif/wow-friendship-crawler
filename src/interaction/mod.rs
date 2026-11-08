@@ -1,20 +1,10 @@
-
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::platform::collections::HashSet;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
-use benilla_world::interact::{
-    PickBlob,
-    PickBox,
-    PickMesh,
-    WorldObject,
-    WorldPick,
-};
-use benilla_world::view::{
-    CameraPoseSet,
-    WorldCamera,
-};
+use benilla_world::interact::{PickBlob, PickBox, PickMesh, WorldObject, WorldPick};
+use benilla_world::view::{CameraPoseSet, WorldCamera};
 
 use crate::player::CharacterInputSet;
 
@@ -71,18 +61,8 @@ fn world_pointer_system(
     mouse_button: Res<ButtonInput<MouseButton>>,
     mouse_motion: Res<AccumulatedMouseMotion>,
     window_query: Query<&Window, With<PrimaryWindow>>,
-    camera_query: Query<
-        (&Camera, &GlobalTransform),
-        With<WorldCamera>,
-    >,
-    pickable_query: Query<
-        Entity,
-        Or<(
-            With<PickMesh>,
-            With<PickBox>,
-            With<PickBlob>,
-        )>,
-    >,
+    camera_query: Query<(&Camera, &GlobalTransform), With<WorldCamera>>,
+    pickable_query: Query<Entity, Or<(With<PickMesh>, With<PickBox>, With<PickBlob>)>>,
     world_pick: WorldPick,
     mut hover: ResMut<WorldHover>,
     mut clicked: MessageWriter<WorldObjectClicked>,
@@ -111,9 +91,7 @@ fn world_pointer_system(
 
     hover.hit = None;
 
-    if mouse_button.pressed(MouseButton::Left)
-        || mouse_button.pressed(MouseButton::Right)
-    {
+    if mouse_button.pressed(MouseButton::Left) || mouse_button.pressed(MouseButton::Right) {
         return;
     }
 
@@ -131,12 +109,7 @@ fn world_pointer_system(
 
     let pickable: HashSet<Entity> = pickable_query.iter().collect();
 
-    let Some(hit) = world_pick.at_cursor(
-        cursor,
-        camera,
-        camera_transform,
-        &pickable,
-    ) else {
+    let Some(hit) = world_pick.at_cursor(cursor, camera, camera_transform, &pickable) else {
         return;
     };
 
@@ -179,15 +152,12 @@ fn update_pointer_press(
         tracker.travelled = 0.0;
     }
 
-    if tracker.active
-        && (input.pressed(button) || input.just_released(button))
-    {
+    if tracker.active && (input.pressed(button) || input.just_released(button)) {
         tracker.travelled += frame_motion;
     }
 
     if input.just_released(button) {
-        let clicked = tracker.active
-            && tracker.travelled <= POINTER_DRAG_THRESHOLD;
+        let clicked = tracker.active && tracker.travelled <= POINTER_DRAG_THRESHOLD;
 
         *tracker = PointerPressTracker::default();
 

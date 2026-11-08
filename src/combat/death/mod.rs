@@ -1,14 +1,10 @@
-
 use bevy::prelude::*;
 
 use super::*;
 
 pub(super) fn enemy_death_system(
     mut commands: Commands,
-    enemy_query: Query<
-        (Entity, Option<&CombatStats>, Option<&HealthPool>),
-        With<Enemy>,
-    >,
+    enemy_query: Query<(Entity, Option<&CombatStats>, Option<&HealthPool>), With<Enemy>>,
     indicator_query: Query<(Entity, &TargetIndicator)>,
     mut player_target_query: Query<&mut Target, With<Character>>,
 ) {

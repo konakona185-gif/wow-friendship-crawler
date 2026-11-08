@@ -3,29 +3,15 @@ use std::time::Duration;
 use bevy::prelude::*;
 
 use crate::content::{
-    ContentDatabase,
-    ContentId,
-    ContentMetadata,
-    ContentPackManifest,
-    CreatureDefinition,
-    EffectDefinition,
-    EffectKind,
-    EffectTarget,
-    EffectTrigger,
+    ContentDatabase, ContentId, ContentMetadata, ContentPackManifest, CreatureDefinition,
+    EffectDefinition, EffectKind, EffectTarget, EffectTrigger,
 };
 use crate::player::Character;
 
 use super::*;
 use crate::combat::{
-    effects,
-    enemy,
-    CombatEventQueue,
-    EffectTargetSelection,
-    EnemyThreat,
-    PendingCombatEffects,
-    PendingDisplacement,
-    ResolvedEffect,
-    ResolvedEffectOperation,
+    effects, enemy, CombatEventQueue, EffectTargetSelection, EnemyThreat, PendingCombatEffects,
+    PendingDisplacement, ResolvedEffect, ResolvedEffectOperation,
 };
 
 fn creature_id() -> ContentId {
@@ -126,14 +112,8 @@ fn setup_summon_integration_app() -> App {
     app
 }
 
-fn enqueue_summon_effect(
-    app: &mut App,
-    owner: Entity,
-) {
-    let database = app
-        .world()
-        .resource::<ContentDatabase>()
-        .clone();
+fn enqueue_summon_effect(app: &mut App, owner: Entity) {
+    let database = app.world().resource::<ContentDatabase>().clone();
 
     app.world_mut()
         .resource_mut::<PendingCombatEffects>()
@@ -147,38 +127,25 @@ fn enqueue_summon_effect(
         .unwrap();
 }
 
-fn enqueue_displacement_effect(
-    app: &mut App,
-    source: Entity,
-    target: Entity,
-    distance: f32,
-) {
+fn enqueue_displacement_effect(app: &mut App, source: Entity, target: Entity, distance: f32) {
     app.world_mut()
         .resource_mut::<PendingCombatEffects>()
         .enqueue(ResolvedEffect {
-            effect: ContentId::new(
-                "classic_1_12_1:effect.displacement_test",
-            )
-            .unwrap(),
+            effect: ContentId::new("classic_1_12_1:effect.displacement_test").unwrap(),
             trigger: EffectTrigger::OnCast,
             source: Some(source),
             target,
-            operation: ResolvedEffectOperation::Displacement {
-                distance,
-            },
+            operation: ResolvedEffectOperation::Displacement { distance },
         });
 }
 
-fn advance_test_time(
-    app: &mut App,
-    seconds: f32,
-) {
+fn advance_test_time(app: &mut App, seconds: f32) {
     app.world_mut()
         .resource_mut::<Time>()
         .advance_by(Duration::from_secs_f32(seconds));
 }
 
-mod spawn_tests;
+mod classic_pack_tests;
 mod combat_tests;
 mod lifecycle_tests;
-mod classic_pack_tests;
+mod spawn_tests;

@@ -41,7 +41,6 @@ fn periodic_ticks_are_emitted_after_each_interval() {
     assert!(third.expired.is_empty());
 }
 
-
 #[test]
 fn periodic_effect_catches_up_all_ticks_after_large_delta() {
     let definition = periodic_aura_definition(
@@ -60,23 +59,18 @@ fn periodic_effect_catches_up_all_ticks_after_large_delta() {
     let result = active.advance(6.0);
 
     assert_eq!(result.periodic_ticks.len(), 3);
-    assert!(
-        result.periodic_ticks
-            .iter()
-            .all(|tick| tick.effect == periodic_effect_id())
-    );
+    assert!(result
+        .periodic_ticks
+        .iter()
+        .all(|tick| tick.effect == periodic_effect_id()));
 
     assert!(result.expired.is_empty());
 
     let next = active.advance(2.0);
 
     assert_eq!(next.periodic_ticks.len(), 1);
-    assert_eq!(
-        next.periodic_ticks[0].effect,
-        periodic_effect_id()
-    );
+    assert_eq!(next.periodic_ticks[0].effect, periodic_effect_id());
 }
-
 
 #[test]
 fn periodic_ticks_are_limited_by_aura_duration() {
@@ -100,7 +94,6 @@ fn periodic_ticks_are_limited_by_aura_duration() {
     assert!(active.is_empty());
 }
 
-
 #[test]
 fn periodic_tick_aligned_with_expiration_is_emitted() {
     let definition = periodic_aura_definition(
@@ -122,7 +115,6 @@ fn periodic_tick_aligned_with_expiration_is_emitted() {
     assert_eq!(result.expired.len(), 1);
     assert!(active.is_empty());
 }
-
 
 #[test]
 fn adding_stacks_preserves_periodic_tick_progress() {
@@ -151,7 +143,6 @@ fn adding_stacks_preserves_periodic_tick_progress() {
     assert_eq!(result.periodic_ticks[0].stacks, 3);
 }
 
-
 #[test]
 fn adding_stacks_preserves_independent_periodic_timers() {
     let mut definition = periodic_aura_definition(
@@ -161,10 +152,7 @@ fn adding_stacks_preserves_independent_periodic_timers() {
         PeriodicEffectStackScaling::None,
     );
 
-    let second_effect = ContentId::new(
-        "classic:effect.periodic_test_second",
-    )
-    .unwrap();
+    let second_effect = ContentId::new("classic:effect.periodic_test_second").unwrap();
 
     definition.periodic_effects.push(PeriodicAuraEffect {
         effect: second_effect.clone(),
@@ -187,10 +175,7 @@ fn adding_stacks_preserves_independent_periodic_timers() {
     let first = active.advance(1.0);
 
     assert_eq!(first.periodic_ticks.len(), 1);
-    assert_eq!(
-        first.periodic_ticks[0].effect,
-        periodic_effect_id()
-    );
+    assert_eq!(first.periodic_ticks[0].effect, periodic_effect_id());
     assert_eq!(first.periodic_ticks[0].stacks, 2);
 
     let second = active.advance(1.0);
@@ -199,7 +184,6 @@ fn adding_stacks_preserves_independent_periodic_timers() {
     assert_eq!(second.periodic_ticks[0].effect, second_effect);
     assert_eq!(second.periodic_ticks[0].stacks, 2);
 }
-
 
 #[test]
 fn refresh_duration_preserves_periodic_timer_progress() {
@@ -227,7 +211,6 @@ fn refresh_duration_preserves_periodic_timer_progress() {
     assert_eq!(result.periodic_ticks.len(), 1);
     assert_eq!(result.periodic_ticks[0].stacks, 1);
 }
-
 
 #[test]
 fn pandemic_refresh_duration_preserves_periodic_timer_progress() {
@@ -257,7 +240,6 @@ fn pandemic_refresh_duration_preserves_periodic_timer_progress() {
     assert_eq!(result.periodic_ticks.len(), 1);
     assert_eq!(result.periodic_ticks[0].stacks, 1);
 }
-
 
 #[test]
 fn per_caster_periodic_timers_advance_independently() {
@@ -293,7 +275,6 @@ fn per_caster_periodic_timers_advance_independently() {
     assert_eq!(second.periodic_ticks[0].source, Some(other_source()));
 }
 
-
 #[test]
 fn independent_aura_instances_keep_periodic_timers_separate() {
     let definition = periodic_aura_definition(
@@ -328,7 +309,6 @@ fn independent_aura_instances_keep_periodic_timers_separate() {
     assert_eq!(second.periodic_ticks[0].stacks, 2);
 }
 
-
 #[test]
 fn different_auras_keep_periodic_timers_independent() {
     let first_definition = periodic_aura_definition(
@@ -346,12 +326,10 @@ fn different_auras_keep_periodic_timers_independent() {
     );
 
     let second_aura_id = ContentId::new("test:aura.second").unwrap();
-    let second_effect_id =
-        ContentId::new("test:effect.periodic_second").unwrap();
+    let second_effect_id = ContentId::new("test:effect.periodic_second").unwrap();
 
     second_definition.metadata.id = second_aura_id.clone();
-    second_definition.periodic_effects[0].effect =
-        second_effect_id.clone();
+    second_definition.periodic_effects[0].effect = second_effect_id.clone();
 
     let mut active = ActiveAuras::default();
 
@@ -367,10 +345,7 @@ fn different_auras_keep_periodic_timers_independent() {
 
     assert_eq!(first.periodic_ticks.len(), 1);
     assert_eq!(first.periodic_ticks[0].aura, aura_id());
-    assert_eq!(
-        first.periodic_ticks[0].effect,
-        periodic_effect_id()
-    );
+    assert_eq!(first.periodic_ticks[0].effect, periodic_effect_id());
 
     let second = active.advance(1.0);
 
@@ -378,7 +353,6 @@ fn different_auras_keep_periodic_timers_independent() {
     assert_eq!(second.periodic_ticks[0].aura, second_aura_id);
     assert_eq!(second.periodic_ticks[0].effect, second_effect_id);
 }
-
 
 #[test]
 fn partial_stack_removal_updates_future_periodic_tick_stacks() {
@@ -410,7 +384,6 @@ fn partial_stack_removal_updates_future_periodic_tick_stacks() {
     );
 }
 
-
 #[test]
 fn removing_aura_stops_future_periodic_ticks() {
     let definition = periodic_aura_definition(
@@ -437,7 +410,6 @@ fn removing_aura_stops_future_periodic_ticks() {
     assert!(result.expired.is_empty());
 }
 
-
 #[test]
 fn invalid_advance_deltas_do_not_advance_periodic_timers() {
     let definition = periodic_aura_definition(
@@ -463,7 +435,6 @@ fn invalid_advance_deltas_do_not_advance_periodic_timers() {
     assert_eq!(result.periodic_ticks.len(), 1);
 }
 
-
 #[test]
 fn failed_reapplication_does_not_mutate_existing_aura_or_timer() {
     let definition = periodic_aura_definition(
@@ -482,12 +453,7 @@ fn failed_reapplication_does_not_mutate_existing_aura_or_timer() {
     assert!(active.advance(3.0).periodic_ticks.is_empty());
 
     assert_eq!(
-        active.apply(
-            &definition,
-            Some(source()),
-            2,
-            Some(f32::NAN),
-        ),
+        active.apply(&definition, Some(source()), 2, Some(f32::NAN),),
         Err(AuraRuntimeError::InvalidDuration)
     );
 
@@ -503,7 +469,6 @@ fn failed_reapplication_does_not_mutate_existing_aura_or_timer() {
     assert_eq!(result.periodic_ticks[0].stacks, 2);
 }
 
-
 #[test]
 fn permanent_periodic_auras_continue_emitting_ticks() {
     let definition = periodic_aura_definition(
@@ -515,9 +480,7 @@ fn permanent_periodic_auras_continue_emitting_ticks() {
 
     let mut active = ActiveAuras::default();
 
-    active
-        .apply(&definition, Some(source()), 1, None)
-        .unwrap();
+    active.apply(&definition, Some(source()), 1, None).unwrap();
 
     let result = active.advance(6.0);
 
@@ -525,7 +488,6 @@ fn permanent_periodic_auras_continue_emitting_ticks() {
     assert!(result.expired.is_empty());
     assert_eq!(active.len(), 1);
 }
-
 
 #[test]
 fn replacing_aura_restarts_periodic_tick_progress() {

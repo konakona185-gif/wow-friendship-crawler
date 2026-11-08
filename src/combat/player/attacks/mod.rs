@@ -1,14 +1,7 @@
-
 use bevy::prelude::*;
 
 use crate::combat::{
-    CombatStats,
-    Enemy,
-    EnemyAi,
-    EnemyThreat,
-    FellowshipRole,
-    HealthPool,
-    Target,
+    CombatStats, Enemy, EnemyAi, EnemyThreat, FellowshipRole, HealthPool, Target,
     DEFAULT_TANK_THREAT_MULTIPLIER,
 };
 use crate::player::{Character, CharacterCommand};
@@ -44,14 +37,8 @@ pub(super) fn player_cast_system(
         (With<Enemy>, Without<Character>),
     >,
 ) {
-    for (
-        player_entity,
-        role,
-        mut player_stats,
-        target,
-        mut command,
-        player_health_pool,
-    ) in &mut player_query
+    for (player_entity, role, mut player_stats, target, mut command, player_health_pool) in
+        &mut player_query
     {
         if !std::mem::take(&mut command.ability_1) {
             continue;
@@ -80,11 +67,7 @@ pub(super) fn player_cast_system(
         let current_enemy_health = enemy_health_pool
             .as_deref()
             .map(|pool| pool.current())
-            .or_else(|| {
-                enemy_stats
-                    .as_deref()
-                    .map(|stats| stats.current_health)
-            });
+            .or_else(|| enemy_stats.as_deref().map(|stats| stats.current_health));
 
         let Some(current_enemy_health) = current_enemy_health else {
             continue;
@@ -97,9 +80,7 @@ pub(super) fn player_cast_system(
             stats.max_health = pool.maximum();
         }
 
-        if current_enemy_health <= 0.0
-            || enemy_ai.is_some_and(|ai| ai.returning_home)
-        {
+        if current_enemy_health <= 0.0 || enemy_ai.is_some_and(|ai| ai.returning_home) {
             continue;
         }
 
@@ -148,31 +129,19 @@ pub(super) fn player_cast_system(
                             stats.max_health = maximum_health;
                         }
 
-                        (
-                            effective_damage,
-                            current_health,
-                            maximum_health,
-                        )
+                        (effective_damage, current_health, maximum_health)
                     }
                     Err(error) => {
-                        warn!(
-                            "Impossibile applicare il danno alla HealthPool del nemico: {error}"
-                        );
+                        warn!("Impossibile applicare il danno alla HealthPool del nemico: {error}");
                         continue;
                     }
                 }
             } else if let Some(stats) = enemy_stats.as_deref_mut() {
-                let effective_damage =
-                    stats.current_health.min(requested_damage).max(0.0);
+                let effective_damage = stats.current_health.min(requested_damage).max(0.0);
 
-                stats.current_health =
-                    (stats.current_health - requested_damage).max(0.0);
+                stats.current_health = (stats.current_health - requested_damage).max(0.0);
 
-                (
-                    effective_damage,
-                    stats.current_health,
-                    stats.max_health,
-                )
+                (effective_damage, stats.current_health, stats.max_health)
             } else {
                 continue;
             };
@@ -181,10 +150,7 @@ pub(super) fn player_cast_system(
             PlayerAttackKind::TankStrike => {
                 info!(
                     "Tank colpisce! Danno: {}. Vita Nemico: {}/{}. Rabbia generata: {}",
-                    damage,
-                    enemy_current_health,
-                    enemy_max_health,
-                    player_stats.resource
+                    damage, enemy_current_health, enemy_max_health, player_stats.resource
                 );
             }
             PlayerAttackKind::DpsSpecial => {
@@ -199,19 +165,13 @@ pub(super) fn player_cast_system(
             PlayerAttackKind::DpsBasic => {
                 info!(
                     "DPS attacco base! Danno: {}. Vita Nemico: {}/{}. Energia rigenerata: {}",
-                    damage,
-                    enemy_current_health,
-                    enemy_max_health,
-                    player_stats.resource
+                    damage, enemy_current_health, enemy_max_health, player_stats.resource
                 );
             }
             PlayerAttackKind::HealerSpell => {
                 info!(
                     "Healer lancia incantesimo! Danno: {}. Vita Nemico: {}/{}. Mana residuo: {}",
-                    damage,
-                    enemy_current_health,
-                    enemy_max_health,
-                    player_stats.resource
+                    damage, enemy_current_health, enemy_max_health, player_stats.resource
                 );
             }
             PlayerAttackKind::HealerInsufficientMana => {}

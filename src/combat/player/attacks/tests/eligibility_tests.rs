@@ -5,36 +5,45 @@ fn defeated_targets_cannot_receive_additional_player_casts() {
     let mut app = App::new();
     app.add_systems(Update, player_cast_system);
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        CombatStats {
-            current_health: 0.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        ))
+        .id();
 
-    let player = app.world_mut().spawn((
-        Character,
-        FellowshipRole::Dps,
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 100.0,
-        },
-        Target {
-            entity: Some(enemy),
-        },
-        CharacterCommand {
-            ability_1: true,
-            ..default()
-        },
-    )).id();
+    let player = app
+        .world_mut()
+        .spawn((
+            Character,
+            FellowshipRole::Dps,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 100.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        ))
+        .id();
 
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(enemy).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(enemy)
+            .unwrap()
+            .current_health,
         0.0
     );
 
@@ -48,24 +57,22 @@ fn defeated_targets_cannot_receive_additional_player_casts() {
 fn defeated_targets_with_health_pool_cannot_receive_player_casts() {
     let mut app = setup_player_cast_test_app();
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi::default(),
-        EnemyThreat::default(),
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-        HealthPool::new(0.0, 100.0).unwrap(),
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi::default(),
+            EnemyThreat::default(),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            HealthPool::new(0.0, 100.0).unwrap(),
+        ))
+        .id();
 
-    let player = spawn_player_for_cast(
-        &mut app,
-        enemy,
-        FellowshipRole::Dps,
-        100.0,
-    );
+    let player = spawn_player_for_cast(&mut app, enemy, FellowshipRole::Dps, 100.0);
 
     app.update();
 
@@ -82,24 +89,22 @@ fn defeated_targets_with_health_pool_cannot_receive_player_casts() {
 fn living_targets_with_health_pool_can_receive_player_casts_when_stats_are_stale() {
     let mut app = setup_player_cast_test_app();
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi::default(),
-        EnemyThreat::default(),
-        CombatStats {
-            current_health: 0.0,
-            max_health: 80.0,
-            resource: 0.0,
-        },
-        HealthPool::new(5.0, 100.0).unwrap(),
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi::default(),
+            EnemyThreat::default(),
+            CombatStats {
+                current_health: 0.0,
+                max_health: 80.0,
+                resource: 0.0,
+            },
+            HealthPool::new(5.0, 100.0).unwrap(),
+        ))
+        .id();
 
-    let player = spawn_player_for_cast(
-        &mut app,
-        enemy,
-        FellowshipRole::Tank,
-        0.0,
-    );
+    let player = spawn_player_for_cast(&mut app, enemy, FellowshipRole::Tank, 0.0);
 
     app.update();
 
@@ -124,44 +129,53 @@ fn returning_enemies_are_immune_to_player_abilities() {
     let mut app = App::new();
     app.add_systems(Update, player_cast_system);
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        EnemyAi {
-            target: None,
-            aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
-            leash_range: DEFAULT_ENEMY_LEASH_RANGE,
-            returning_home: true,
-        },
-        EnemyHomePosition(Vec3::ZERO),
-        Transform::from_xyz(41.0, 0.0, 0.0),
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            EnemyAi {
+                target: None,
+                aggro_range: DEFAULT_ENEMY_AGGRO_RANGE,
+                leash_range: DEFAULT_ENEMY_LEASH_RANGE,
+                returning_home: true,
+            },
+            EnemyHomePosition(Vec3::ZERO),
+            Transform::from_xyz(41.0, 0.0, 0.0),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        ))
+        .id();
 
-    let player = app.world_mut().spawn((
-        Character,
-        FellowshipRole::Dps,
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 100.0,
-        },
-        Target {
-            entity: Some(enemy),
-        },
-        CharacterCommand {
-            ability_1: true,
-            ..default()
-        },
-    )).id();
+    let player = app
+        .world_mut()
+        .spawn((
+            Character,
+            FellowshipRole::Dps,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 100.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        ))
+        .id();
 
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(enemy).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(enemy)
+            .unwrap()
+            .current_health,
         100.0
     );
 
@@ -176,36 +190,45 @@ fn defeated_players_cannot_cast_abilities() {
     let mut app = App::new();
     app.add_systems(Update, player_cast_system);
 
-    let enemy = app.world_mut().spawn((
-        Enemy,
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-    )).id();
+    let enemy = app
+        .world_mut()
+        .spawn((
+            Enemy,
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        ))
+        .id();
 
-    let player = app.world_mut().spawn((
-        Character,
-        FellowshipRole::Tank,
-        CombatStats {
-            current_health: 0.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-        Target {
-            entity: Some(enemy),
-        },
-        CharacterCommand {
-            ability_1: true,
-            ..default()
-        },
-    )).id();
+    let player = app
+        .world_mut()
+        .spawn((
+            Character,
+            FellowshipRole::Tank,
+            CombatStats {
+                current_health: 0.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            Target {
+                entity: Some(enemy),
+            },
+            CharacterCommand {
+                ability_1: true,
+                ..default()
+            },
+        ))
+        .id();
 
     app.update();
 
     assert_eq!(
-        app.world().get::<CombatStats>(enemy).unwrap().current_health,
+        app.world()
+            .get::<CombatStats>(enemy)
+            .unwrap()
+            .current_health,
         100.0
     );
 

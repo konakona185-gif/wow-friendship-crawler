@@ -11,19 +11,10 @@ mod lifecycle;
 mod tests;
 
 pub(super) use ai::ally_summon_aggro_system;
-pub(super) use attacks::{
-    ally_summon_attack_system,
-    AllySummonAttackState,
-};
+pub(super) use attacks::{ally_summon_attack_system, AllySummonAttackState};
 
 use crate::combat::{
-    CombatAttributes,
-    CombatLevel,
-    CombatStats,
-    Enemy,
-    EnemyAi,
-    EnemyHomePosition,
-    HealthPool,
+    CombatAttributes, CombatLevel, CombatStats, Enemy, EnemyAi, EnemyHomePosition, HealthPool,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,10 +75,7 @@ impl SummonedCreature {
 }
 
 #[derive(Component)]
-#[require(
-    crate::combat::ActiveAuras,
-    crate::combat::PendingDisplacement,
-)]
+#[require(crate::combat::ActiveAuras, crate::combat::PendingDisplacement)]
 pub struct AllySummon;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -163,9 +151,9 @@ pub(super) fn spawn_pending_summons(
     for request in requests {
         if request.count == 0
             || !request.spawn_position.is_finite()
-            || request.duration_seconds.is_some_and(|duration| {
-                !duration.is_finite() || duration <= 0.0
-            })
+            || request
+                .duration_seconds
+                .is_some_and(|duration| !duration.is_finite() || duration <= 0.0)
         {
             warn!(
                 owner = ?request.owner,
@@ -178,12 +166,7 @@ pub(super) fn spawn_pending_summons(
             continue;
         }
 
-        let Ok((
-            owner_level,
-            is_character,
-            is_enemy,
-            parent_summon,
-        )) = owners.get(request.owner)
+        let Ok((owner_level, is_character, is_enemy, parent_summon)) = owners.get(request.owner)
         else {
             warn!(
                 owner = ?request.owner,
@@ -217,10 +200,7 @@ pub(super) fn spawn_pending_summons(
             continue;
         };
 
-        let health_pool = match HealthPool::new(
-            creature.health,
-            creature.health,
-        ) {
+        let health_pool = match HealthPool::new(creature.health, creature.health) {
             Ok(pool) => pool,
             Err(error) => {
                 warn!(
@@ -265,10 +245,7 @@ pub(super) fn spawn_pending_summons(
 
             match faction {
                 SummonFaction::Allies => {
-                    entity_commands.insert((
-                        AllySummon,
-                        AllySummonAi::new(creature.aggro_range),
-                    ));
+                    entity_commands.insert((AllySummon, AllySummonAi::new(creature.aggro_range)));
                 }
                 SummonFaction::Enemies => {
                     entity_commands.insert((

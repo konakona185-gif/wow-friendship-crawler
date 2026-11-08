@@ -1,54 +1,26 @@
-
 use std::time::Duration;
 
 use bevy::prelude::*;
 
-use super::super::{
-    execute_pending_effects,
-    PendingCombatEffects,
-};
+use super::super::{execute_pending_effects, PendingCombatEffects};
 
 use crate::combat::{
-    ActiveAuras,
-    CombatAttributes,
-    CombatEffectSubscriptions,
-    CombatEventQueue,
-    CombatStats,
-    EffectTrigger,
-    HealthPool,
-    ResolvedEffect,
-    ResolvedEffectOperation,
+    ActiveAuras, CombatAttributes, CombatEffectSubscriptions, CombatEventQueue, CombatStats,
+    EffectTrigger, HealthPool, ResolvedEffect, ResolvedEffectOperation,
 };
 
 use crate::content::{
-    AuraDefinition,
-    AuraRefreshPolicy,
-    AuraStackingPolicy,
-    AuraStackingScope,
-    ContentDatabase,
-    ContentId,
-    ContentMetadata,
-    ContentPackManifest,
-    EffectDefinition,
-    EffectKind,
-    EffectMagnitude,
-    EffectTarget,
-    PeriodicAuraEffect,
-    PeriodicEffectStackScaling,
+    AuraDefinition, AuraRefreshPolicy, AuraStackingPolicy, AuraStackingScope, ContentDatabase,
+    ContentId, ContentMetadata, ContentPackManifest, EffectDefinition, EffectKind, EffectMagnitude,
+    EffectTarget, PeriodicAuraEffect, PeriodicEffectStackScaling,
 };
 
 fn aura_id() -> ContentId {
-    ContentId::new(
-        "classic_1_12_1:aura.test",
-    )
-    .unwrap()
+    ContentId::new("classic_1_12_1:aura.test").unwrap()
 }
 
 fn periodic_effect_id() -> ContentId {
-    ContentId::new(
-        "classic_1_12_1:effect.periodic_test",
-    )
-    .unwrap()
+    ContentId::new("classic_1_12_1:effect.periodic_test").unwrap()
 }
 
 fn source() -> Entity {
@@ -59,10 +31,7 @@ fn aura_definition() -> AuraDefinition {
     AuraDefinition {
         metadata: ContentMetadata {
             id: aura_id(),
-            pack_id: ContentId::new(
-                "pack:classic_1_12_1",
-            )
-            .unwrap(),
+            pack_id: ContentId::new("pack:classic_1_12_1").unwrap(),
             name: "Test Aura".to_string(),
             description: String::new(),
             icon: None,
@@ -89,10 +58,7 @@ fn periodic_aura_definition() -> AuraDefinition {
 }
 
 fn runtime_app(register_aura: bool) -> App {
-    let pack_id = ContentId::new(
-        "pack:classic_1_12_1",
-    )
-    .unwrap();
+    let pack_id = ContentId::new("pack:classic_1_12_1").unwrap();
 
     let mut database = ContentDatabase::new();
 
@@ -107,9 +73,7 @@ fn runtime_app(register_aura: bool) -> App {
         .unwrap();
 
     if register_aura {
-        database
-            .register_aura(aura_definition())
-            .unwrap();
+        database.register_aura(aura_definition()).unwrap();
     }
 
     let mut app = App::new();
@@ -123,15 +87,9 @@ fn runtime_app(register_aura: bool) -> App {
 }
 
 fn expiration_runtime_app() -> App {
-    let pack_id = ContentId::new(
-        "pack:classic_1_12_1",
-    )
-    .unwrap();
+    let pack_id = ContentId::new("pack:classic_1_12_1").unwrap();
 
-    let effect_id = ContentId::new(
-        "classic_1_12_1:effect.aura_expiration_heal",
-    )
-    .unwrap();
+    let effect_id = ContentId::new("classic_1_12_1:effect.aura_expiration_heal").unwrap();
 
     let mut database = ContentDatabase::new();
 
@@ -145,9 +103,7 @@ fn expiration_runtime_app() -> App {
         })
         .unwrap();
 
-    database
-        .register_aura(aura_definition())
-        .unwrap();
+    database.register_aura(aura_definition()).unwrap();
 
     database
         .register_effect(EffectDefinition {
@@ -195,10 +151,7 @@ fn expiration_runtime_app() -> App {
 }
 
 fn periodic_runtime_app() -> App {
-    let pack_id = ContentId::new(
-        "pack:classic_1_12_1",
-    )
-    .unwrap();
+    let pack_id = ContentId::new("pack:classic_1_12_1").unwrap();
 
     let mut database = ContentDatabase::new();
 
@@ -212,9 +165,7 @@ fn periodic_runtime_app() -> App {
         })
         .unwrap();
 
-    database
-        .register_aura(periodic_aura_definition())
-        .unwrap();
+    database.register_aura(periodic_aura_definition()).unwrap();
 
     database
         .register_effect(EffectDefinition {
@@ -261,15 +212,9 @@ fn periodic_runtime_app() -> App {
     app
 }
 
-fn resolved_aura_effect(
-    target: Entity,
-    operation: ResolvedEffectOperation,
-) -> ResolvedEffect {
+fn resolved_aura_effect(target: Entity, operation: ResolvedEffectOperation) -> ResolvedEffect {
     ResolvedEffect {
-        effect: ContentId::new(
-            "classic_1_12_1:effect.aura_test",
-        )
-        .unwrap(),
+        effect: ContentId::new("classic_1_12_1:effect.aura_test").unwrap(),
         trigger: EffectTrigger::OnCast,
         source: Some(source()),
         target,
@@ -277,20 +222,14 @@ fn resolved_aura_effect(
     }
 }
 
-fn enqueue(
-    app: &mut App,
-    effect: ResolvedEffect,
-) {
+fn enqueue(app: &mut App, effect: ResolvedEffect) {
     app.world_mut()
         .resource_mut::<PendingCombatEffects>()
         .enqueue(effect);
 }
 
 fn aura_reactive_effect_id() -> ContentId {
-    ContentId::new(
-        "classic_1_12_1:effect.aura_reactive",
-    )
-    .unwrap()
+    ContentId::new("classic_1_12_1:effect.aura_reactive").unwrap()
 }
 
 fn resolved_aura_effect_from(
@@ -299,10 +238,7 @@ fn resolved_aura_effect_from(
     operation: ResolvedEffectOperation,
 ) -> ResolvedEffect {
     ResolvedEffect {
-        effect: ContentId::new(
-            "classic_1_12_1:effect.aura_test",
-        )
-        .unwrap(),
+        effect: ContentId::new("classic_1_12_1:effect.aura_test").unwrap(),
         trigger: EffectTrigger::OnCast,
         source: Some(source_entity),
         target,
@@ -310,13 +246,8 @@ fn resolved_aura_effect_from(
     }
 }
 
-fn aura_reactive_runtime_app(
-    trigger: EffectTrigger,
-) -> App {
-    let pack_id = ContentId::new(
-        "pack:classic_1_12_1",
-    )
-    .unwrap();
+fn aura_reactive_runtime_app(trigger: EffectTrigger) -> App {
+    let pack_id = ContentId::new("pack:classic_1_12_1").unwrap();
 
     let effect_id = aura_reactive_effect_id();
 
@@ -332,9 +263,7 @@ fn aura_reactive_runtime_app(
         })
         .unwrap();
 
-    database
-        .register_aura(aura_definition())
-        .unwrap();
+    database.register_aura(aura_definition()).unwrap();
 
     database
         .register_effect(EffectDefinition {
@@ -376,6 +305,6 @@ fn aura_reactive_runtime_app(
     app
 }
 
-mod reactive_tests;
 mod lifecycle_tests;
 mod operation_tests;
+mod reactive_tests;

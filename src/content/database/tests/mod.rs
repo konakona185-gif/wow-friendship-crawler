@@ -1,38 +1,17 @@
 mod aura_tests;
 mod classic_pack_tests;
-mod registration_tests;
 mod reference_tests;
+mod registration_tests;
 mod talent_validation_tests;
 
 use super::{ContentDatabase, ContentDatabaseError};
 use crate::content::{
-    AbilityActivation,
-    AbilityDefinition,
-    AbilityRange,
-    AbilityTargeting,
-    AuraDefinition,
-    AuraRefreshPolicy,
-    AuraStackingPolicy,
-    AuraStackingScope,
-    CombatAttributeDefinition,
-    CombatAttributeValueKind,
-    ContentId,
-    ContentMetadata,
-    ContentPackManifest,
-    DamageSchoolDefinition,
-    DamageSchoolMitigation,
-    EffectDefinition,
-    EffectKind,
-    EffectMagnitude,
-    EffectTarget,
-    EffectTrigger,
-    ResourceCost,
-    ResourceDefinition,
-    TalentDefinition,
-    TalentPosition,
-    TalentPrerequisite,
-    TalentRankDefinition,
-    TalentTreeDefinition,
+    AbilityActivation, AbilityDefinition, AbilityRange, AbilityTargeting, AuraDefinition,
+    AuraRefreshPolicy, AuraStackingPolicy, AuraStackingScope, CombatAttributeDefinition,
+    CombatAttributeValueKind, ContentId, ContentMetadata, ContentPackManifest,
+    DamageSchoolDefinition, DamageSchoolMitigation, EffectDefinition, EffectKind, EffectMagnitude,
+    EffectTarget, EffectTrigger, ResourceCost, ResourceDefinition, TalentDefinition,
+    TalentPosition, TalentPrerequisite, TalentRankDefinition, TalentTreeDefinition,
 };
 
 fn manifest(id: &str, dependencies: &[&str]) -> ContentPackManifest {
@@ -90,11 +69,7 @@ fn aura() -> AuraDefinition {
     }
 }
 
-fn aura_effect(
-    id: &str,
-    aura_id: &str,
-    apply: bool,
-) -> EffectDefinition {
+fn aura_effect(id: &str, aura_id: &str, apply: bool) -> EffectDefinition {
     let aura = ContentId::new(aura_id).unwrap();
 
     let kind = if apply {
@@ -104,10 +79,7 @@ fn aura_effect(
             duration_seconds: Some(10.0),
         }
     } else {
-        EffectKind::RemoveAura {
-            aura,
-            stacks: None,
-        }
+        EffectKind::RemoveAura { aura, stacks: None }
     };
 
     EffectDefinition {
@@ -133,11 +105,7 @@ fn damage_effect() -> EffectDefinition {
     }
 }
 
-fn resource_effect(
-    id: &str,
-    resource_id: &str,
-    gain: bool,
-) -> EffectDefinition {
+fn resource_effect(id: &str, resource_id: &str, gain: bool) -> EffectDefinition {
     let resource = ContentId::new(resource_id).unwrap();
     let amount = EffectMagnitude {
         base: 10.0,
@@ -167,12 +135,8 @@ fn ability() -> AbilityDefinition {
         },
         cooldown_seconds: 3.0,
         costs: Vec::new(),
-        effects: vec![
-            ContentId::new("classic:effect.strike").unwrap(),
-        ],
-        class_restrictions: vec![
-            ContentId::new("classic:class.warrior").unwrap(),
-        ],
+        effects: vec![ContentId::new("classic:effect.strike").unwrap()],
+        class_restrictions: vec![ContentId::new("classic:class.warrior").unwrap()],
         prerequisites: Vec::new(),
     }
 }
@@ -186,37 +150,27 @@ fn talent_tree(talent_ids: Vec<ContentId>) -> TalentTreeDefinition {
     }
 }
 
-fn talent(
-    id: &str,
-    prerequisites: Vec<TalentPrerequisite>,
-) -> TalentDefinition {
+fn talent(id: &str, prerequisites: Vec<TalentPrerequisite>) -> TalentDefinition {
     TalentDefinition {
         metadata: metadata(id, id),
         tree: ContentId::new("classic:tree.arms").unwrap(),
-        position: TalentPosition {
-            row: 0,
-            column: 0,
-        },
+        position: TalentPosition { row: 0, column: 0 },
         required_tree_points: 0,
         points_per_rank: 1,
         prerequisites,
-        ranks: vec![
-            TalentRankDefinition {
-                rank: 1,
-                effects: vec![
-                    ContentId::new("classic:effect.strike").unwrap(),
-                ],
-                unlocks: vec![
-                    ContentId::new("classic:ability.strike").unwrap(),
-                ],
-            },
-        ],
+        ranks: vec![TalentRankDefinition {
+            rank: 1,
+            effects: vec![ContentId::new("classic:effect.strike").unwrap()],
+            unlocks: vec![ContentId::new("classic:ability.strike").unwrap()],
+        }],
     }
 }
 
 fn database_with_classic_pack() -> ContentDatabase {
     let mut database = ContentDatabase::new();
-    database.register_pack(manifest("pack:classic", &[])).unwrap();
+    database
+        .register_pack(manifest("pack:classic", &[]))
+        .unwrap();
     database
 }
 
@@ -225,10 +179,7 @@ fn database_resolves_pack_dependencies() {
     let mut database = ContentDatabase::new();
 
     database
-        .register_pack(manifest(
-            "pack:expansion",
-            &["pack:classic"],
-        ))
+        .register_pack(manifest("pack:expansion", &["pack:classic"]))
         .unwrap();
 
     database
@@ -237,10 +188,7 @@ fn database_resolves_pack_dependencies() {
 
     let order = database.pack_load_order().unwrap();
 
-    let ids: Vec<&str> = order
-        .iter()
-        .map(|pack| pack.id.as_str())
-        .collect();
+    let ids: Vec<&str> = order.iter().map(|pack| pack.id.as_str()).collect();
 
     assert_eq!(ids, vec!["pack:classic", "pack:expansion"]);
 }

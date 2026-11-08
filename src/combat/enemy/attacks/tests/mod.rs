@@ -19,10 +19,7 @@ fn advance_test_time(app: &mut App, seconds: f32) {
 fn test_enemy_attack_state(target: Entity) -> EnemyAttackState {
     EnemyAttackState {
         target,
-        cooldown: Timer::from_seconds(
-            DEFAULT_ENEMY_ATTACK_INTERVAL,
-            TimerMode::Repeating,
-        ),
+        cooldown: Timer::from_seconds(DEFAULT_ENEMY_ATTACK_INTERVAL, TimerMode::Repeating),
     }
 }
 
@@ -41,35 +38,32 @@ fn test_summon_combat_profile(
     }
 }
 
-fn spawn_enemy_summon(
-    world: &mut World,
-    target: Entity,
-    profile: SummonCombatProfile,
-) -> Entity {
-    world.spawn((
-        Enemy,
-        profile,
-        EnemyAi {
-            target: Some(target),
-            ..EnemyAi::default()
-        },
-        Transform::default(),
-    )).id()
+fn spawn_enemy_summon(world: &mut World, target: Entity, profile: SummonCombatProfile) -> Entity {
+    world
+        .spawn((
+            Enemy,
+            profile,
+            EnemyAi {
+                target: Some(target),
+                ..EnemyAi::default()
+            },
+            Transform::default(),
+        ))
+        .id()
 }
 
-fn spawn_living_player(
-    world: &mut World,
-    position: Vec3,
-) -> Entity {
-    world.spawn((
-        Character,
-        Transform::from_translation(position),
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-    )).id()
+fn spawn_living_player(world: &mut World, position: Vec3) -> Entity {
+    world
+        .spawn((
+            Character,
+            Transform::from_translation(position),
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+        ))
+        .id()
 }
 
 fn spawn_player_with_health_pool(
@@ -80,16 +74,18 @@ fn spawn_player_with_health_pool(
     pool_health: f32,
     pool_maximum: f32,
 ) -> Entity {
-    world.spawn((
-        Character,
-        Transform::from_translation(position),
-        CombatStats {
-            current_health: stats_health,
-            max_health: stats_maximum,
-            resource: 0.0,
-        },
-        HealthPool::new(pool_health, pool_maximum).unwrap(),
-    )).id()
+    world
+        .spawn((
+            Character,
+            Transform::from_translation(position),
+            CombatStats {
+                current_health: stats_health,
+                max_health: stats_maximum,
+                resource: 0.0,
+            },
+            HealthPool::new(pool_health, pool_maximum).unwrap(),
+        ))
+        .id()
 }
 
 fn spawn_living_ally_summon(
@@ -100,16 +96,18 @@ fn spawn_living_ally_summon(
     pool_health: f32,
     pool_maximum: f32,
 ) -> Entity {
-    world.spawn((
-        AllySummon,
-        Transform::from_translation(position),
-        CombatStats {
-            current_health: stats_health,
-            max_health: stats_maximum,
-            resource: 0.0,
-        },
-        HealthPool::new(pool_health, pool_maximum).unwrap(),
-    )).id()
+    world
+        .spawn((
+            AllySummon,
+            Transform::from_translation(position),
+            CombatStats {
+                current_health: stats_health,
+                max_health: stats_maximum,
+                resource: 0.0,
+            },
+            HealthPool::new(pool_health, pool_maximum).unwrap(),
+        ))
+        .id()
 }
 
 mod damage_resolution_tests;

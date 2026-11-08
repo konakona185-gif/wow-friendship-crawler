@@ -65,21 +65,11 @@ impl Display for ContentPackValidationError {
             Self::InvalidPackIdNamespace => {
                 "L'identificativo del pacchetto deve usare il namespace 'pack'"
             }
-            Self::EmptyName => {
-                "Il nome del pacchetto non può essere vuoto"
-            }
-            Self::EmptyVersion => {
-                "La versione del pacchetto non può essere vuota"
-            }
-            Self::InvalidDependencyNamespace => {
-                "Le dipendenze devono usare il namespace 'pack'"
-            }
-            Self::SelfDependency => {
-                "Un pacchetto non può dipendere da sé stesso"
-            }
-            Self::DuplicateDependency => {
-                "Il pacchetto contiene dipendenze duplicate"
-            }
+            Self::EmptyName => "Il nome del pacchetto non può essere vuoto",
+            Self::EmptyVersion => "La versione del pacchetto non può essere vuota",
+            Self::InvalidDependencyNamespace => "Le dipendenze devono usare il namespace 'pack'",
+            Self::SelfDependency => "Un pacchetto non può dipendere da sé stesso",
+            Self::DuplicateDependency => "Il pacchetto contiene dipendenze duplicate",
         };
 
         formatter.write_str(message)
@@ -140,9 +130,7 @@ mod tests {
     #[test]
     fn manifest_rejects_invalid_dependencies() {
         let mut manifest = valid_manifest();
-        manifest.dependencies = vec![
-            ContentId::new("classic:warrior.charge").unwrap(),
-        ];
+        manifest.dependencies = vec![ContentId::new("classic:warrior.charge").unwrap()];
 
         assert_eq!(
             manifest.validate(),
@@ -166,10 +154,7 @@ mod tests {
         let mut manifest = valid_manifest();
         let dependency = ContentId::new("pack:shared_base").unwrap();
 
-        manifest.dependencies = vec![
-            dependency.clone(),
-            dependency,
-        ];
+        manifest.dependencies = vec![dependency.clone(), dependency];
 
         assert_eq!(
             manifest.validate(),
@@ -182,8 +167,7 @@ mod tests {
         let original = valid_manifest();
 
         let serialized = ron::to_string(&original).unwrap();
-        let restored: ContentPackManifest =
-            ron::from_str(&serialized).unwrap();
+        let restored: ContentPackManifest = ron::from_str(&serialized).unwrap();
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());

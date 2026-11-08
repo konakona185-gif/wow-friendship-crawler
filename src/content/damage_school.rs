@@ -1,12 +1,7 @@
-
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
-use super::{
-    ContentId,
-    ContentMetadata,
-    ContentMetadataError,
-};
+use super::{ContentId, ContentMetadata, ContentMetadataError};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DamageSchoolDefinition {
@@ -15,9 +10,7 @@ pub struct DamageSchoolDefinition {
 }
 
 impl DamageSchoolDefinition {
-    pub fn validate(
-        &self,
-    ) -> Result<(), DamageSchoolValidationError> {
+    pub fn validate(&self) -> Result<(), DamageSchoolValidationError> {
         self.metadata
             .validate()
             .map_err(DamageSchoolValidationError::InvalidMetadata)?;
@@ -48,22 +41,16 @@ impl DamageSchoolMitigation {
         };
 
         if components.len() < 2 {
-            return Err(
-                DamageSchoolValidationError::InsufficientCompositeComponents,
-            );
+            return Err(DamageSchoolValidationError::InsufficientCompositeComponents);
         }
 
         for (index, component) in components.iter().enumerate() {
             if matches!(component, Self::Composite { .. }) {
-                return Err(
-                    DamageSchoolValidationError::NestedComposite,
-                );
+                return Err(DamageSchoolValidationError::NestedComposite);
             }
 
             if components[..index].contains(component) {
-                return Err(
-                    DamageSchoolValidationError::DuplicateCompositeComponent,
-                );
+                return Err(DamageSchoolValidationError::DuplicateCompositeComponent);
             }
         }
 
@@ -89,19 +76,13 @@ impl Display for DamageSchoolValidationError {
                 )
             }
             Self::InsufficientCompositeComponents => {
-                formatter.write_str(
-                    "Una scuola composta deve contenere almeno due componenti",
-                )
+                formatter.write_str("Una scuola composta deve contenere almeno due componenti")
             }
-            Self::NestedComposite => {
-                formatter.write_str(
-                    "Una componente di una scuola composta non può essere a sua volta composta",
-                )
-            }
+            Self::NestedComposite => formatter.write_str(
+                "Una componente di una scuola composta non può essere a sua volta composta",
+            ),
             Self::DuplicateCompositeComponent => {
-                formatter.write_str(
-                    "Una scuola composta non può contenere componenti duplicati",
-                )
+                formatter.write_str("Una scuola composta non può contenere componenti duplicati")
             }
         }
     }
@@ -116,14 +97,8 @@ mod tests {
     fn valid_school() -> DamageSchoolDefinition {
         DamageSchoolDefinition {
             metadata: ContentMetadata {
-                id: ContentId::new(
-                    "classic_1_12_1:school.physical",
-                )
-                .unwrap(),
-                pack_id: ContentId::new(
-                    "pack:classic_1_12_1",
-                )
-                .unwrap(),
+                id: ContentId::new("classic_1_12_1:school.physical").unwrap(),
+                pack_id: ContentId::new("pack:classic_1_12_1").unwrap(),
                 name: "Physical".to_string(),
                 description: String::new(),
                 icon: None,
@@ -151,11 +126,9 @@ mod tests {
 
         assert_eq!(
             school.validate(),
-            Err(
-                DamageSchoolValidationError::InvalidMetadata(
-                    ContentMetadataError::EmptyName
-                )
-            )
+            Err(DamageSchoolValidationError::InvalidMetadata(
+                ContentMetadataError::EmptyName
+            ))
         );
     }
 
@@ -163,13 +136,10 @@ mod tests {
     fn damage_school_supports_ron_serialization() {
         let mut original = valid_school();
 
-        original.mitigation = resistance(
-            "classic_1_12_1:stat.fire_resistance",
-        );
+        original.mitigation = resistance("classic_1_12_1:stat.fire_resistance");
 
         let serialized = ron::to_string(&original).unwrap();
-        let restored: DamageSchoolDefinition =
-            ron::from_str(&serialized).unwrap();
+        let restored: DamageSchoolDefinition = ron::from_str(&serialized).unwrap();
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());
@@ -202,8 +172,7 @@ mod tests {
         };
 
         let serialized = ron::to_string(&original).unwrap();
-        let restored: DamageSchoolDefinition =
-            ron::from_str(&serialized).unwrap();
+        let restored: DamageSchoolDefinition = ron::from_str(&serialized).unwrap();
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());
@@ -214,16 +183,12 @@ mod tests {
         let mut school = valid_school();
 
         school.mitigation = DamageSchoolMitigation::Composite {
-            components: vec![
-                resistance("classic_1_12_1:stat.fire_resistance"),
-            ],
+            components: vec![resistance("classic_1_12_1:stat.fire_resistance")],
         };
 
         assert_eq!(
             school.validate(),
-            Err(
-                DamageSchoolValidationError::InsufficientCompositeComponents
-            )
+            Err(DamageSchoolValidationError::InsufficientCompositeComponents)
         );
     }
 
@@ -253,22 +218,15 @@ mod tests {
     fn composite_damage_school_rejects_duplicate_components() {
         let mut school = valid_school();
 
-        let frost = resistance(
-            "classic_1_12_1:stat.frost_resistance",
-        );
+        let frost = resistance("classic_1_12_1:stat.frost_resistance");
 
         school.mitigation = DamageSchoolMitigation::Composite {
-            components: vec![
-                frost.clone(),
-                frost,
-            ],
+            components: vec![frost.clone(), frost],
         };
 
         assert_eq!(
             school.validate(),
-            Err(
-                DamageSchoolValidationError::DuplicateCompositeComponent
-            )
+            Err(DamageSchoolValidationError::DuplicateCompositeComponent)
         );
     }
 }

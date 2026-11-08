@@ -25,9 +25,7 @@ pub enum HealingRequestError {
 impl std::fmt::Display for HealingRequestError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
-            Self::InvalidAmount => {
-                "La quantità di guarigione deve essere finita e non negativa"
-            }
+            Self::InvalidAmount => "La quantità di guarigione deve essere finita e non negativa",
         };
 
         formatter.write_str(message)
@@ -92,14 +90,10 @@ impl std::fmt::Display for HealingResolutionError {
                 write!(formatter, "Richiesta di guarigione non valida: {error}")
             }
             Self::InvalidEffectiveAmount => {
-                formatter.write_str(
-                    "La guarigione effettiva deve essere finita e non negativa",
-                )
+                formatter.write_str("La guarigione effettiva deve essere finita e non negativa")
             }
             Self::EffectiveExceedsRequestedAmount => {
-                formatter.write_str(
-                    "La guarigione effettiva non può superare quella richiesta",
-                )
+                formatter.write_str("La guarigione effettiva non può superare quella richiesta")
             }
         }
     }
@@ -130,10 +124,7 @@ mod tests {
             let mut request = valid_request();
             request.base_amount = amount;
 
-            assert_eq!(
-                request.validate(),
-                Err(HealingRequestError::InvalidAmount)
-            );
+            assert_eq!(request.validate(), Err(HealingRequestError::InvalidAmount));
         }
     }
 
@@ -147,11 +138,7 @@ mod tests {
 
     #[test]
     fn healing_resolution_supports_effective_healing() {
-        let resolution = HealingResolution::new(
-            valid_request(),
-            75.0,
-        )
-        .unwrap();
+        let resolution = HealingResolution::new(valid_request(), 75.0).unwrap();
 
         assert_eq!(resolution.effective_amount, 75.0);
         assert_eq!(resolution.overheal_amount(), 25.0);
@@ -160,22 +147,14 @@ mod tests {
 
     #[test]
     fn healing_resolution_supports_full_healing() {
-        let resolution = HealingResolution::new(
-            valid_request(),
-            100.0,
-        )
-        .unwrap();
+        let resolution = HealingResolution::new(valid_request(), 100.0).unwrap();
 
         assert_eq!(resolution.overheal_amount(), 0.0);
     }
 
     #[test]
     fn healing_resolution_supports_zero_effective_healing() {
-        let resolution = HealingResolution::new(
-            valid_request(),
-            0.0,
-        )
-        .unwrap();
+        let resolution = HealingResolution::new(valid_request(), 0.0).unwrap();
 
         assert_eq!(resolution.overheal_amount(), 100.0);
     }

@@ -62,11 +62,7 @@ impl CombatAttributes {
         self.values.get(stat).copied().unwrap_or(0.0)
     }
 
-    pub fn set(
-        &mut self,
-        stat: ContentId,
-        value: f32,
-    ) -> Result<(), CombatAttributeError> {
+    pub fn set(&mut self, stat: ContentId, value: f32) -> Result<(), CombatAttributeError> {
         if !value.is_finite() {
             return Err(CombatAttributeError::InvalidValue);
         }
@@ -97,9 +93,7 @@ pub enum CombatAttributeError {
 impl Display for CombatAttributeError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         let message = match self {
-            Self::InvalidValue => {
-                "Il valore dell'attributo deve essere finito"
-            }
+            Self::InvalidValue => "Il valore dell'attributo deve essere finito",
         };
 
         formatter.write_str(message)
@@ -125,10 +119,7 @@ mod tests {
 
     #[test]
     fn combat_level_rejects_zero() {
-        assert_eq!(
-            CombatLevel::new(0),
-            Err(CombatLevelError::InvalidLevel)
-        );
+        assert_eq!(CombatLevel::new(0), Err(CombatLevelError::InvalidLevel));
     }
 
     #[test]
@@ -144,10 +135,7 @@ mod tests {
     fn combat_level_rejects_invalid_updates_without_mutation() {
         let mut level = CombatLevel::new(60).unwrap();
 
-        assert_eq!(
-            level.set(0),
-            Err(CombatLevelError::InvalidLevel)
-        );
+        assert_eq!(level.set(0), Err(CombatLevelError::InvalidLevel));
 
         assert_eq!(level.value(), 60);
     }

@@ -35,12 +35,7 @@ fn stopping_movement_cancels_the_follow_transition() {
         ..default()
     };
 
-    update_camera_follow(
-        &mut orbit,
-        0,
-        false,
-        1.0 / 60.0,
-    );
+    update_camera_follow(&mut orbit, 0, false, 1.0 / 60.0);
 
     assert!(orbit.follow_return.is_none());
     assert_eq!(orbit.yaw_offset, 0.8);

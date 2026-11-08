@@ -78,10 +78,7 @@ fn spawn_system_creates_ally_summons_at_owner_level() {
         assert_eq!(profile.movement_speed, 5.0);
         assert_eq!(ai.target, None);
         assert_eq!(ai.aggro_range, 15.0);
-        assert_eq!(
-            transform.translation,
-            Vec3::new(4.0, 2.0, -3.0)
-        );
+        assert_eq!(transform.translation, Vec3::new(4.0, 2.0, -3.0));
         assert!(world.get::<Enemy>(entity).is_none());
     }
 
@@ -165,10 +162,7 @@ fn spawned_summons_inherit_the_runtime_faction_of_their_owner() {
 
     let world = app.world_mut();
     let mut query = world.query_filtered::<Entity, With<SummonedCreature>>();
-    let child = query
-        .iter(world)
-        .find(|entity| *entity != owner)
-        .unwrap();
+    let child = query.iter(world).find(|entity| *entity != owner).unwrap();
 
     let child_summon = world.get::<SummonedCreature>(child).unwrap();
 
@@ -185,10 +179,7 @@ fn spawn_system_rejects_owner_without_runtime_faction() {
 
     let owner = app
         .world_mut()
-        .spawn((
-            CombatLevel::new(60).unwrap(),
-            Transform::IDENTITY,
-        ))
+        .spawn((CombatLevel::new(60).unwrap(), Transform::IDENTITY))
         .id();
 
     enqueue_spawn_request(&mut app, owner, 1);

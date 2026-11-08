@@ -17,10 +17,7 @@ fn database_validates_complete_talent_definitions() {
         .unwrap();
 
     database
-        .register_talent(talent(
-            "classic:talent.test",
-            Vec::new(),
-        ))
+        .register_talent(talent("classic:talent.test", Vec::new()))
         .unwrap();
 
     assert!(database.validate().is_ok());
@@ -39,16 +36,10 @@ fn database_rejects_talent_tree_mismatches() {
         .register_talent_tree(talent_tree(vec![talent_id.clone()]))
         .unwrap();
 
-    let mut mismatched_talent = talent(
-        "classic:talent.test",
-        Vec::new(),
-    );
-    mismatched_talent.tree =
-        ContentId::new("classic:tree.fury").unwrap();
+    let mut mismatched_talent = talent("classic:talent.test", Vec::new());
+    mismatched_talent.tree = ContentId::new("classic:tree.fury").unwrap();
 
-    database
-        .register_talent(mismatched_talent)
-        .unwrap();
+    database.register_talent(mismatched_talent).unwrap();
 
     assert_eq!(
         database.validate(),
@@ -73,10 +64,7 @@ fn database_rejects_talent_prerequisite_cycles() {
     let second_id = ContentId::new("classic:talent.second").unwrap();
 
     database
-        .register_talent_tree(talent_tree(vec![
-            first_id.clone(),
-            second_id.clone(),
-        ]))
+        .register_talent_tree(talent_tree(vec![first_id.clone(), second_id.clone()]))
         .unwrap();
 
     database

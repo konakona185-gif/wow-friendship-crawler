@@ -1,24 +1,12 @@
-
 use bevy::color::Alpha;
-use bevy::input::mouse::{
-    AccumulatedMouseMotion,
-    AccumulatedMouseScroll,
-    MouseScrollUnit,
-};
+use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
 use bevy::render::alpha::AlphaMode;
 
 use benilla_world::collision::WorldCollision;
-use benilla_world::model_fade::{
-    self_model_fade_alpha,
-    SELF_FADE_WINDOW,
-};
+use benilla_world::model_fade::{self_model_fade_alpha, SELF_FADE_WINDOW};
 use benilla_world::schedule::WorldStage;
-use benilla_world::view::{
-    ViewDistance,
-    Viewer,
-    WorldCamera,
-};
+use benilla_world::view::{ViewDistance, Viewer, WorldCamera};
 
 use crate::player::{CharacterInputSet, LocalPlayer};
 
@@ -42,16 +30,11 @@ const CAMERA_CMD_BACKWARD: u32 = 0x20;
 const CAMERA_CMD_STRAFE_LEFT: u32 = 0x40;
 const CAMERA_CMD_STRAFE_RIGHT: u32 = 0x80;
 
-const CAMERA_CMD_MOVE_BITS: u32 =
-    CAMERA_CMD_FORWARD | CAMERA_CMD_BACKWARD;
-const CAMERA_CMD_STRAFE_BITS: u32 =
-    CAMERA_CMD_STRAFE_LEFT | CAMERA_CMD_STRAFE_RIGHT;
-const CAMERA_CMD_MOVEMENT_BITS: u32 =
-    CAMERA_CMD_MOVE_BITS | CAMERA_CMD_STRAFE_BITS;
+const CAMERA_CMD_MOVE_BITS: u32 = CAMERA_CMD_FORWARD | CAMERA_CMD_BACKWARD;
+const CAMERA_CMD_STRAFE_BITS: u32 = CAMERA_CMD_STRAFE_LEFT | CAMERA_CMD_STRAFE_RIGHT;
+const CAMERA_CMD_MOVEMENT_BITS: u32 = CAMERA_CMD_MOVE_BITS | CAMERA_CMD_STRAFE_BITS;
 const CAMERA_CMD_ARM_BITS: u32 =
-    CAMERA_CMD_MOVEMENT_BITS
-    | CAMERA_CMD_RIGHT_MOUSE
-    | CAMERA_CMD_LEFT_MOUSE;
+    CAMERA_CMD_MOVEMENT_BITS | CAMERA_CMD_RIGHT_MOUSE | CAMERA_CMD_LEFT_MOUSE;
 
 #[derive(Component)]
 pub struct ThirdPersonCamera {
@@ -96,16 +79,10 @@ impl Plugin for CameraPlugin {
 
 fn camera_follow_system(
     player_query: Query<
-        (
-            &Transform,
-            Option<&MeshMaterial3d<StandardMaterial>>,
-        ),
+        (&Transform, Option<&MeshMaterial3d<StandardMaterial>>),
         (With<LocalPlayer>, Without<ThirdPersonCamera>),
     >,
-    mut camera_query: Query<
-        (Entity, &mut Transform, &ThirdPersonCamera),
-        With<WorldCamera>,
-    >,
+    mut camera_query: Query<(Entity, &mut Transform, &ThirdPersonCamera), With<WorldCamera>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     mouse_motion: Res<AccumulatedMouseMotion>,
@@ -118,9 +95,7 @@ fn camera_follow_system(
     mut orbit: Local<CameraOrbitState>,
 ) {
     if let Ok((player_transform, player_material)) = player_query.single() {
-        if let Ok((camera_entity, mut camera_transform, camera)) =
-            camera_query.single_mut()
-        {
+        if let Ok((camera_entity, mut camera_transform, camera)) = camera_query.single_mut() {
             let vertical_offset = camera.height - CAMERA_LOOK_HEIGHT;
             let initial_distance = camera.distance.hypot(vertical_offset);
 
@@ -141,34 +116,25 @@ fn camera_follow_system(
 
             if look_held {
                 if left_held && !right_held {
-                    orbit.yaw_offset -=
-                        mouse_motion.delta.x * CAMERA_LOOK_SENSITIVITY;
+                    orbit.yaw_offset -= mouse_motion.delta.x * CAMERA_LOOK_SENSITIVITY;
                 }
 
-                orbit.pitch = (orbit.pitch
-                    - mouse_motion.delta.y * CAMERA_LOOK_SENSITIVITY)
+                orbit.pitch = (orbit.pitch - mouse_motion.delta.y * CAMERA_LOOK_SENSITIVITY)
                     .clamp(-CAMERA_PITCH_LIMIT, CAMERA_PITCH_LIMIT);
             }
 
             orbit.yaw_offset = wrap_camera_angle(orbit.yaw_offset);
 
-            let command_word =
-                camera_command_word(&keyboard_input, &mouse_button);
+            let command_word = camera_command_word(&keyboard_input, &mouse_button);
 
             let delta = time.delta_secs().max(0.0);
 
-            update_camera_follow(
-                &mut orbit,
-                command_word,
-                look_held,
-                delta,
-            );
+            update_camera_follow(&mut orbit, command_word, look_held, delta);
 
             let scroll_steps = match mouse_scroll.unit {
                 MouseScrollUnit::Line => mouse_scroll.delta.y,
                 MouseScrollUnit::Pixel => {
-                    mouse_scroll.delta.y
-                        / MouseScrollUnit::SCROLL_UNIT_CONVERSION_FACTOR
+                    mouse_scroll.delta.y / MouseScrollUnit::SCROLL_UNIT_CONVERSION_FACTOR
                 }
             };
 
@@ -177,14 +143,9 @@ fn camera_follow_system(
                     .clamp(CAMERA_MIN_DISTANCE, CAMERA_MAX_DISTANCE);
             }
 
-            orbit.distance = advance_zoom_distance(
-                orbit.distance,
-                orbit.target_distance,
-                delta,
-            );
+            orbit.distance = advance_zoom_distance(orbit.distance, orbit.target_distance, delta);
 
-            let player_yaw =
-                player_transform.rotation.to_euler(EulerRot::YXZ).0;
+            let player_yaw = player_transform.rotation.to_euler(EulerRot::YXZ).0;
 
             let camera_rotation = Quat::from_euler(
                 EulerRot::YXZ,
@@ -193,9 +154,7 @@ fn camera_follow_system(
                 0.0,
             );
 
-            let look_at_target =
-                player_transform.translation
-                + Vec3::Y * CAMERA_LOOK_HEIGHT;
+            let look_at_target = player_transform.translation + Vec3::Y * CAMERA_LOOK_HEIGHT;
 
             let camera_forward = camera_rotation * Vec3::Z;
             let boom = camera_forward * orbit.distance;
@@ -203,23 +162,17 @@ fn camera_follow_system(
 
             if orbit.distance > f32::EPSILON {
                 if let Some(world) = world.as_ref() {
-                    if let Some(hit_distance) =
-                        world.cast_camera(look_at_target, boom, false)
-                    {
-                        open_distance = (hit_distance - CAMERA_COLLISION_MARGIN)
-                            .clamp(0.0, orbit.distance);
+                    if let Some(hit_distance) = world.cast_camera(look_at_target, boom, false) {
+                        open_distance =
+                            (hit_distance - CAMERA_COLLISION_MARGIN).clamp(0.0, orbit.distance);
                     }
                 }
             }
 
-            orbit.collision_distance = advance_collision_distance(
-                orbit.collision_distance,
-                open_distance,
-                delta,
-            );
-
             orbit.collision_distance =
-                orbit.collision_distance.min(orbit.distance);
+                advance_collision_distance(orbit.collision_distance, open_distance, delta);
+
+            orbit.collision_distance = orbit.collision_distance.min(orbit.distance);
 
             camera_transform.translation =
                 look_at_target + camera_forward * orbit.collision_distance;
@@ -229,22 +182,14 @@ fn camera_follow_system(
                 .as_deref()
                 .map_or(0.1, |distance| distance.nearclip);
 
-            let self_fade = self_model_fade_alpha(
-                orbit.collision_distance,
-                nearclip,
-                SELF_FADE_WINDOW,
-            );
+            let self_fade =
+                self_model_fade_alpha(orbit.collision_distance, nearclip, SELF_FADE_WINDOW);
 
             if let Some(viewer) = viewer.as_deref_mut() {
                 viewer.self_fade = self_fade;
             }
 
-            update_player_material_fade(
-                player_material,
-                material_assets,
-                &mut orbit,
-                self_fade,
-            );
+            update_player_material_fade(player_material, material_assets, &mut orbit, self_fade);
         }
     }
 }
@@ -289,9 +234,7 @@ fn update_player_material_fade(
 
     let alpha = alpha.clamp(0.0, 1.0);
     let target_color = base_color.with_alpha(base_color.alpha() * alpha);
-    let original_mode = orbit
-        .material_alpha_mode
-        .unwrap_or(AlphaMode::Opaque);
+    let original_mode = orbit.material_alpha_mode.unwrap_or(AlphaMode::Opaque);
 
     let target_mode = if alpha < 0.9999 {
         AlphaMode::Blend
@@ -308,10 +251,7 @@ fn update_player_material_fade(
     }
 }
 
-fn camera_command_word(
-    keyboard: &ButtonInput<KeyCode>,
-    mouse: &ButtonInput<MouseButton>,
-) -> u32 {
+fn camera_command_word(keyboard: &ButtonInput<KeyCode>, mouse: &ButtonInput<MouseButton>) -> u32 {
     let mut word = 0;
 
     if mouse.pressed(MouseButton::Right) {
@@ -322,39 +262,26 @@ fn camera_command_word(
         word |= CAMERA_CMD_LEFT_MOUSE;
     }
 
-    if keyboard.pressed(KeyCode::KeyW)
-        || keyboard.pressed(KeyCode::ArrowUp)
-    {
+    if keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp) {
         word |= CAMERA_CMD_FORWARD;
     }
 
-    if keyboard.pressed(KeyCode::KeyS)
-        || keyboard.pressed(KeyCode::ArrowDown)
-    {
+    if keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown) {
         word |= CAMERA_CMD_BACKWARD;
     }
 
-    if keyboard.pressed(KeyCode::KeyA)
-        || keyboard.pressed(KeyCode::ArrowLeft)
-    {
+    if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
         word |= CAMERA_CMD_STRAFE_LEFT;
     }
 
-    if keyboard.pressed(KeyCode::KeyD)
-        || keyboard.pressed(KeyCode::ArrowRight)
-    {
+    if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
         word |= CAMERA_CMD_STRAFE_RIGHT;
     }
 
     word
 }
 
-fn update_camera_follow(
-    orbit: &mut CameraOrbitState,
-    command: u32,
-    look_held: bool,
-    delta: f32,
-) {
+fn update_camera_follow(orbit: &mut CameraOrbitState, command: u32, look_held: bool, delta: f32) {
     let previous = orbit.last_command.replace(command);
 
     if look_held {
@@ -366,16 +293,13 @@ fn update_camera_follow(
         let changed = (previous ^ command) & CAMERA_CMD_ARM_BITS != 0;
 
         if changed {
-            let stopping =
-                (previous & !command) & CAMERA_CMD_MOVEMENT_BITS != 0;
+            let stopping = (previous & !command) & CAMERA_CMD_MOVEMENT_BITS != 0;
 
-            let moving =
-                command & CAMERA_CMD_MOVEMENT_BITS != 0;
+            let moving = command & CAMERA_CMD_MOVEMENT_BITS != 0;
 
             if moving && !stopping {
                 if orbit.follow_return.is_none() {
-                    orbit.follow_return =
-                        start_camera_follow(orbit.yaw_offset);
+                    orbit.follow_return = start_camera_follow(orbit.yaw_offset);
                 }
             } else {
                 orbit.follow_return = None;
@@ -383,11 +307,7 @@ fn update_camera_follow(
         }
     }
 
-    advance_camera_follow(
-        &mut orbit.follow_return,
-        &mut orbit.yaw_offset,
-        delta,
-    );
+    advance_camera_follow(&mut orbit.follow_return, &mut orbit.yaw_offset, delta);
 }
 
 fn start_camera_follow(yaw_offset: f32) -> Option<CameraFollowReturn> {
@@ -397,8 +317,8 @@ fn start_camera_follow(yaw_offset: f32) -> Option<CameraFollowReturn> {
         return None;
     }
 
-    let duration = (from.abs() / CAMERA_FOLLOW_SPEED)
-        .clamp(CAMERA_FOLLOW_MIN_TIME, CAMERA_FOLLOW_MAX_TIME);
+    let duration =
+        (from.abs() / CAMERA_FOLLOW_SPEED).clamp(CAMERA_FOLLOW_MIN_TIME, CAMERA_FOLLOW_MAX_TIME);
 
     Some(CameraFollowReturn {
         from,
@@ -419,8 +339,7 @@ fn advance_camera_follow(
     arm.elapsed += delta;
 
     let progress = (arm.elapsed / arm.duration).clamp(0.0, 1.0);
-    let easing =
-        (1.0 - (std::f32::consts::PI * progress).cos()) * 0.5;
+    let easing = (1.0 - (std::f32::consts::PI * progress).cos()) * 0.5;
 
     *yaw_offset = wrap_camera_angle(arm.from * (1.0 - easing));
 
@@ -431,9 +350,7 @@ fn advance_camera_follow(
 }
 
 fn wrap_camera_angle(angle: f32) -> f32 {
-    (angle + std::f32::consts::PI)
-        .rem_euclid(std::f32::consts::TAU)
-        - std::f32::consts::PI
+    (angle + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI
 }
 
 fn advance_zoom_distance(current: f32, target: f32, delta: f32) -> f32 {
@@ -445,8 +362,7 @@ fn advance_collision_distance(current: f32, open: f32, delta: f32) -> f32 {
     if open < current {
         open
     } else {
-        let interpolation =
-            1.0 - (-CAMERA_COLLISION_RETURN_RATE * delta).exp();
+        let interpolation = 1.0 - (-CAMERA_COLLISION_RETURN_RATE * delta).exp();
 
         current + (open - current) * interpolation
     }

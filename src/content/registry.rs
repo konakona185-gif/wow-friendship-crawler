@@ -21,9 +21,7 @@ impl ContentPackRegistry {
             .map_err(ContentPackRegistryError::InvalidManifest)?;
 
         if self.packs.contains_key(&manifest.id) {
-            return Err(ContentPackRegistryError::DuplicatePack(
-                manifest.id.clone(),
-            ));
+            return Err(ContentPackRegistryError::DuplicatePack(manifest.id.clone()));
         }
 
         self.packs.insert(manifest.id.clone(), manifest);
@@ -43,9 +41,7 @@ impl ContentPackRegistry {
         self.packs.is_empty()
     }
 
-    pub fn load_order(
-        &self,
-    ) -> Result<Vec<&ContentPackManifest>, ContentPackRegistryError> {
+    pub fn load_order(&self) -> Result<Vec<&ContentPackManifest>, ContentPackRegistryError> {
         let mut pack_ids: Vec<ContentId> = self.packs.keys().cloned().collect();
 
         pack_ids.sort_by(|a, b| a.as_str().cmp(b.as_str()));
@@ -80,9 +76,7 @@ fn visit_pack<'a>(
     }
 
     if !visiting.insert(pack_id.clone()) {
-        return Err(ContentPackRegistryError::DependencyCycle(
-            pack_id.clone(),
-        ));
+        return Err(ContentPackRegistryError::DependencyCycle(pack_id.clone()));
     }
 
     let manifest = registry
@@ -90,8 +84,7 @@ fn visit_pack<'a>(
         .get(pack_id)
         .ok_or_else(|| ContentPackRegistryError::UnknownPack(pack_id.clone()))?;
 
-    let mut dependencies: Vec<&ContentId> =
-        manifest.dependencies.iter().collect();
+    let mut dependencies: Vec<&ContentId> = manifest.dependencies.iter().collect();
 
     dependencies.sort_by(|a, b| a.as_str().cmp(b.as_str()));
 
@@ -103,13 +96,7 @@ fn visit_pack<'a>(
             });
         }
 
-        visit_pack(
-            registry,
-            dependency,
-            visiting,
-            visited,
-            ordered_packs,
-        )?;
+        visit_pack(registry, dependency, visiting, visited, ordered_packs)?;
     }
 
     visiting.remove(pack_id);
@@ -168,10 +155,7 @@ impl std::error::Error for ContentPackRegistryError {}
 mod tests {
     use super::*;
 
-    fn create_manifest(
-        id: &str,
-        dependencies: &[&str],
-    ) -> ContentPackManifest {
+    fn create_manifest(id: &str, dependencies: &[&str]) -> ContentPackManifest {
         ContentPackManifest {
             id: ContentId::new(id).unwrap(),
             name: id.to_string(),
@@ -220,10 +204,7 @@ mod tests {
         let mut registry = ContentPackRegistry::new();
 
         registry
-            .register(create_manifest(
-                "pack:expansion",
-                &["pack:classic"],
-            ))
+            .register(create_manifest("pack:expansion", &["pack:classic"]))
             .unwrap();
 
         registry
@@ -232,15 +213,9 @@ mod tests {
 
         let order = registry.load_order().unwrap();
 
-        let ordered_ids: Vec<&str> = order
-            .iter()
-            .map(|manifest| manifest.id.as_str())
-            .collect();
+        let ordered_ids: Vec<&str> = order.iter().map(|manifest| manifest.id.as_str()).collect();
 
-        assert_eq!(
-            ordered_ids,
-            vec!["pack:classic", "pack:expansion"]
-        );
+        assert_eq!(ordered_ids, vec!["pack:classic", "pack:expansion"]);
     }
 
     #[test]
@@ -248,10 +223,7 @@ mod tests {
         let mut registry = ContentPackRegistry::new();
 
         registry
-            .register(create_manifest(
-                "pack:expansion",
-                &["pack:classic"],
-            ))
+            .register(create_manifest("pack:expansion", &["pack:classic"]))
             .unwrap();
 
         assert_eq!(
@@ -268,17 +240,11 @@ mod tests {
         let mut registry = ContentPackRegistry::new();
 
         registry
-            .register(create_manifest(
-                "pack:classic",
-                &["pack:expansion"],
-            ))
+            .register(create_manifest("pack:classic", &["pack:expansion"]))
             .unwrap();
 
         registry
-            .register(create_manifest(
-                "pack:expansion",
-                &["pack:classic"],
-            ))
+            .register(create_manifest("pack:expansion", &["pack:classic"]))
             .unwrap();
 
         assert!(matches!(

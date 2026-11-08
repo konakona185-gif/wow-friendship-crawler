@@ -4,11 +4,7 @@ use super::*;
 fn loader_registers_a_valid_pack() {
     let mut database = ContentDatabase::new();
 
-    ContentPackLoader::load(
-        &mut database,
-        empty_pack(),
-    )
-    .unwrap();
+    ContentPackLoader::load(&mut database, empty_pack()).unwrap();
 
     assert_eq!(database.packs().len(), 1);
     assert_eq!(database.pack_load_order().unwrap().len(), 1);
@@ -23,11 +19,7 @@ fn loader_registers_damage_schools() {
 
     pack.damage_schools.push(school);
 
-    ContentPackLoader::load(
-        &mut database,
-        pack,
-    )
-    .unwrap();
+    ContentPackLoader::load(&mut database, pack).unwrap();
 
     assert_eq!(database.damage_school_count(), 1);
     assert!(database.damage_school(&school_id).is_some());
@@ -42,11 +34,7 @@ fn loader_registers_combat_attributes() {
 
     pack.combat_attributes.push(attribute);
 
-    ContentPackLoader::load(
-        &mut database,
-        pack,
-    )
-    .unwrap();
+    ContentPackLoader::load(&mut database, pack).unwrap();
 
     assert_eq!(database.combat_attribute_count(), 1);
     assert!(database.combat_attribute(&attribute_id).is_some());
@@ -61,11 +49,7 @@ fn loader_registers_resources() {
 
     pack.resources.push(resource);
 
-    ContentPackLoader::load(
-        &mut database,
-        pack,
-    )
-    .unwrap();
+    ContentPackLoader::load(&mut database, pack).unwrap();
 
     assert_eq!(database.resource_count(), 1);
     assert!(database.resource(&resource_id).is_some());
@@ -80,11 +64,7 @@ fn loader_registers_auras() {
 
     pack.auras.push(aura);
 
-    ContentPackLoader::load(
-        &mut database,
-        pack,
-    )
-    .unwrap();
+    ContentPackLoader::load(&mut database, pack).unwrap();
 
     assert_eq!(database.aura_count(), 1);
     assert!(database.aura(&aura_id).is_some());
@@ -99,11 +79,7 @@ fn loader_registers_creatures() {
 
     pack.creatures.push(creature);
 
-    ContentPackLoader::load(
-        &mut database,
-        pack,
-    )
-    .unwrap();
+    ContentPackLoader::load(&mut database, pack).unwrap();
 
     assert_eq!(database.creature_count(), 1);
     assert!(database.creature(&creature_id).is_some());

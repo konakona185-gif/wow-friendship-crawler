@@ -1,35 +1,19 @@
 use super::*;
 
 use crate::content::{
-    CombatAttributeDefinition,
-    CombatAttributeValueKind,
-    ContentMetadata,
-    ContentPackManifest,
-    DamageSchoolDefinition,
-    DamageSchoolMitigation,
-    EffectDefinition,
-    EffectKind,
-    EffectMagnitude,
-    EffectTarget,
-    EffectTrigger,
+    CombatAttributeDefinition, CombatAttributeValueKind, ContentMetadata, ContentPackManifest,
+    DamageSchoolDefinition, DamageSchoolMitigation, EffectDefinition, EffectKind, EffectMagnitude,
+    EffectTarget, EffectTrigger,
 };
 
 fn content_id(value: &str) -> ContentId {
-    ContentId::new(
-        format!("classic_1_12_1:{value}"),
-    )
-    .unwrap()
+    ContentId::new(format!("classic_1_12_1:{value}")).unwrap()
 }
 
-fn test_database(
-    target: EffectTarget,
-) -> (ContentDatabase, ContentId) {
+fn test_database(target: EffectTarget) -> (ContentDatabase, ContentId) {
     let mut database = ContentDatabase::new();
 
-    let pack_id = ContentId::new(
-        "pack:classic_1_12_1",
-    )
-    .unwrap();
+    let pack_id = ContentId::new("pack:classic_1_12_1").unwrap();
 
     database
         .register_pack(ContentPackManifest {
@@ -65,10 +49,7 @@ fn test_database(
 fn damage_test_database() -> (ContentDatabase, ContentId) {
     let mut database = ContentDatabase::new();
 
-    let pack_id = ContentId::new(
-        "pack:classic_1_12_1",
-    )
-    .unwrap();
+    let pack_id = ContentId::new("pack:classic_1_12_1").unwrap();
 
     database
         .register_pack(ContentPackManifest {
@@ -141,15 +122,10 @@ fn damage_test_database() -> (ContentDatabase, ContentId) {
     (database, effect_id)
 }
 
-fn threat_test_database(
-    amount: f32,
-) -> (ContentDatabase, ContentId) {
+fn threat_test_database(amount: f32) -> (ContentDatabase, ContentId) {
     let mut database = ContentDatabase::new();
 
-    let pack_id = ContentId::new(
-        "pack:classic_1_12_1",
-    )
-    .unwrap();
+    let pack_id = ContentId::new("pack:classic_1_12_1").unwrap();
 
     database
         .register_pack(ContentPackManifest {
@@ -211,10 +187,10 @@ fn event_test_effect() -> ResolvedEffect {
     }
 }
 
-mod queue_tests;
-mod execution_tests;
 mod aura_tests;
 mod corruption_tests;
 mod custom_effect_tests;
 mod displacement_tests;
+mod execution_tests;
 mod periodic_tests;
+mod queue_tests;

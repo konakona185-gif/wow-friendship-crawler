@@ -1,17 +1,11 @@
-
 use bevy::prelude::Component;
 use std::fmt::{Display, Formatter};
 
 use crate::content::{ContentId, DamageSchoolDefinition};
 
 use crate::combat::{
-    CombatAttributes,
-    CombatLevel,
-    DamageRequest,
-    DamageResolution,
-    DamageResolutionError,
-    HealingResolution,
-    HealingResolutionError,
+    CombatAttributes, CombatLevel, DamageRequest, DamageResolution, DamageResolutionError,
+    HealingResolution, HealingResolutionError,
 };
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -21,14 +15,8 @@ pub struct HealthPool {
 }
 
 impl HealthPool {
-    pub fn new(
-        current: f32,
-        maximum: f32,
-    ) -> Result<Self, HealthPoolError> {
-        let pool = Self {
-            current,
-            maximum,
-        };
+    pub fn new(current: f32, maximum: f32) -> Result<Self, HealthPoolError> {
+        let pool = Self { current, maximum };
 
         pool.validate()?;
 
@@ -47,10 +35,7 @@ impl HealthPool {
         self.maximum - self.current
     }
 
-    pub fn set_current(
-        &mut self,
-        current: f32,
-    ) -> Result<(), HealthPoolError> {
+    pub fn set_current(&mut self, current: f32) -> Result<(), HealthPoolError> {
         if !current.is_finite() || current < 0.0 {
             return Err(HealthPoolError::InvalidCurrent);
         }
@@ -64,10 +49,7 @@ impl HealthPool {
         Ok(())
     }
 
-    pub fn set_maximum(
-        &mut self,
-        maximum: f32,
-    ) -> Result<(), HealthPoolError> {
+    pub fn set_maximum(&mut self, maximum: f32) -> Result<(), HealthPoolError> {
         if !maximum.is_finite() || maximum < 0.0 {
             return Err(HealthPoolError::InvalidMaximum);
         }
@@ -81,10 +63,7 @@ impl HealthPool {
         Ok(())
     }
 
-    pub fn apply_damage(
-        &mut self,
-        amount: f32,
-    ) -> Result<f32, HealthPoolError> {
+    pub fn apply_damage(&mut self, amount: f32) -> Result<f32, HealthPoolError> {
         if !amount.is_finite() || amount < 0.0 {
             return Err(HealthPoolError::InvalidAmount);
         }
@@ -95,10 +74,7 @@ impl HealthPool {
         Ok(effective_amount)
     }
 
-    pub fn apply_healing(
-        &mut self,
-        amount: f32,
-    ) -> Result<f32, HealthPoolError> {
+    pub fn apply_healing(&mut self, amount: f32) -> Result<f32, HealthPoolError> {
         if !amount.is_finite() || amount < 0.0 {
             return Err(HealthPoolError::InvalidAmount);
         }
@@ -182,30 +158,25 @@ impl Display for HealthPoolError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidCurrent => {
-                formatter.write_str(
-                    "La salute corrente deve essere finita e non negativa",
-                )
+                formatter.write_str("La salute corrente deve essere finita e non negativa")
             }
             Self::InvalidMaximum => {
-                formatter.write_str(
-                    "La salute massima deve essere finita e non negativa",
-                )
+                formatter.write_str("La salute massima deve essere finita e non negativa")
             }
             Self::CurrentExceedsMaximum => {
-                formatter.write_str(
-                    "La salute corrente non può superare quella massima",
-                )
+                formatter.write_str("La salute corrente non può superare quella massima")
             }
             Self::InvalidAmount => {
-                formatter.write_str(
-                    "La quantità deve essere finita e non negativa",
-                )
+                formatter.write_str("La quantità deve essere finita e non negativa")
             }
             Self::InvalidDamageResolution(error) => {
                 write!(formatter, "Risoluzione del danno non valida: {error}")
             }
             Self::InvalidHealingResolution(error) => {
-                write!(formatter, "Risoluzione della guarigione non valida: {error}")
+                write!(
+                    formatter,
+                    "Risoluzione della guarigione non valida: {error}"
+                )
             }
         }
     }
@@ -217,44 +188,25 @@ impl std::error::Error for HealthPoolError {}
 mod tests {
     use super::*;
     use crate::combat::{
-        CombatAttributes,
-        CombatLevel,
-        DamageMitigationError,
-        DamageMitigationResult,
-        DamageRequest,
-        DamageResolutionError,
-        HealingRequest,
+        CombatAttributes, CombatLevel, DamageMitigationError, DamageMitigationResult,
+        DamageRequest, DamageResolutionError, HealingRequest,
     };
-    use crate::content::{
-        ContentMetadata,
-        DamageSchoolMitigation,
-    };
+    use crate::content::{ContentMetadata, DamageSchoolMitigation};
 
     fn valid_damage_request() -> DamageRequest {
         DamageRequest {
             source: None,
             target: bevy::prelude::Entity::from_bits(1),
             base_amount: 100.0,
-            school: ContentId::new(
-                "classic_1_12_1:school.physical",
-            )
-            .unwrap(),
+            school: ContentId::new("classic_1_12_1:school.physical").unwrap(),
         }
     }
 
-    fn valid_damage_school(
-        mitigation: DamageSchoolMitigation,
-    ) -> DamageSchoolDefinition {
+    fn valid_damage_school(mitigation: DamageSchoolMitigation) -> DamageSchoolDefinition {
         DamageSchoolDefinition {
             metadata: ContentMetadata {
-                id: ContentId::new(
-                    "classic_1_12_1:school.physical",
-                )
-                .unwrap(),
-                pack_id: ContentId::new(
-                    "pack:classic_1_12_1",
-                )
-                .unwrap(),
+                id: ContentId::new("classic_1_12_1:school.physical").unwrap(),
+                pack_id: ContentId::new("pack:classic_1_12_1").unwrap(),
                 name: "Physical".to_string(),
                 description: String::new(),
                 icon: None,
@@ -265,10 +217,7 @@ mod tests {
     }
 
     fn armor_id() -> ContentId {
-        ContentId::new(
-            "classic_1_12_1:stat.armor",
-        )
-        .unwrap()
+        ContentId::new("classic_1_12_1:stat.armor").unwrap()
     }
 
     fn combat_attributes_with_armor(armor: f32) -> CombatAttributes {
@@ -527,27 +476,17 @@ mod tests {
     fn health_pool_applies_resistance_mitigated_damage() {
         let mut pool = HealthPool::new(100.0, 100.0).unwrap();
 
-        let resistance_id = ContentId::new(
-            "classic_1_12_1:stat.fire_resistance",
-        )
-        .unwrap();
+        let resistance_id = ContentId::new("classic_1_12_1:stat.fire_resistance").unwrap();
 
         let mut attributes = CombatAttributes::default();
-        attributes
-            .set(resistance_id, 200.0)
-            .unwrap();
+        attributes.set(resistance_id, 200.0).unwrap();
 
         let effective = pool
             .apply_damage_from_school_mitigation(
                 valid_damage_request(),
-                &valid_damage_school(
-                    DamageSchoolMitigation::Resistance {
-                        stat: ContentId::new(
-                            "classic_1_12_1:stat.fire_resistance",
-                        )
-                        .unwrap(),
-                    },
-                ),
+                &valid_damage_school(DamageSchoolMitigation::Resistance {
+                    stat: ContentId::new("classic_1_12_1:stat.fire_resistance").unwrap(),
+                }),
                 &armor_id(),
                 &attributes,
                 &valid_combat_level(),

@@ -4,23 +4,13 @@ use std::fmt::{Display, Formatter};
 use bevy::prelude::Entity;
 
 use crate::content::{
-    ContentId,
-    EffectDefinition,
-    EffectKind,
-    EffectTarget,
-    EffectTrigger,
-    EffectValidationError,
+    ContentId, EffectDefinition, EffectKind, EffectTarget, EffectTrigger, EffectValidationError,
 };
 
 use super::magnitude::calculate_signed_effect_magnitude;
 use crate::combat::{
-    calculate_effect_magnitude,
-    CombatAttributes,
-    DamageRequest,
-    EffectMagnitudeError,
-    HealingRequest,
-    ResourceOperation,
-    ResourceRequest,
+    calculate_effect_magnitude, CombatAttributes, DamageRequest, EffectMagnitudeError,
+    HealingRequest, ResourceOperation, ResourceRequest,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -81,21 +71,12 @@ pub fn resolve_effect(
         .validate()
         .map_err(EffectResolutionError::InvalidDefinition)?;
 
-    let targets = resolve_targets(
-        &definition.target,
-        source,
-        target_selection,
-    )?;
+    let targets = resolve_targets(&definition.target, source, target_selection)?;
 
     let mut resolved_effects = Vec::with_capacity(targets.len());
 
     for target in targets {
-        let operation = resolve_operation(
-            &definition.kind,
-            source,
-            target,
-            source_attributes,
-        )?;
+        let operation = resolve_operation(&definition.kind, source, target, source_attributes)?;
 
         resolved_effects.push(ResolvedEffect {
             effect: definition.metadata.id.clone(),
@@ -116,16 +97,11 @@ fn resolve_targets(
 ) -> Result<Vec<Entity>, EffectResolutionError> {
     match (effect_target, selection) {
         (EffectTarget::Caster, EffectTargetSelection::Caster) => {
-            let caster = source.ok_or(
-                EffectResolutionError::MissingSourceForCaster,
-            )?;
+            let caster = source.ok_or(EffectResolutionError::MissingSourceForCaster)?;
 
             Ok(vec![caster])
         }
-        (
-            EffectTarget::SelectedTarget,
-            EffectTargetSelection::Selected(target),
-        ) => Ok(vec![target]),
+        (EffectTarget::SelectedTarget, EffectTargetSelection::Selected(target)) => Ok(vec![target]),
         (
             EffectTarget::AlliesInRadius { .. }
             | EffectTarget::EnemiesInRadius { .. }
@@ -136,9 +112,7 @@ fn resolve_targets(
 
             for target in &targets {
                 if !unique_targets.insert(*target) {
-                    return Err(
-                        EffectResolutionError::DuplicateAreaTarget,
-                    );
+                    return Err(EffectResolutionError::DuplicateAreaTarget);
                 }
             }
 
@@ -156,11 +130,8 @@ fn resolve_operation(
 ) -> Result<ResolvedEffectOperation, EffectResolutionError> {
     match kind {
         EffectKind::Damage { amount, school } => {
-            let amount = calculate_effect_magnitude(
-                amount,
-                source_attributes,
-            )
-            .map_err(EffectResolutionError::InvalidMagnitude)?;
+            let amount = calculate_effect_magnitude(amount, source_attributes)
+                .map_err(EffectResolutionError::InvalidMagnitude)?;
 
             Ok(ResolvedEffectOperation::Damage(DamageRequest {
                 source,
@@ -170,11 +141,8 @@ fn resolve_operation(
             }))
         }
         EffectKind::Heal { amount } => {
-            let amount = calculate_effect_magnitude(
-                amount,
-                source_attributes,
-            )
-            .map_err(EffectResolutionError::InvalidMagnitude)?;
+            let amount = calculate_effect_magnitude(amount, source_attributes)
+                .map_err(EffectResolutionError::InvalidMagnitude)?;
 
             Ok(ResolvedEffectOperation::Heal(HealingRequest {
                 source,
@@ -183,11 +151,8 @@ fn resolve_operation(
             }))
         }
         EffectKind::GainResource { resource, amount } => {
-            let amount = calculate_effect_magnitude(
-                amount,
-                source_attributes,
-            )
-            .map_err(EffectResolutionError::InvalidMagnitude)?;
+            let amount = calculate_effect_magnitude(amount, source_attributes)
+                .map_err(EffectResolutionError::InvalidMagnitude)?;
 
             Ok(ResolvedEffectOperation::GainResource(ResourceRequest {
                 source,
@@ -198,11 +163,8 @@ fn resolve_operation(
             }))
         }
         EffectKind::SpendResource { resource, amount } => {
-            let amount = calculate_effect_magnitude(
-                amount,
-                source_attributes,
-            )
-            .map_err(EffectResolutionError::InvalidMagnitude)?;
+            let amount = calculate_effect_magnitude(amount, source_attributes)
+                .map_err(EffectResolutionError::InvalidMagnitude)?;
 
             Ok(ResolvedEffectOperation::SpendResource(ResourceRequest {
                 source,
@@ -221,12 +183,10 @@ fn resolve_operation(
             stacks: *stacks,
             duration_seconds: *duration_seconds,
         }),
-        EffectKind::RemoveAura { aura, stacks } => {
-            Ok(ResolvedEffectOperation::RemoveAura {
-                aura: aura.clone(),
-                stacks: *stacks,
-            })
-        }
+        EffectKind::RemoveAura { aura, stacks } => Ok(ResolvedEffectOperation::RemoveAura {
+            aura: aura.clone(),
+            stacks: *stacks,
+        }),
         EffectKind::Summon {
             creature,
             count,
@@ -237,29 +197,18 @@ fn resolve_operation(
             duration_seconds: *duration_seconds,
         }),
         EffectKind::ModifyThreat { amount } => {
-            let amount = calculate_signed_effect_magnitude(
-                amount,
-                source_attributes,
-            )
-            .map_err(EffectResolutionError::InvalidMagnitude)?;
+            let amount = calculate_signed_effect_magnitude(amount, source_attributes)
+                .map_err(EffectResolutionError::InvalidMagnitude)?;
 
-            Ok(ResolvedEffectOperation::ModifyThreat {
-                amount,
-            })
+            Ok(ResolvedEffectOperation::ModifyThreat { amount })
         }
-        EffectKind::Interrupt => {
-            Ok(ResolvedEffectOperation::Interrupt)
-        }
-        EffectKind::Displacement { distance } => {
-            Ok(ResolvedEffectOperation::Displacement {
-                distance: *distance,
-            })
-        }
-        EffectKind::Custom { handler } => {
-            Ok(ResolvedEffectOperation::Custom {
-                handler: handler.clone(),
-            })
-        }
+        EffectKind::Interrupt => Ok(ResolvedEffectOperation::Interrupt),
+        EffectKind::Displacement { distance } => Ok(ResolvedEffectOperation::Displacement {
+            distance: *distance,
+        }),
+        EffectKind::Custom { handler } => Ok(ResolvedEffectOperation::Custom {
+            handler: handler.clone(),
+        }),
     }
 }
 
@@ -282,19 +231,13 @@ impl Display for EffectResolutionError {
                 write!(formatter, "Calcolo della magnitudine non riuscito: {error}")
             }
             Self::MissingSourceForCaster => {
-                formatter.write_str(
-                    "Un effetto diretto al caster richiede una sorgente",
-                )
+                formatter.write_str("Un effetto diretto al caster richiede una sorgente")
             }
             Self::TargetSelectionMismatch => {
-                formatter.write_str(
-                    "La selezione dei bersagli non corrisponde al tipo di effetto",
-                )
+                formatter.write_str("La selezione dei bersagli non corrisponde al tipo di effetto")
             }
             Self::DuplicateAreaTarget => {
-                formatter.write_str(
-                    "La selezione ad area contiene bersagli duplicati",
-                )
+                formatter.write_str("La selezione ad area contiene bersagli duplicati")
             }
         }
     }
@@ -306,11 +249,7 @@ impl std::error::Error for EffectResolutionError {}
 mod tests {
     use super::*;
 
-    use crate::content::{
-        ContentMetadata,
-        EffectMagnitude,
-        EffectScaling,
-    };
+    use crate::content::{ContentMetadata, EffectMagnitude, EffectScaling};
 
     fn source() -> Entity {
         Entity::from_bits(1)
@@ -328,10 +267,7 @@ mod tests {
         ContentId::new(format!("classic_1_12_1:{value}")).unwrap()
     }
 
-    fn valid_effect(
-        target: EffectTarget,
-        kind: EffectKind,
-    ) -> EffectDefinition {
+    fn valid_effect(target: EffectTarget, kind: EffectKind) -> EffectDefinition {
         EffectDefinition {
             metadata: ContentMetadata {
                 id: content_id("effect.test"),
@@ -366,10 +302,7 @@ mod tests {
 
     #[test]
     fn caster_effect_resolves_to_source() {
-        let definition = valid_effect(
-            EffectTarget::Caster,
-            EffectKind::Interrupt,
-        );
+        let definition = valid_effect(EffectTarget::Caster, EffectKind::Interrupt);
 
         let result = resolve_effect(
             &definition,
@@ -382,18 +315,12 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].target, source());
         assert_eq!(result[0].source, Some(source()));
-        assert_eq!(
-            result[0].operation,
-            ResolvedEffectOperation::Interrupt
-        );
+        assert_eq!(result[0].operation, ResolvedEffectOperation::Interrupt);
     }
 
     #[test]
     fn selected_target_effect_resolves_to_selected_entity() {
-        let definition = valid_effect(
-            EffectTarget::SelectedTarget,
-            EffectKind::Interrupt,
-        );
+        let definition = valid_effect(EffectTarget::SelectedTarget, EffectKind::Interrupt);
 
         let result = resolve_effect(
             &definition,
@@ -465,10 +392,7 @@ mod tests {
 
     #[test]
     fn effect_rejects_mismatched_target_selection() {
-        let definition = valid_effect(
-            EffectTarget::SelectedTarget,
-            EffectKind::Interrupt,
-        );
+        let definition = valid_effect(EffectTarget::SelectedTarget, EffectKind::Interrupt);
 
         assert_eq!(
             resolve_effect(
@@ -483,10 +407,7 @@ mod tests {
 
     #[test]
     fn caster_effect_requires_source() {
-        let definition = valid_effect(
-            EffectTarget::Caster,
-            EffectKind::Interrupt,
-        );
+        let definition = valid_effect(EffectTarget::Caster, EffectKind::Interrupt);
 
         assert_eq!(
             resolve_effect(
@@ -704,9 +625,7 @@ mod tests {
 
         assert_eq!(
             result[0].operation,
-            ResolvedEffectOperation::ModifyThreat {
-                amount: 60.0,
-            }
+            ResolvedEffectOperation::ModifyThreat { amount: 60.0 }
         );
     }
 
@@ -735,9 +654,7 @@ mod tests {
 
         assert_eq!(
             result[0].operation,
-            ResolvedEffectOperation::ModifyThreat {
-                amount: -60.0,
-            }
+            ResolvedEffectOperation::ModifyThreat { amount: -60.0 }
         );
     }
 
@@ -745,9 +662,7 @@ mod tests {
     fn displacement_effect_preserves_distance() {
         let definition = valid_effect(
             EffectTarget::SelectedTarget,
-            EffectKind::Displacement {
-                distance: 5.0,
-            },
+            EffectKind::Displacement { distance: 5.0 },
         );
 
         let result = resolve_effect(
@@ -760,9 +675,7 @@ mod tests {
 
         assert_eq!(
             result[0].operation,
-            ResolvedEffectOperation::Displacement {
-                distance: 5.0,
-            }
+            ResolvedEffectOperation::Displacement { distance: 5.0 }
         );
     }
 

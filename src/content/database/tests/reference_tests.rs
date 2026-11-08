@@ -1,29 +1,16 @@
-use super::{
-    ability,
-    aura,
-    aura_effect,
-    combat_attribute,
-    damage_effect,
-    database_with_classic_pack,
-    physical_damage_school,
-    resource,
-    resource_effect,
-};
 use super::super::ContentDatabaseError;
+use super::{
+    ability, aura, aura_effect, combat_attribute, damage_effect, database_with_classic_pack,
+    physical_damage_school, resource, resource_effect,
+};
 
 use crate::content::{
-    ContentId,
-    DamageSchoolMitigation,
-    EffectKind,
-    EffectMagnitude,
-    EffectScaling,
-    ResourceCost,
+    ContentId, DamageSchoolMitigation, EffectKind, EffectMagnitude, EffectScaling, ResourceCost,
 };
 
 #[test]
 fn database_rejects_effects_with_unknown_aura_references() {
-    let unknown_aura =
-        ContentId::new("classic:aura.missing").unwrap();
+    let unknown_aura = ContentId::new("classic:aura.missing").unwrap();
 
     for (effect_id, apply) in [
         ("classic:effect.apply_aura_test", true),
@@ -32,11 +19,7 @@ fn database_rejects_effects_with_unknown_aura_references() {
         let mut database = database_with_classic_pack();
 
         database
-            .register_effect(aura_effect(
-                effect_id,
-                unknown_aura.as_str(),
-                apply,
-            ))
+            .register_effect(aura_effect(effect_id, unknown_aura.as_str(), apply))
             .unwrap();
 
         assert_eq!(
@@ -96,8 +79,7 @@ fn database_rejects_damage_effects_with_unknown_schools() {
 fn database_rejects_damage_schools_with_unknown_resistance_attributes() {
     let mut database = database_with_classic_pack();
     let mut school = physical_damage_school();
-    let unknown_stat =
-        ContentId::new("classic:stat.fire_resistance").unwrap();
+    let unknown_stat = ContentId::new("classic:stat.fire_resistance").unwrap();
 
     school.mitigation = DamageSchoolMitigation::Resistance {
         stat: unknown_stat.clone(),
@@ -117,8 +99,7 @@ fn database_rejects_damage_schools_with_unknown_resistance_attributes() {
 #[test]
 fn database_rejects_composite_damage_schools_with_unknown_resistance_attributes() {
     let mut database = database_with_classic_pack();
-    let unknown_stat =
-        ContentId::new("classic:stat.fire_resistance").unwrap();
+    let unknown_stat = ContentId::new("classic:stat.fire_resistance").unwrap();
     let mut school = physical_damage_school();
 
     school.mitigation = DamageSchoolMitigation::Composite {
@@ -144,8 +125,7 @@ fn database_rejects_composite_damage_schools_with_unknown_resistance_attributes(
 #[test]
 fn database_accepts_composite_damage_schools_with_registered_resistance_attributes() {
     let mut database = database_with_classic_pack();
-    let resistance_id =
-        ContentId::new("classic:stat.fire_resistance").unwrap();
+    let resistance_id = ContentId::new("classic:stat.fire_resistance").unwrap();
 
     let mut attribute = combat_attribute();
     attribute.metadata.id = resistance_id.clone();
@@ -170,19 +150,16 @@ fn database_accepts_composite_damage_schools_with_registered_resistance_attribut
 #[test]
 fn database_rejects_effects_with_unknown_scaling_attributes() {
     let mut database = database_with_classic_pack();
-    let unknown_stat =
-        ContentId::new("classic:stat.spell_power").unwrap();
+    let unknown_stat = ContentId::new("classic:stat.spell_power").unwrap();
     let mut effect = damage_effect();
 
     effect.kind = EffectKind::Heal {
         amount: EffectMagnitude {
             base: 100.0,
-            scaling: vec![
-                EffectScaling {
-                    stat: unknown_stat.clone(),
-                    coefficient: 1.0,
-                },
-            ],
+            scaling: vec![EffectScaling {
+                stat: unknown_stat.clone(),
+                coefficient: 1.0,
+            }],
         },
     };
 
@@ -199,16 +176,11 @@ fn database_rejects_effects_with_unknown_scaling_attributes() {
 
 #[test]
 fn database_rejects_effects_with_unknown_resources() {
-    let unknown_resource =
-        ContentId::new("classic:resource.energy").unwrap();
+    let unknown_resource = ContentId::new("classic:resource.energy").unwrap();
 
     for gain in [true, false] {
         let mut database = database_with_classic_pack();
-        let effect = resource_effect(
-            "classic:effect.resource",
-            unknown_resource.as_str(),
-            gain,
-        );
+        let effect = resource_effect("classic:effect.resource", unknown_resource.as_str(), gain);
 
         database.register_effect(effect).unwrap();
 
@@ -225,24 +197,19 @@ fn database_rejects_effects_with_unknown_resources() {
 #[test]
 fn database_rejects_abilities_with_unknown_resource_costs() {
     let mut database = database_with_classic_pack();
-    let unknown_resource =
-        ContentId::new("classic:resource.energy").unwrap();
+    let unknown_resource = ContentId::new("classic:resource.energy").unwrap();
 
     database
         .register_damage_school(physical_damage_school())
         .unwrap();
 
-    database
-        .register_effect(damage_effect())
-        .unwrap();
+    database.register_effect(damage_effect()).unwrap();
 
     let mut ability = ability();
-    ability.costs = vec![
-        ResourceCost {
-            resource: unknown_resource.clone(),
-            amount: 10.0,
-        },
-    ];
+    ability.costs = vec![ResourceCost {
+        resource: unknown_resource.clone(),
+        amount: 10.0,
+    }];
 
     database.register_ability(ability).unwrap();
 
@@ -270,12 +237,10 @@ fn database_accepts_registered_combat_attribute_references() {
     effect.kind = EffectKind::Heal {
         amount: EffectMagnitude {
             base: 100.0,
-            scaling: vec![
-                EffectScaling {
-                    stat: attribute_id,
-                    coefficient: 1.0,
-                },
-            ],
+            scaling: vec![EffectScaling {
+                stat: attribute_id,
+                coefficient: 1.0,
+            }],
         },
     };
 
@@ -292,16 +257,8 @@ fn database_accepts_registered_resource_references() {
     let resource = resource();
     let resource_id = resource.metadata.id.clone();
 
-    let gain_effect = resource_effect(
-        "classic:effect.gain_mana",
-        resource_id.as_str(),
-        true,
-    );
-    let spend_effect = resource_effect(
-        "classic:effect.spend_mana",
-        resource_id.as_str(),
-        false,
-    );
+    let gain_effect = resource_effect("classic:effect.gain_mana", resource_id.as_str(), true);
+    let spend_effect = resource_effect("classic:effect.spend_mana", resource_id.as_str(), false);
 
     let gain_effect_id = gain_effect.metadata.id.clone();
     let spend_effect_id = spend_effect.metadata.id.clone();
@@ -312,12 +269,10 @@ fn database_accepts_registered_resource_references() {
 
     let mut ability = ability();
     ability.effects = vec![gain_effect_id, spend_effect_id];
-    ability.costs = vec![
-        ResourceCost {
-            resource: resource_id,
-            amount: 10.0,
-        },
-    ];
+    ability.costs = vec![ResourceCost {
+        resource: resource_id,
+        amount: 10.0,
+    }];
 
     database.register_ability(ability).unwrap();
 

@@ -6,15 +6,15 @@ fn target_indicator_is_visible_only_for_the_selected_enemy() {
     app.add_systems(Update, target_indicator_system);
 
     let selected_position = Vec3::new(4.0, 2.0, -3.0);
-    let selected_enemy = app.world_mut().spawn((
-        Enemy,
-        Transform::from_translation(selected_position),
-    )).id();
+    let selected_enemy = app
+        .world_mut()
+        .spawn((Enemy, Transform::from_translation(selected_position)))
+        .id();
 
-    let other_enemy = app.world_mut().spawn((
-        Enemy,
-        Transform::from_xyz(8.0, 0.0, 1.0),
-    )).id();
+    let other_enemy = app
+        .world_mut()
+        .spawn((Enemy, Transform::from_xyz(8.0, 0.0, 1.0)))
+        .id();
 
     app.world_mut().spawn((
         Character,
@@ -23,21 +23,25 @@ fn target_indicator_is_visible_only_for_the_selected_enemy() {
         },
     ));
 
-    let selected_indicator = app.world_mut().spawn((
-        TargetIndicator {
-            enemy: selected_enemy,
-        },
-        Transform::default(),
-        Visibility::Hidden,
-    )).id();
+    let selected_indicator = app
+        .world_mut()
+        .spawn((
+            TargetIndicator {
+                enemy: selected_enemy,
+            },
+            Transform::default(),
+            Visibility::Hidden,
+        ))
+        .id();
 
-    let other_indicator = app.world_mut().spawn((
-        TargetIndicator {
-            enemy: other_enemy,
-        },
-        Transform::default(),
-        Visibility::Hidden,
-    )).id();
+    let other_indicator = app
+        .world_mut()
+        .spawn((
+            TargetIndicator { enemy: other_enemy },
+            Transform::default(),
+            Visibility::Hidden,
+        ))
+        .id();
 
     app.update();
 
@@ -51,8 +55,7 @@ fn target_indicator_is_visible_only_for_the_selected_enemy() {
         Some(&Visibility::Hidden)
     );
 
-    let expected_position =
-        selected_position + Vec3::new(0.0, -0.47, 0.0);
+    let expected_position = selected_position + Vec3::new(0.0, -0.47, 0.0);
 
     let actual_position = app
         .world()

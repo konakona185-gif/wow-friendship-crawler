@@ -170,39 +170,23 @@ impl Display for TalentValidationError {
             Self::InvalidMetadata(error) => {
                 return write!(formatter, "Metadati del talento non validi: {error}");
             }
-            Self::EmptyTree => {
-                "L'albero deve contenere almeno un talento"
-            }
-            Self::DuplicateTalentInTree => {
-                "L'albero contiene talenti duplicati"
-            }
-            Self::ZeroPointCost => {
-                "Il costo in punti per grado deve essere maggiore di zero"
-            }
-            Self::MissingRanks => {
-                "Il talento deve contenere almeno un grado"
-            }
+            Self::EmptyTree => "L'albero deve contenere almeno un talento",
+            Self::DuplicateTalentInTree => "L'albero contiene talenti duplicati",
+            Self::ZeroPointCost => "Il costo in punti per grado deve essere maggiore di zero",
+            Self::MissingRanks => "Il talento deve contenere almeno un grado",
             Self::InvalidRankSequence => {
                 "I gradi del talento devono essere consecutivi e partire da uno"
             }
             Self::EmptyRankDefinition => {
                 "Ogni grado deve contenere almeno un effetto o un'abilità sbloccata"
             }
-            Self::DuplicateRankEffect => {
-                "Un grado contiene effetti duplicati"
-            }
-            Self::DuplicateRankUnlock => {
-                "Un grado contiene abilità sbloccate duplicate"
-            }
-            Self::SelfPrerequisite => {
-                "Un talento non può essere prerequisito di sé stesso"
-            }
+            Self::DuplicateRankEffect => "Un grado contiene effetti duplicati",
+            Self::DuplicateRankUnlock => "Un grado contiene abilità sbloccate duplicate",
+            Self::SelfPrerequisite => "Un talento non può essere prerequisito di sé stesso",
             Self::ZeroPrerequisiteRank => {
                 "Il grado richiesto di un prerequisito deve essere maggiore di zero"
             }
-            Self::DuplicatePrerequisite => {
-                "Il talento contiene prerequisiti duplicati"
-            }
+            Self::DuplicatePrerequisite => "Il talento contiene prerequisiti duplicati",
         };
 
         formatter.write_str(message)
@@ -228,16 +212,10 @@ mod tests {
 
     fn valid_tree() -> TalentTreeDefinition {
         TalentTreeDefinition {
-            metadata: valid_metadata(
-                "classic_1_12_1:tree.warrior_arms",
-                "Arms",
-            ),
+            metadata: valid_metadata("classic_1_12_1:tree.warrior_arms", "Arms"),
             class: ContentId::new("classic_1_12_1:class.warrior").unwrap(),
             display_order: 0,
-            talents: vec![
-                ContentId::new("classic_1_12_1:talent.improved_heroic_strike")
-                    .unwrap(),
-            ],
+            talents: vec![ContentId::new("classic_1_12_1:talent.improved_heroic_strike").unwrap()],
         }
     }
 
@@ -248,32 +226,25 @@ mod tests {
                 "Improved Heroic Strike",
             ),
             tree: ContentId::new("classic_1_12_1:tree.warrior_arms").unwrap(),
-            position: TalentPosition {
-                row: 0,
-                column: 0,
-            },
+            position: TalentPosition { row: 0, column: 0 },
             required_tree_points: 0,
             points_per_rank: 1,
             prerequisites: Vec::new(),
             ranks: vec![
                 TalentRankDefinition {
                     rank: 1,
-                    effects: vec![
-                        ContentId::new(
-                            "classic_1_12_1:effect.improved_heroic_strike_rank_1",
-                        )
-                        .unwrap(),
-                    ],
+                    effects: vec![ContentId::new(
+                        "classic_1_12_1:effect.improved_heroic_strike_rank_1",
+                    )
+                    .unwrap()],
                     unlocks: Vec::new(),
                 },
                 TalentRankDefinition {
                     rank: 2,
-                    effects: vec![
-                        ContentId::new(
-                            "classic_1_12_1:effect.improved_heroic_strike_rank_2",
-                        )
-                        .unwrap(),
-                    ],
+                    effects: vec![ContentId::new(
+                        "classic_1_12_1:effect.improved_heroic_strike_rank_2",
+                    )
+                    .unwrap()],
                     unlocks: Vec::new(),
                 },
             ],
@@ -290,10 +261,7 @@ mod tests {
         let mut tree = valid_tree();
         tree.talents.clear();
 
-        assert_eq!(
-            tree.validate(),
-            Err(TalentValidationError::EmptyTree)
-        );
+        assert_eq!(tree.validate(), Err(TalentValidationError::EmptyTree));
 
         let mut tree = valid_tree();
         tree.talents.push(tree.talents[0].clone());
@@ -320,18 +288,12 @@ mod tests {
         let mut talent = valid_talent();
         talent.points_per_rank = 0;
 
-        assert_eq!(
-            talent.validate(),
-            Err(TalentValidationError::ZeroPointCost)
-        );
+        assert_eq!(talent.validate(), Err(TalentValidationError::ZeroPointCost));
 
         let mut talent = valid_talent();
         talent.ranks.clear();
 
-        assert_eq!(
-            talent.validate(),
-            Err(TalentValidationError::MissingRanks)
-        );
+        assert_eq!(talent.validate(), Err(TalentValidationError::MissingRanks));
     }
 
     #[test]
@@ -368,15 +330,9 @@ mod tests {
     #[test]
     fn talent_rejects_duplicate_unlocked_abilities() {
         let mut talent = valid_talent();
-        let ability = ContentId::new(
-            "classic_1_12_1:warrior.mortal_strike",
-        )
-        .unwrap();
+        let ability = ContentId::new("classic_1_12_1:warrior.mortal_strike").unwrap();
 
-        talent.ranks[0].unlocks = vec![
-            ability.clone(),
-            ability,
-        ];
+        talent.ranks[0].unlocks = vec![ability.clone(), ability];
 
         assert_eq!(
             talent.validate(),
@@ -398,17 +354,12 @@ mod tests {
         );
 
         let mut talent = valid_talent();
-        let prerequisite = ContentId::new(
-            "classic_1_12_1:talent.tactical_mastery",
-        )
-        .unwrap();
+        let prerequisite = ContentId::new("classic_1_12_1:talent.tactical_mastery").unwrap();
 
-        talent.prerequisites = vec![
-            TalentPrerequisite {
-                talent: prerequisite.clone(),
-                required_rank: 0,
-            },
-        ];
+        talent.prerequisites = vec![TalentPrerequisite {
+            talent: prerequisite.clone(),
+            required_rank: 0,
+        }];
 
         assert_eq!(
             talent.validate(),
@@ -449,8 +400,7 @@ mod tests {
         let original = valid_tree();
 
         let serialized = ron::to_string(&original).unwrap();
-        let restored: TalentTreeDefinition =
-            ron::from_str(&serialized).unwrap();
+        let restored: TalentTreeDefinition = ron::from_str(&serialized).unwrap();
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());

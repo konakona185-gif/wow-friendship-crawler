@@ -1,31 +1,18 @@
 use bevy::prelude::Entity;
 
-use crate::content::{
-    ContentId,
-    ContentMetadata,
-    DamageSchoolDefinition,
-    DamageSchoolMitigation,
-};
+use crate::content::{ContentId, ContentMetadata, DamageSchoolDefinition, DamageSchoolMitigation};
 
 use super::{CombatAttributes, CombatLevel};
 
 mod critical;
 mod mitigation;
 
-pub use critical::{
-    calculate_critical_strike,
-    CriticalStrikeError,
-    CriticalStrikeResult,
-};
+pub use critical::{calculate_critical_strike, CriticalStrikeError, CriticalStrikeResult};
 
 pub use mitigation::{
-    calculate_armor_mitigation,
-    calculate_armor_mitigation_from_attributes,
-    calculate_damage_mitigation,
-    ArmorMitigationError,
-    DamageMitigationError,
-    DamageMitigationResult,
-    DamageSchoolMitigationError,
+    calculate_armor_mitigation, calculate_armor_mitigation_from_attributes,
+    calculate_damage_mitigation, ArmorMitigationError, DamageMitigationError,
+    DamageMitigationResult, DamageSchoolMitigationError,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -54,9 +41,7 @@ pub enum DamageRequestError {
 impl std::fmt::Display for DamageRequestError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let message = match self {
-            Self::InvalidAmount => {
-                "La quantità di danno deve essere finita e non negativa"
-            }
+            Self::InvalidAmount => "La quantità di danno deve essere finita e non negativa",
         };
 
         formatter.write_str(message)
@@ -147,9 +132,7 @@ impl std::fmt::Display for DamageResolutionError {
                 write!(formatter, "Calcolo della mitigazione non riuscito: {error}")
             }
             Self::IncomingAmountMismatch => {
-                formatter.write_str(
-                    "Il danno in ingresso non corrisponde alla richiesta originale",
-                )
+                formatter.write_str("Il danno in ingresso non corrisponde alla richiesta originale")
             }
         }
     }
@@ -217,10 +200,7 @@ mod tests {
             let mut request = valid_request();
             request.base_amount = amount;
 
-            assert_eq!(
-                request.validate(),
-                Err(DamageRequestError::InvalidAmount)
-            );
+            assert_eq!(request.validate(), Err(DamageRequestError::InvalidAmount));
         }
     }
 
@@ -273,19 +253,16 @@ mod tests {
 
     #[test]
     fn damage_resolution_applies_resistance_mitigation() {
-        let resistance_id =
-            ContentId::new("classic_1_12_1:stat.fire_resistance").unwrap();
+        let resistance_id = ContentId::new("classic_1_12_1:stat.fire_resistance").unwrap();
 
         let mut attributes = CombatAttributes::default();
         attributes.set(resistance_id.clone(), 200.0).unwrap();
 
         let resolution = DamageResolution::from_school_mitigation(
             valid_request(),
-            &valid_school(
-                DamageSchoolMitigation::Resistance {
-                    stat: resistance_id,
-                },
-            ),
+            &valid_school(DamageSchoolMitigation::Resistance {
+                stat: resistance_id,
+            }),
             &armor_id(),
             &attributes,
             &combat_level(60),
@@ -314,10 +291,7 @@ mod tests {
         request.base_amount = -10.0;
 
         assert_eq!(
-            DamageResolution::new(
-                request,
-                DamageMitigationResult::new(100.0, 0.0).unwrap(),
-            ),
+            DamageResolution::new(request, DamageMitigationResult::new(100.0, 0.0).unwrap(),),
             Err(DamageResolutionError::InvalidRequest(
                 DamageRequestError::InvalidAmount
             ))

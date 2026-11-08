@@ -2,15 +2,9 @@ use super::*;
 
 #[test]
 fn summon_factions_are_opposites() {
-    assert_eq!(
-        SummonFaction::Allies.opposing(),
-        SummonFaction::Enemies
-    );
+    assert_eq!(SummonFaction::Allies.opposing(), SummonFaction::Enemies);
 
-    assert_eq!(
-        SummonFaction::Enemies.opposing(),
-        SummonFaction::Allies
-    );
+    assert_eq!(SummonFaction::Enemies.opposing(), SummonFaction::Allies);
 }
 
 #[test]
@@ -25,12 +19,7 @@ fn ally_summon_ai_starts_without_a_target() {
 fn summoned_creature_preserves_owner_and_faction() {
     let owner = Entity::from_bits(1);
 
-    let summon = SummonedCreature::new(
-        owner,
-        creature_id(),
-        SummonFaction::Allies,
-        Some(30.0),
-    );
+    let summon = SummonedCreature::new(owner, creature_id(), SummonFaction::Allies, Some(30.0));
 
     assert_eq!(summon.owner, owner);
     assert_eq!(summon.faction, SummonFaction::Allies);

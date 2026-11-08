@@ -19,11 +19,7 @@ fn classic_pack_summon_imp_executes_end_to_end() {
         .init_resource::<PendingSummons>()
         .add_systems(
             Update,
-            (
-                effects::execute_pending_effects,
-                spawn_pending_summons,
-            )
-                .chain(),
+            (effects::execute_pending_effects, spawn_pending_summons).chain(),
         );
 
     let owner_position = Vec3::new(4.0, 5.0, 6.0);
@@ -38,10 +34,7 @@ fn classic_pack_summon_imp_executes_end_to_end() {
         ))
         .id();
 
-    let summon_effect_id = ContentId::new(
-        "classic_1_12_1:effect.summon_imp",
-    )
-    .unwrap();
+    let summon_effect_id = ContentId::new("classic_1_12_1:effect.summon_imp").unwrap();
 
     let resolved_count = app
         .world_mut()
@@ -61,39 +54,25 @@ fn classic_pack_summon_imp_executes_end_to_end() {
 
     let world = app.world_mut();
 
-    let mut summon_query =
-        world.query_filtered::<Entity, With<AllySummon>>();
+    let mut summon_query = world.query_filtered::<Entity, With<AllySummon>>();
 
-    let spawned_summons: Vec<Entity> =
-        summon_query.iter(world).collect();
+    let spawned_summons: Vec<Entity> = summon_query.iter(world).collect();
 
     assert_eq!(spawned_summons.len(), 1);
 
     let summon_entity = spawned_summons[0];
 
-    let summon = world
-        .get::<SummonedCreature>(summon_entity)
-        .unwrap();
+    let summon = world.get::<SummonedCreature>(summon_entity).unwrap();
 
-    let level = world
-        .get::<CombatLevel>(summon_entity)
-        .unwrap();
+    let level = world.get::<CombatLevel>(summon_entity).unwrap();
 
-    let health = world
-        .get::<HealthPool>(summon_entity)
-        .unwrap();
+    let health = world.get::<HealthPool>(summon_entity).unwrap();
 
-    let stats = world
-        .get::<CombatStats>(summon_entity)
-        .unwrap();
+    let stats = world.get::<CombatStats>(summon_entity).unwrap();
 
-    let profile = world
-        .get::<SummonCombatProfile>(summon_entity)
-        .unwrap();
+    let profile = world.get::<SummonCombatProfile>(summon_entity).unwrap();
 
-    let transform = world
-        .get::<Transform>(summon_entity)
-        .unwrap();
+    let transform = world.get::<Transform>(summon_entity).unwrap();
 
     assert_eq!(summon.owner, owner);
     assert_eq!(summon.creature, creature_id());
@@ -117,17 +96,10 @@ fn classic_pack_summon_imp_executes_end_to_end() {
 
     assert_eq!(transform.translation, owner_position);
 
-    assert!(
-        world.get::<Enemy>(summon_entity).is_none()
-    );
+    assert!(world.get::<Enemy>(summon_entity).is_none());
 
-    assert!(
-        world
-            .resource::<PendingSummons>()
-            .is_empty()
-    );
+    assert!(world.resource::<PendingSummons>().is_empty());
 }
-
 
 #[test]
 fn classic_pack_imp_acquires_and_attacks_enemy_end_to_end() {
@@ -186,10 +158,7 @@ fn classic_pack_imp_acquires_and_attacks_enemy_end_to_end() {
         ))
         .id();
 
-    let summon_effect_id = ContentId::new(
-        "classic_1_12_1:effect.summon_imp",
-    )
-    .unwrap();
+    let summon_effect_id = ContentId::new("classic_1_12_1:effect.summon_imp").unwrap();
 
     let resolved_count = app
         .world_mut()
@@ -209,44 +178,29 @@ fn classic_pack_imp_acquires_and_attacks_enemy_end_to_end() {
 
     let summon_entity = {
         let world = app.world_mut();
-        let mut summon_query =
-            world.query_filtered::<Entity, With<AllySummon>>();
+        let mut summon_query = world.query_filtered::<Entity, With<AllySummon>>();
 
         summon_query.iter(world).next().unwrap()
     };
 
-    let summon_ai = app
-        .world()
-        .get::<AllySummonAi>(summon_entity)
-        .unwrap();
+    let summon_ai = app.world().get::<AllySummonAi>(summon_entity).unwrap();
 
     assert_eq!(summon_ai.target, Some(enemy));
 
     advance_test_time(&mut app, 2.0);
     app.update();
 
-    let enemy_health = app
-        .world()
-        .get::<HealthPool>(enemy)
-        .unwrap();
+    let enemy_health = app.world().get::<HealthPool>(enemy).unwrap();
 
-    let enemy_stats = app
-        .world()
-        .get::<CombatStats>(enemy)
-        .unwrap();
+    let enemy_stats = app.world().get::<CombatStats>(enemy).unwrap();
 
     assert_eq!(enemy_health.current(), 88.0);
     assert_eq!(enemy_stats.current_health, 88.0);
 
-    let threat = app
-        .world()
-        .get::<EnemyThreat>(enemy)
-        .unwrap();
+    let threat = app.world().get::<EnemyThreat>(enemy).unwrap();
 
-    assert!(
-        threat
-            .values
-            .get(&summon_entity)
-            .is_some_and(|value| *value > 0.0)
-    );
+    assert!(threat
+        .values
+        .get(&summon_entity)
+        .is_some_and(|value| *value > 0.0));
 }

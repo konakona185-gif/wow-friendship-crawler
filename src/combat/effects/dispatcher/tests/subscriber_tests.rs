@@ -2,16 +2,9 @@ use super::*;
 
 #[test]
 fn damage_and_healing_dealt_events_use_source_as_subscriber() {
-    for trigger in [
-        EffectTrigger::OnDamageDealt,
-        EffectTrigger::OnHealDealt,
-    ] {
+    for trigger in [EffectTrigger::OnDamageDealt, EffectTrigger::OnHealDealt] {
         assert_eq!(
-            event_participants(&event(
-                trigger,
-                Some(source()),
-                Some(target()),
-            )),
+            event_participants(&event(trigger, Some(source()), Some(target()),)),
             Some((source(), Some(target())))
         );
     }
@@ -19,16 +12,9 @@ fn damage_and_healing_dealt_events_use_source_as_subscriber() {
 
 #[test]
 fn damage_and_healing_taken_events_use_target_as_subscriber() {
-    for trigger in [
-        EffectTrigger::OnDamageTaken,
-        EffectTrigger::OnHealTaken,
-    ] {
+    for trigger in [EffectTrigger::OnDamageTaken, EffectTrigger::OnHealTaken] {
         assert_eq!(
-            event_participants(&event(
-                trigger,
-                Some(source()),
-                Some(target()),
-            )),
+            event_participants(&event(trigger, Some(source()), Some(target()),)),
             Some((target(), Some(source())))
         );
     }
@@ -41,11 +27,7 @@ fn resource_events_use_recipient_as_subscriber() {
         EffectTrigger::OnResourceSpent,
     ] {
         assert_eq!(
-            event_participants(&event(
-                trigger,
-                Some(source()),
-                Some(target()),
-            )),
+            event_participants(&event(trigger, Some(source()), Some(target()),)),
             Some((target(), Some(source())))
         );
     }
@@ -63,11 +45,7 @@ fn periodic_tick_events_use_source_as_subscriber() {
     );
 
     assert_eq!(
-        event_participants(&event(
-            EffectTrigger::OnPeriodicTick,
-            None,
-            Some(target()),
-        )),
+        event_participants(&event(EffectTrigger::OnPeriodicTick, None, Some(target()),)),
         None
     );
 }
@@ -88,15 +66,9 @@ fn periodic_tick_events_match_only_their_declared_effect() {
     let mut other_event = matching_event.clone();
     other_event.effect = Some(other_effect);
 
-    assert!(event_matches_effect(
-        &matching_event,
-        &matching_effect
-    ));
+    assert!(event_matches_effect(&matching_event, &matching_effect));
 
-    assert!(!event_matches_effect(
-        &other_event,
-        &matching_effect
-    ));
+    assert!(!event_matches_effect(&other_event, &matching_effect));
 
     let event_without_effect = event(
         EffectTrigger::OnPeriodicTick,
@@ -122,20 +94,12 @@ fn aura_expiration_events_use_owner_as_subscriber() {
     );
 
     assert_eq!(
-        event_participants(&event(
-            EffectTrigger::OnExpire,
-            None,
-            Some(target()),
-        )),
+        event_participants(&event(EffectTrigger::OnExpire, None, Some(target()),)),
         Some((target(), None))
     );
 
     assert_eq!(
-        event_participants(&event(
-            EffectTrigger::OnExpire,
-            Some(source()),
-            None,
-        )),
+        event_participants(&event(EffectTrigger::OnExpire, Some(source()), None,)),
         None
     );
 }
@@ -151,11 +115,7 @@ fn unsupported_triggers_do_not_select_subscribers() {
         EffectTrigger::OnBlock,
     ] {
         assert_eq!(
-            event_participants(&event(
-                trigger,
-                Some(source()),
-                Some(target()),
-            )),
+            event_participants(&event(trigger, Some(source()), Some(target()),)),
             None
         );
     }
@@ -164,20 +124,12 @@ fn unsupported_triggers_do_not_select_subscribers() {
 #[test]
 fn missing_required_participants_skip_dispatch() {
     assert_eq!(
-        event_participants(&event(
-            EffectTrigger::OnDamageDealt,
-            None,
-            Some(target()),
-        )),
+        event_participants(&event(EffectTrigger::OnDamageDealt, None, Some(target()),)),
         None
     );
 
     assert_eq!(
-        event_participants(&event(
-            EffectTrigger::OnDamageTaken,
-            Some(source()),
-            None,
-        )),
+        event_participants(&event(EffectTrigger::OnDamageTaken, Some(source()), None,)),
         None
     );
 }

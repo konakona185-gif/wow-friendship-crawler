@@ -10,19 +10,9 @@ use std::collections::HashMap;
 use bevy::prelude::Resource;
 
 use super::{
-    AbilityDefinition,
-    AuraDefinition,
-    CombatAttributeDefinition,
-    ContentId,
-    ContentMetadata,
-    ContentPackManifest,
-    ContentPackRegistry,
-    CreatureDefinition,
-    DamageSchoolDefinition,
-    EffectDefinition,
-    ResourceDefinition,
-    TalentDefinition,
-    TalentTreeDefinition,
+    AbilityDefinition, AuraDefinition, CombatAttributeDefinition, ContentId, ContentMetadata,
+    ContentPackManifest, ContentPackRegistry, CreatureDefinition, DamageSchoolDefinition,
+    EffectDefinition, ResourceDefinition, TalentDefinition, TalentTreeDefinition,
 };
 
 pub use validation::ContentDatabaseError;

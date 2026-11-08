@@ -1,24 +1,10 @@
 use std::collections::HashSet;
 
-use bevy::prelude::{
-    Entity,
-    Or,
-    Query,
-    Transform,
-    Vec3,
-    With,
-};
+use bevy::prelude::{Entity, Or, Query, Transform, Vec3, With};
 
 use crate::content::EffectTarget;
 
-use crate::combat::{
-    EffectTargetSelection,
-    AllySummon,
-    Character,
-    CombatStats,
-    Enemy,
-    HealthPool,
-};
+use crate::combat::{AllySummon, Character, CombatStats, EffectTargetSelection, Enemy, HealthPool};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CombatSide {
@@ -50,15 +36,9 @@ pub(super) fn acquire_area_targets(
     candidates: impl IntoIterator<Item = AreaTargetCandidate>,
 ) -> Result<EffectTargetSelection, AreaTargetingError> {
     let (radius, relation) = match effect_target {
-        EffectTarget::AlliesInRadius { radius } => {
-            (*radius, TargetRelation::Allies)
-        }
-        EffectTarget::EnemiesInRadius { radius } => {
-            (*radius, TargetRelation::Enemies)
-        }
-        EffectTarget::UnitsInRadius { radius } => {
-            (*radius, TargetRelation::Any)
-        }
+        EffectTarget::AlliesInRadius { radius } => (*radius, TargetRelation::Allies),
+        EffectTarget::EnemiesInRadius { radius } => (*radius, TargetRelation::Enemies),
+        EffectTarget::UnitsInRadius { radius } => (*radius, TargetRelation::Any),
         _ => {
             return Err(AreaTargetingError::UnsupportedTarget);
         }
@@ -68,10 +48,7 @@ pub(super) fn acquire_area_targets(
         return Err(AreaTargetingError::InvalidRadius);
     }
 
-    if !center.x.is_finite()
-        || !center.y.is_finite()
-        || !center.z.is_finite()
-    {
+    if !center.x.is_finite() || !center.y.is_finite() || !center.z.is_finite() {
         return Err(AreaTargetingError::InvalidCenter);
     }
 
@@ -124,61 +101,36 @@ pub(super) fn acquire_area_targets(
 pub(super) fn acquire_area_targets_from_world(
     effect_target: &EffectTarget,
     source: Entity,
-    combatants: &Query<(
-        Entity,
-        &Transform,
-        Option<&CombatStats>,
-        Option<&HealthPool>,
-        Option<&Character>,
-        Option<&Enemy>,
-        Option<&AllySummon>,
-    ), Or<(With<Character>, With<Enemy>, With<AllySummon>)>>,
+    combatants: &Query<
+        (
+            Entity,
+            &Transform,
+            Option<&CombatStats>,
+            Option<&HealthPool>,
+            Option<&Character>,
+            Option<&Enemy>,
+            Option<&AllySummon>,
+        ),
+        Or<(With<Character>, With<Enemy>, With<AllySummon>)>,
+    >,
 ) -> Result<EffectTargetSelection, AreaTargetingError> {
-    let (
-        _,
-        source_transform,
-        _,
-        _,
-        source_character,
-        source_enemy,
-        source_ally_summon,
-    ) = combatants
-        .get(source)
-        .map_err(|_| AreaTargetingError::MissingSource)?;
+    let (_, source_transform, _, _, source_character, source_enemy, source_ally_summon) =
+        combatants
+            .get(source)
+            .map_err(|_| AreaTargetingError::MissingSource)?;
 
-    let source_side = combat_side(
-        source_character,
-        source_enemy,
-        source_ally_summon,
-    )
-    .ok_or(AreaTargetingError::InvalidSourceSide)?;
+    let source_side = combat_side(source_character, source_enemy, source_ally_summon)
+        .ok_or(AreaTargetingError::InvalidSourceSide)?;
 
     let candidates = combatants.iter().filter_map(
-        |(
-            entity,
-            transform,
-            stats,
-            health_pool,
-            character,
-            enemy,
-            ally_summon,
-        )| {
-            let side = combat_side(
-                character,
-                enemy,
-                ally_summon,
-            )?;
+        |(entity, transform, stats, health_pool, character, enemy, ally_summon)| {
+            let side = combat_side(character, enemy, ally_summon)?;
 
             let current_health = health_pool
                 .map(|pool| pool.current())
-                .or_else(|| {
-                    stats.map(|stats| stats.current_health)
-                });
+                .or_else(|| stats.map(|stats| stats.current_health));
 
-            let alive = current_health.map_or(
-                true,
-                |health| health.is_finite() && health > 0.0,
-            );
+            let alive = current_health.map_or(true, |health| health.is_finite() && health > 0.0);
 
             Some(AreaTargetCandidate {
                 entity,
@@ -202,14 +154,8 @@ fn combat_side(
     enemy: Option<&Enemy>,
     ally_summon: Option<&AllySummon>,
 ) -> Option<CombatSide> {
-    match (
-        character.is_some(),
-        enemy.is_some(),
-        ally_summon.is_some(),
-    ) {
-        (true, false, false) | (false, false, true) => {
-            Some(CombatSide::Characters)
-        }
+    match (character.is_some(), enemy.is_some(), ally_summon.is_some()) {
+        (true, false, false) | (false, false, true) => Some(CombatSide::Characters),
         (false, true, false) => Some(CombatSide::Enemies),
         _ => None,
     }
@@ -226,12 +172,7 @@ enum TargetRelation {
 mod tests {
     use super::*;
 
-    fn candidate(
-        id: u64,
-        position: Vec3,
-        side: CombatSide,
-        alive: bool,
-    ) -> AreaTargetCandidate {
+    fn candidate(id: u64, position: Vec3, side: CombatSide, alive: bool) -> AreaTargetCandidate {
         AreaTargetCandidate {
             entity: Entity::from_bits(id),
             position,
@@ -266,10 +207,7 @@ mod tests {
 
         assert_eq!(
             result,
-            EffectTargetSelection::Area(vec![
-                Entity::from_bits(1),
-                Entity::from_bits(2),
-            ])
+            EffectTargetSelection::Area(vec![Entity::from_bits(1), Entity::from_bits(2),])
         );
     }
 
@@ -291,10 +229,7 @@ mod tests {
 
         assert_eq!(
             result,
-            EffectTargetSelection::Area(vec![
-                Entity::from_bits(2),
-                Entity::from_bits(3),
-            ])
+            EffectTargetSelection::Area(vec![Entity::from_bits(2), Entity::from_bits(3),])
         );
     }
 
@@ -315,10 +250,7 @@ mod tests {
 
         assert_eq!(
             result,
-            EffectTargetSelection::Area(vec![
-                Entity::from_bits(1),
-                Entity::from_bits(2),
-            ])
+            EffectTargetSelection::Area(vec![Entity::from_bits(1), Entity::from_bits(2),])
         );
     }
 
@@ -339,9 +271,7 @@ mod tests {
 
         assert_eq!(
             result,
-            EffectTargetSelection::Area(vec![
-                Entity::from_bits(1),
-            ])
+            EffectTargetSelection::Area(vec![Entity::from_bits(1),])
         );
     }
 
@@ -362,9 +292,7 @@ mod tests {
 
         assert_eq!(
             result,
-            EffectTargetSelection::Area(vec![
-                Entity::from_bits(1),
-            ])
+            EffectTargetSelection::Area(vec![Entity::from_bits(1),])
         );
     }
 
@@ -397,12 +325,7 @@ mod tests {
     #[test]
     fn area_targeting_rejects_non_area_effects() {
         assert_eq!(
-            acquire_area_targets(
-                &EffectTarget::Caster,
-                Vec3::ZERO,
-                characters(),
-                Vec::new(),
-            ),
+            acquire_area_targets(&EffectTarget::Caster, Vec3::ZERO, characters(), Vec::new(),),
             Err(AreaTargetingError::UnsupportedTarget)
         );
     }
@@ -429,17 +352,11 @@ mod tests {
         );
 
         assert_eq!(combat_side(None, None, None), None);
-        assert_eq!(
-            combat_side(Some(&character), Some(&enemy), None),
-            None
-        );
+        assert_eq!(combat_side(Some(&character), Some(&enemy), None), None);
         assert_eq!(
             combat_side(Some(&character), None, Some(&ally_summon)),
             None
         );
-        assert_eq!(
-            combat_side(None, Some(&enemy), Some(&ally_summon)),
-            None
-        );
+        assert_eq!(combat_side(None, Some(&enemy), Some(&ally_summon)), None);
     }
 }

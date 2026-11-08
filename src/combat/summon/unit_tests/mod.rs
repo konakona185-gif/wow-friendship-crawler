@@ -1,22 +1,13 @@
 use super::*;
 
 use crate::combat::{
-    CombatAttributes,
-    CombatEventQueue,
-    EffectTargetSelection,
-    ResolvedEffect,
+    CombatAttributes, CombatEventQueue, EffectTargetSelection, ResolvedEffect,
     ResolvedEffectOperation,
 };
 
 use crate::content::{
-    ContentDatabase,
-    ContentMetadata,
-    ContentPackManifest,
-    CreatureDefinition,
-    EffectDefinition,
-    EffectKind,
-    EffectTarget,
-    EffectTrigger,
+    ContentDatabase, ContentMetadata, ContentPackManifest, CreatureDefinition, EffectDefinition,
+    EffectKind, EffectTarget, EffectTrigger,
 };
 
 use super::super::PendingCombatEffects;
@@ -34,10 +25,7 @@ fn pack_id() -> ContentId {
 }
 
 fn spawn_test_app() -> App {
-    let database = summon_test_database(
-        EffectTarget::Caster,
-        true,
-    );
+    let database = summon_test_database(EffectTarget::Caster, true);
 
     let mut app = App::new();
 
@@ -48,11 +36,7 @@ fn spawn_test_app() -> App {
     app
 }
 
-fn enqueue_spawn_request(
-    app: &mut App,
-    owner: Entity,
-    count: u32,
-) {
+fn enqueue_spawn_request(app: &mut App, owner: Entity, count: u32) {
     app.world_mut()
         .resource_mut::<PendingSummons>()
         .enqueue(PendingSummon {
@@ -64,10 +48,7 @@ fn enqueue_spawn_request(
         });
 }
 
-fn summon_test_database(
-    target: EffectTarget,
-    register_creature: bool,
-) -> ContentDatabase {
+fn summon_test_database(target: EffectTarget, register_creature: bool) -> ContentDatabase {
     let mut database = ContentDatabase::new();
 
     let pack_id = pack_id();
@@ -140,23 +121,13 @@ fn summon_runtime_app(database: ContentDatabase) -> App {
         .init_resource::<PendingCombatEffects>()
         .init_resource::<PendingSummons>()
         .init_resource::<CombatEventQueue>()
-        .add_systems(
-            Update,
-            super::super::effects::execute_pending_effects,
-        );
+        .add_systems(Update, super::super::effects::execute_pending_effects);
 
     app
 }
 
-fn enqueue_summon_effect(
-    app: &mut App,
-    source: Option<Entity>,
-    selection: EffectTargetSelection,
-) {
-    let database = app
-        .world()
-        .resource::<ContentDatabase>()
-        .clone();
+fn enqueue_summon_effect(app: &mut App, source: Option<Entity>, selection: EffectTargetSelection) {
+    let database = app.world().resource::<ContentDatabase>().clone();
 
     app.world_mut()
         .resource_mut::<PendingCombatEffects>()
@@ -170,6 +141,6 @@ fn enqueue_summon_effect(
         .unwrap();
 }
 
+mod runtime_tests;
 mod spawn_tests;
 mod types_tests;
-mod runtime_tests;

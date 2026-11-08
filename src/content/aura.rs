@@ -1,11 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
-use super::{
-    ContentId,
-    ContentMetadata,
-    ContentMetadataError,
-};
+use super::{ContentId, ContentMetadata, ContentMetadataError};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AuraDefinition {
@@ -34,9 +30,7 @@ impl AuraDefinition {
             if !periodic_effect.interval_seconds.is_finite()
                 || periodic_effect.interval_seconds <= 0.0
             {
-                return Err(
-                    AuraValidationError::InvalidPeriodicEffectInterval
-                );
+                return Err(AuraValidationError::InvalidPeriodicEffectInterval);
             }
         }
 
@@ -96,14 +90,9 @@ impl Display for AuraValidationError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         let message = match self {
             Self::InvalidMetadata(error) => {
-                return write!(
-                    formatter,
-                    "Metadati dell'aura non validi: {error}"
-                );
+                return write!(formatter, "Metadati dell'aura non validi: {error}");
             }
-            Self::ZeroMaxStacks => {
-                "Il numero massimo di stack deve essere maggiore di zero"
-            }
+            Self::ZeroMaxStacks => "Il numero massimo di stack deve essere maggiore di zero",
             Self::InvalidPeriodicEffectInterval => {
                 "L'intervallo dell'effetto periodico deve essere finito e positivo"
             }
@@ -123,14 +112,8 @@ mod tests {
     fn valid_aura() -> AuraDefinition {
         AuraDefinition {
             metadata: ContentMetadata {
-                id: ContentId::new(
-                    "classic_1_12_1:aura.test"
-                )
-                .unwrap(),
-                pack_id: ContentId::new(
-                    "pack:classic_1_12_1"
-                )
-                .unwrap(),
+                id: ContentId::new("classic_1_12_1:aura.test").unwrap(),
+                pack_id: ContentId::new("pack:classic_1_12_1").unwrap(),
                 name: "Test Aura".to_string(),
                 description: String::new(),
                 icon: None,
@@ -154,10 +137,7 @@ mod tests {
         let mut aura = valid_aura();
         aura.max_stacks = 0;
 
-        assert_eq!(
-            aura.validate(),
-            Err(AuraValidationError::ZeroMaxStacks)
-        );
+        assert_eq!(aura.validate(), Err(AuraValidationError::ZeroMaxStacks));
     }
 
     #[test]
@@ -165,28 +145,21 @@ mod tests {
         let mut aura = valid_aura();
 
         aura.periodic_effects.push(PeriodicAuraEffect {
-            effect: ContentId::new(
-                "classic_1_12_1:effect.periodic_test"
-            )
-            .unwrap(),
+            effect: ContentId::new("classic_1_12_1:effect.periodic_test").unwrap(),
             interval_seconds: 0.0,
             stack_scaling: PeriodicEffectStackScaling::None,
         });
 
         assert_eq!(
             aura.validate(),
-            Err(
-                AuraValidationError::InvalidPeriodicEffectInterval
-            )
+            Err(AuraValidationError::InvalidPeriodicEffectInterval)
         );
 
         aura.periodic_effects[0].interval_seconds = f32::INFINITY;
 
         assert_eq!(
             aura.validate(),
-            Err(
-                AuraValidationError::InvalidPeriodicEffectInterval
-            )
+            Err(AuraValidationError::InvalidPeriodicEffectInterval)
         );
     }
 
@@ -211,17 +184,13 @@ mod tests {
         original.refresh_policy = AuraRefreshPolicy::Pandemic;
 
         original.periodic_effects.push(PeriodicAuraEffect {
-            effect: ContentId::new(
-                "classic_1_12_1:effect.periodic_test"
-            )
-            .unwrap(),
+            effect: ContentId::new("classic_1_12_1:effect.periodic_test").unwrap(),
             interval_seconds: 3.0,
             stack_scaling: PeriodicEffectStackScaling::Linear,
         });
 
         let serialized = ron::to_string(&original).unwrap();
-        let restored: AuraDefinition =
-            ron::from_str(&serialized).unwrap();
+        let restored: AuraDefinition = ron::from_str(&serialized).unwrap();
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());
@@ -229,13 +198,9 @@ mod tests {
 
     #[test]
     fn aura_policies_support_ron_serialization() {
-        for scope in [
-            AuraStackingScope::Shared,
-            AuraStackingScope::PerCaster,
-        ] {
+        for scope in [AuraStackingScope::Shared, AuraStackingScope::PerCaster] {
             let serialized = ron::to_string(&scope).unwrap();
-            let restored: AuraStackingScope =
-                ron::from_str(&serialized).unwrap();
+            let restored: AuraStackingScope = ron::from_str(&serialized).unwrap();
 
             assert_eq!(restored, scope);
         }
@@ -245,8 +210,7 @@ mod tests {
             AuraRefreshPolicy::Pandemic,
         ] {
             let serialized = ron::to_string(&policy).unwrap();
-            let restored: AuraRefreshPolicy =
-                ron::from_str(&serialized).unwrap();
+            let restored: AuraRefreshPolicy = ron::from_str(&serialized).unwrap();
 
             assert_eq!(restored, policy);
         }
@@ -256,8 +220,7 @@ mod tests {
             PeriodicEffectStackScaling::Linear,
         ] {
             let serialized = ron::to_string(&scaling).unwrap();
-            let restored: PeriodicEffectStackScaling =
-                ron::from_str(&serialized).unwrap();
+            let restored: PeriodicEffectStackScaling = ron::from_str(&serialized).unwrap();
 
             assert_eq!(restored, scaling);
         }
@@ -272,8 +235,7 @@ mod tests {
             AuraStackingPolicy::Independent,
         ] {
             let serialized = ron::to_string(&policy).unwrap();
-            let restored: AuraStackingPolicy =
-                ron::from_str(&serialized).unwrap();
+            let restored: AuraStackingPolicy = ron::from_str(&serialized).unwrap();
 
             assert_eq!(restored, policy);
         }
