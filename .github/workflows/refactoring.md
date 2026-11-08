@@ -236,19 +236,24 @@ Esito del Gruppo 6 – audit statico complessivo:
 
 ### Fase 5 – Verifica tecnica e chiusura
 
-**Stato: IN PREPARAZIONE — Gruppo 7 autorizzato; il workflow ora applica un controllo di formattazione bloccante. Nessuna verifica tecnica finale è ancora stata eseguita sullo SHA corrente.**
+**Stato: IN CORSO — la prima GitHub Actions Run #536 è stata eseguita e ha rilevato un errore di formattazione; la correzione è stata pubblicata, ma la nuova CI sullo SHA corretto è ancora pendente.**
 
 - [x] Rendere bloccante nel workflow `.github/workflows/build.yml` il controllo `cargo fmt --all -- --check`: il comando è eseguito direttamente, quindi un errore fallisce il job.
-- [ ] Eseguire il controllo di formattazione nel workflow finale e correggere eventuali problemi rilevati; il workflow non è ancora stato eseguito.
-- [ ] Eseguire i controlli di compilazione e test locali disponibili, senza dichiarare la fase conclusa prima dei risultati.
-- [ ] Eseguire una sola verifica CI completa dopo aver raggruppato tutte le modifiche strutturali, salvo blocchi che richiedano una diagnosi anticipata.
+- [x] Eseguire la prima verifica tecnica tramite GitHub Actions. Run #536 sul branch `refactor/src-domain-layout`, SHA `0cfcf2a61fff40500c7f9aac7ebec7c50cae7c77`: il controllo `cargo fmt --all -- --check` è fallito per una direttiva `#[cfg(test)]` orfana in `reactive_runtime_tests.rs`, riga 488.
+- [x] Correggere l'attributo orfano rimuovendo esclusivamente la direttiva `#[cfg(test)]`; gli 11 test del file e i test sibling sono stati preservati.
+- [x] Pubblicare la correzione sul branch `refactor/src-domain-layout` con commit `b69aefcf7efe844d8c9bf32227bf04ec6cfca2ba` (`Remove unnecessary lines from reactive_runtime_tests.rs`).
+- [ ] Ripetere `cargo fmt --all -- --check` tramite una nuova GitHub Actions sullo SHA corretto.
+- [ ] Eseguire i controlli di compilazione e test locali disponibili, senza dichiarare la fase conclusa prima dei risultati. Gli strumenti Rust non sono disponibili nel clone locale e non verranno installati: le verifiche tecniche saranno eseguite tramite GitHub Actions.
+- [ ] Eseguire la verifica CI completa dopo aver raggruppato tutte le correzioni, salvo ulteriori errori bloccanti che richiedano una diagnosi anticipata.
 - [ ] Verificare entrambi i job Linux e Windows e l'avvio headless sullo SHA finale esatto.
 - [ ] Verificare che non siano diminuiti i test rispetto al baseline senza una motivazione documentata.
 - [ ] Ispezionare il diff per assicurarsi che i cambiamenti siano principalmente spostamenti, aggiornamenti dei moduli e import.
 - [ ] Aggiornare la roadmap principale indicando il refactoring come fase preparatoria completata.
 - [ ] Registrare qui SHA finale, run CI, numero test e data di completamento.
 
-Preparazione del Gruppo 7: i Gruppi 1–6 sono completati strutturalmente e sottoposti ad audit statico. Il Gruppo 7 è autorizzato e in preparazione. Il controllo `cargo fmt --all -- --check` è ora bloccante, ma non è stato eseguito. Formattazione sullo SHA finale, compilazione, suite completa dei test e GitHub Actions restano da verificare; nessun controllo tecnico finale è superato sullo SHA corrente. Il workflow esegue inoltre `cargo check --all-targets`, build e `cargo test --release` su Linux/Windows e avvio headless su entrambe le piattaforme. Il trigger push riguarda soltanto `main`, il trigger PR soltanto PR verso `main` e `workflow_dispatch` consente avvio manuale. La verifica remota è ancora da avviare e il workflow carica artifact; non è stato avviato.
+Preparazione e prima verifica del Gruppo 7: i Gruppi 1–6 sono completati strutturalmente e sottoposti ad audit statico. La Run #536 è stata avviata manualmente con `workflow_dispatch` sul branch `refactor/src-domain-layout`, SHA `0cfcf2a61fff40500c7f9aac7ebec7c50cae7c77`, ed è fallita durante `cargo fmt --all -- --check`. Il log riporta `expected item after attributes` in `src/combat/effects/dispatcher/tests/reactive_runtime_tests.rs` alla riga 488. Il job preliminare Rust è fallito; i job di compilazione e test Linux e Windows sono stati saltati perché dipendenti dal controllo preliminare. Non sono stati quindi verificati compilazione, test release, avvio headless o artifact.
+
+La causa è stata individuata nell'attributo `#[cfg(test)]` rimasto orfano dopo lo spostamento della dichiarazione `mod area_tests` nel modulo parent `tests/mod.rs`, già protetto da `#[cfg(test)]`. L'utente ha rimosso esclusivamente tale attributo, mantenendo intatti gli 11 test di `reactive_runtime_tests.rs` e le suite sibling. La correzione è stata pubblicata sul branch con il commit `b69aefcf7efe844d8c9bf32227bf04ec6cfca2ba`. La nuova esecuzione CI sullo SHA corretto è ancora da avviare. Il workflow mantiene `cargo check --all-targets`, build e `cargo test --release` su Linux e Windows, avvio headless su entrambe le piattaforme e caricamento degli artifact. Gli artifact non sono stati prodotti dalla Run #536 perché i job Linux e Windows sono stati saltati.
 
 ## 6. Decisioni architetturali della struttura proposta
 
@@ -399,7 +404,7 @@ src/
 │   │   ├── selection/
 │   │   │   ├── tests/
 │   │   │   │   ├── click_tests.rs
-│   │   │   │   └── mod.rs
+│   │   │   │   ├── mod.rs
 │   │   │   │   └── tab_tests.rs
 │   │   │   └── mod.rs
 │   │   └── mod.rs
@@ -576,13 +581,13 @@ Questi moduli sono stati creati per rendere esplicita la gerarchia dei domini e 
 
 | Area | Stato | Note / commit |
 |---|---|---|
-| Fase 0 – Preparazione | IN CORSO | Branch `refactor/src-domain-layout` creato dallo SHA `454874a...`; controlli di pulizia e conferma branch attivo ancora da completare. |
+| Fase 0 – Preparazione | PREPARAZIONE INIZIALE COMPLETATA E VERIFICATA (Gruppo 1) | Baseline, inventario, mappatura e dimensioni riconciliati. Le salvaguardie Git restano obbligatorie per ogni gruppo; audit e CI finale ancora pendenti. |
 | Fase 1 – Moduli top-level | STRUTTURA COMPLETATA | 13 percorsi convertiti/spostati; wiring e audit statico completati. Verifiche Rust rinviate alla verifica finale tramite GitHub Actions. |
 | Fase 2 – Dominio combat | STRUTTURA COMPLETATA | Mappa, split, moduli, percorsi, re-export, test e ordine dei sistemi verificati staticamente; `git diff --check` superato. Formattazione, compilazione e test rinviati alla verifica finale tramite GitHub Actions. |
 | Fase 3 / Gruppo 5 – Altri domini | STRUTTURA COMPLETATA E VERIFICATA STATICAMENTE | Content, Character, Player, Navigation, Fellowship e Interaction; inventario test invariato (149 occorrenze, 146 nomi distinti), percorsi/moduli verificati, `git diff --check` superato. Verifiche Rust rinviate a GitHub Actions. |
 | Gruppo 4 – Suddivisione per responsabilità | COMPLETATO STATICAMENTE | Test e moduli suddivisi secondo la mappa; inventario dei 159 test invariato, percorsi dei moduli verificati e `git diff --check` superato. Formattazione, compilazione e test rinviati alla verifica finale tramite GitHub Actions. |
 | Fase 4 / Gruppo 6 – Audit strutturale complessivo | COMPLETATO STATICAMENTE | 135 file mappati; 0 moduli o percorsi mancanti; test 660/660 invariati rispetto a HEAD; re-export combat/content invariati; massimo 893 righe; split test tab/click; `git diff --check` superato. Risoluzione compilatore e verifiche tecniche rinviate al Gruppo 7. |
-| Fase 5 – Verifica e chiusura (Gruppo 7) | IN PREPARAZIONE | Autorizzato; controllo rustfmt bloccante predisposto ma non eseguito. Formattazione finale, compilazione, test e GitHub Actions non eseguiti sullo SHA corrente. |
+| Fase 5 – Verifica e chiusura (Gruppo 7) | IN CORSO – CORREZIONE PUBBLICATA, NUOVA CI PENDENTE | Run #536 fallita durante rustfmt sullo SHA `0cfcf2a61fff40500c7f9aac7ebec7c50cae7c77`. La direttiva `#[cfg(test)]` orfana è stata rimossa e pubblicata con commit `b69aefcf7efe844d8c9bf32227bf04ec6cfca2ba`. Compilazione, test e avvio headless non sono ancora stati verificati. |
 
 ### Registro delle decisioni e delle eccezioni
 
@@ -600,6 +605,8 @@ Questi moduli sono stati creati per rendere esplicita la gerarchia dei domini e 
 | 2026-11-08 | Completato strutturalmente il Gruppo 5: convertiti i wrapper database Content, separati i test di validazione talenti e centralizzati gli helper duplicati Player/Enemy; gli altri domini sono stati auditati senza frammentazioni non necessarie. | Applicare il criterio di modularizzazione aggiornato preservando API, comportamento, fixture e test. Inventario test statico invariato (149 occorrenze, 146 nomi distinti), moduli e percorsi verificati, `git diff --check` superato. Formattazione, compilazione e test rinviati a GitHub Actions. | COMPLETATO STATICAMENTE |
 | 2026-11-08 | Avviato il Gruppo 6 dopo rilettura integrale dei documenti e controllo del branch, HEAD e working tree. | Audit complessivo di mappa, moduli, import/re-export, visibilità, percorsi, test, fixture, dimensioni e coesione in tutto `src/`; verifiche tecniche Rust rinviate al Gruppo 7. | IN CORSO |
 | 2026-11-08 | Completato l'audit statico complessivo: corretta la mappa degli aggregatori generati e del helper movement condiviso; test di targeting separati per input tab/click. | Rendere la mappa esatta rispetto ai 135 file correnti, conservare test e fixture, controllare import/re-export e responsabilità in tutto `src/`. Baseline e checkout: 660 test / 656 nomi distinti identici; moduli e percorsi senza errori statici; `git diff --check` superato. Compilazione e test rinviati al Gruppo 7. | COMPLETATO STATICAMENTE |
+| 2026-11-08 | Prima esecuzione GitHub Actions Run #536 tramite `workflow_dispatch` sul branch `refactor/src-domain-layout`, SHA `0cfcf2a61fff40500c7f9aac7ebec7c50cae7c77`. | `cargo fmt --all -- --check` ha rilevato una direttiva `#[cfg(test)]` orfana in `src/combat/effects/dispatcher/tests/reactive_runtime_tests.rs`, riga 488. Il job preliminare è fallito; i job Linux e Windows di compilazione e test sono stati saltati. | FALLITA IN FORMATTAZIONE |
+| 2026-11-08 | Rimossa la sola direttiva `#[cfg(test)]` orfana da `reactive_runtime_tests.rs`; correzione pubblicata con commit `b69aefcf7efe844d8c9bf32227bf04ec6cfca2ba`. | La dichiarazione `mod area_tests` si trova nel modulo parent, già protetto da `#[cfg(test)]`. Gli 11 test del file e le suite sibling sono stati preservati. La nuova CI sullo SHA corretto resta pendente. | CORREZIONE PUBBLICATA |
 
 ## 9. Criteri di completamento
 
@@ -618,4 +625,4 @@ Il refactoring è concluso soltanto quando tutte le condizioni seguenti sono ver
 
 ## 10. Stato attuale
 
-**Gruppo 1 completato e verificato; Gruppi 2–6 completati strutturalmente e sottoposti ad audit statico. Gruppo 7 autorizzato e in fase di preparazione.** Audit del Gruppo 6: mappatura esatta di 135 file, test invariati (660 occorrenze/656 nomi distinti), re-export controllati, nessun percorso o modulo mancante, massimo 893 righe e `git diff --check` superato. Formattazione, compilazione, esecuzione test e risoluzione completa dei nomi restano da verificare: nessuna verifica tecnica finale è ancora superata sullo SHA corrente. Il lavoro resta sul branch `refactor/src-domain-layout`; nessun commit o aggiornamento remoto è stato eseguito.
+**Gruppo 1 completato e verificato; Gruppi 2–6 completati strutturalmente e sottoposti ad audit statico. Gruppo 7 in corso.** La Run #536 sullo SHA `0cfcf2a61fff40500c7f9aac7ebec7c50cae7c77` è fallita durante il controllo di formattazione per una direttiva `#[cfg(test)]` orfana. La direttiva è stata rimossa e la correzione pubblicata con il commit `b69aefcf7efe844d8c9bf32227bf04ec6cfca2ba`. La nuova CI sullo SHA corretto è ancora pendente. Audit del Gruppo 6: mappatura esatta di 135 file, test invariati (660 occorrenze/656 nomi distinti), re-export controllati, nessun percorso o modulo mancante, massimo 893 righe e `git diff --check` superato. Formattazione, compilazione, esecuzione test e risoluzione completa dei nomi restano da verificare. Il lavoro resta sul branch `refactor/src-domain-layout`; `main` non è stato modificato.
