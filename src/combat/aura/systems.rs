@@ -4,7 +4,7 @@ use crate::combat::{
     ActiveAuras, CombatEventContext, CombatEventOutcome, CombatEventQueue, EffectTrigger,
 };
 
-pub(super) fn tick_active_auras(
+pub(in crate::combat) fn tick_active_auras(
     time: Res<Time>,
     mut event_queue: ResMut<CombatEventQueue>,
     mut aura_owners: Query<(Entity, &mut ActiveAuras)>,
