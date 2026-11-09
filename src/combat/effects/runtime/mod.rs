@@ -351,7 +351,7 @@ fn enqueue_aura_execution_event(
     }
 }
 
-pub(super) fn execute_pending_effects(
+pub(in crate::combat) fn execute_pending_effects(
     mut pending: ResMut<PendingCombatEffects>,
     mut event_queue: ResMut<CombatEventQueue>,
     mut pending_summons: Option<ResMut<PendingSummons>>,
