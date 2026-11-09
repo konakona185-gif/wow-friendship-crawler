@@ -21,7 +21,7 @@ fn combatant_is_alive(stats: Option<&CombatStats>, health_pool: Option<&HealthPo
     }
 }
 
-pub(super) fn summon_lifecycle_system(
+pub(in crate::combat) fn summon_lifecycle_system(
     time: Res<Time>,
     mut commands: Commands,
     mut summon_query: Query<(
