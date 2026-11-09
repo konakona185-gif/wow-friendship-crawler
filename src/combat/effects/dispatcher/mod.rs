@@ -36,7 +36,7 @@ fn event_matches_effect(event: &CombatEventContext, effect_id: &crate::content::
         .is_some_and(|triggered_effect| triggered_effect == effect_id)
 }
 
-pub(super) fn dispatch_combat_events(
+pub(in crate::combat) fn dispatch_combat_events(
     mut event_queue: ResMut<CombatEventQueue>,
     database: Res<ContentDatabase>,
     mut pending: ResMut<PendingCombatEffects>,
