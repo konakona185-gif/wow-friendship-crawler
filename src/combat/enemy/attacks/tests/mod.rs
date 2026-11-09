@@ -1,5 +1,8 @@
+
 use super::*;
 use std::time::Duration;
+
+use crate::player::Character;
 
 fn setup_enemy_attack_test_app() -> App {
     let mut app = App::new();
