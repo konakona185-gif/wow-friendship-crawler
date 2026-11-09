@@ -47,7 +47,7 @@ fn valid_leash_range_squared(leash_range: f32) -> f32 {
     }
 }
 
-pub(super) fn ally_summon_aggro_system(
+pub(in crate::combat) fn ally_summon_aggro_system(
     mut summon_query: Query<
         (
             &Transform,
