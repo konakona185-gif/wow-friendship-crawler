@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::combat::{Character, Enemy, Target, TargetIndicator};
 
-pub(super) fn target_indicator_system(
+pub(in crate::combat) fn target_indicator_system(
     target_query: Query<&Target, With<Character>>,
     enemy_query: Query<&Transform, With<Enemy>>,
     mut indicator_query: Query<(&TargetIndicator, &mut Transform, &mut Visibility), Without<Enemy>>,
