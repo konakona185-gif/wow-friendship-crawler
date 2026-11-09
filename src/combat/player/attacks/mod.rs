@@ -15,7 +15,7 @@ enum PlayerAttackKind {
     HealerInsufficientMana,
 }
 
-pub(super) fn player_cast_system(
+pub(in crate::combat) fn player_cast_system(
     mut player_query: Query<
         (
             Entity,
