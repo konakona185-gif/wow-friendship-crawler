@@ -4,12 +4,12 @@ use super::SummonCombatProfile;
 use crate::combat::{AllySummon, AllySummonAi, CombatStats, Enemy, EnemyThreat, HealthPool};
 
 #[derive(Component)]
-pub(super) struct AllySummonAttackState {
+pub(in crate::combat) struct AllySummonAttackState {
     target: Entity,
     cooldown: Timer,
 }
 
-pub(super) fn ally_summon_attack_system(
+pub(in crate::combat) fn ally_summon_attack_system(
     time: Res<Time>,
     mut commands: Commands,
     mut summon_query: Query<
