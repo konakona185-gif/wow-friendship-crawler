@@ -21,15 +21,9 @@ pub enum CharacterRace {
 impl CharacterRace {
     pub fn faction(self) -> CharacterFaction {
         match self {
-            Self::Human
-            | Self::Dwarf
-            | Self::NightElf
-            | Self::Gnome => CharacterFaction::Alliance,
+            Self::Human | Self::Dwarf | Self::NightElf | Self::Gnome => CharacterFaction::Alliance,
 
-            Self::Orc
-            | Self::Undead
-            | Self::Tauren
-            | Self::Troll => CharacterFaction::Horde,
+            Self::Orc | Self::Undead | Self::Tauren | Self::Troll => CharacterFaction::Horde,
         }
     }
 
@@ -37,18 +31,11 @@ impl CharacterRace {
         match class {
             CharacterClass::Warrior => true,
 
-            CharacterClass::Paladin => matches!(
-                self,
-                Self::Human | Self::Dwarf | Self::Tauren
-            ),
+            CharacterClass::Paladin => matches!(self, Self::Human | Self::Dwarf | Self::Tauren),
 
             CharacterClass::Hunter => matches!(
                 self,
-                Self::Dwarf
-                    | Self::NightElf
-                    | Self::Orc
-                    | Self::Tauren
-                    | Self::Troll
+                Self::Dwarf | Self::NightElf | Self::Orc | Self::Tauren | Self::Troll
             ),
 
             CharacterClass::Rogue => matches!(
@@ -64,41 +51,22 @@ impl CharacterRace {
 
             CharacterClass::Priest => matches!(
                 self,
-                Self::Human
-                    | Self::Dwarf
-                    | Self::NightElf
-                    | Self::Undead
-                    | Self::Troll
+                Self::Human | Self::Dwarf | Self::NightElf | Self::Undead | Self::Troll
             ),
 
-            CharacterClass::Shaman => matches!(
-                self,
-                Self::Dwarf
-                    | Self::Orc
-                    | Self::Tauren
-                    | Self::Troll
-            ),
+            CharacterClass::Shaman => {
+                matches!(self, Self::Dwarf | Self::Orc | Self::Tauren | Self::Troll)
+            }
 
-            CharacterClass::Mage => matches!(
-                self,
-                Self::Human
-                    | Self::Gnome
-                    | Self::Undead
-                    | Self::Troll
-            ),
+            CharacterClass::Mage => {
+                matches!(self, Self::Human | Self::Gnome | Self::Undead | Self::Troll)
+            }
 
-            CharacterClass::Warlock => matches!(
-                self,
-                Self::Human
-                    | Self::Gnome
-                    | Self::Orc
-                    | Self::Undead
-            ),
+            CharacterClass::Warlock => {
+                matches!(self, Self::Human | Self::Gnome | Self::Orc | Self::Undead)
+            }
 
-            CharacterClass::Druid => matches!(
-                self,
-                Self::NightElf | Self::Tauren
-            ),
+            CharacterClass::Druid => matches!(self, Self::NightElf | Self::Tauren),
         }
     }
 

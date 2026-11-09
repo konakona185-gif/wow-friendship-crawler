@@ -1,13 +1,12 @@
-
-mod player;
 mod camera;
-mod combat;
-mod fellowship;
 mod character;
+mod combat;
 mod content;
+mod fellowship;
 mod interaction;
+mod movement;
 mod navigation;
-mod enemy_navigation;
+mod player;
 
 use bevy::camera::{PerspectiveProjection, Projection};
 use bevy::core_pipeline::tonemapping::Tonemapping;
@@ -21,50 +20,24 @@ use benilla_world::interact::{CreaturePickPart, PickBox, WorldObject};
 use benilla_world::model_render::ModelKind;
 use benilla_world::schedule::WorldLive;
 use benilla_world::terrain_stream::SPAWN_XY;
-use benilla_world::view::{
-    MsaaSetting,
-    WorldCamera,
-    CAM_FAR,
-    CAM_FOVY,
-    NEARCLIP_DEFAULT,
-};
+use benilla_world::view::{MsaaSetting, WorldCamera, CAM_FAR, CAM_FOVY, NEARCLIP_DEFAULT};
 use benilla_world::world_plugins::WorldPlugins;
 
 use player::{
-    Character,
-    LocalPlayer,
-    PlayerId,
-    CharacterCommand,
-    FellowshipRole,
-    MovementSpeed,
-    Velocity,
-    GroundingState,
-    PlayerPlugin,
+    Character, CharacterCommand, FellowshipRole, GroundingState, LocalPlayer, MovementSpeed,
+    PlayerId, PlayerPlugin, Velocity,
 };
 
-use camera::{ThirdPersonCamera, CameraPlugin};
+use camera::{CameraPlugin, ThirdPersonCamera};
+use character::{CharacterBuild, CharacterClass, CharacterRace};
 use combat::{
-    Target,
-    Enemy,
-    EnemyAi,
-    CombatStats,
-    CombatLevel,
-    CombatAttributes,
-    HealthPool,
-    CombatPlugin,
+    CombatAttributes, CombatLevel, CombatPlugin, CombatStats, Enemy, EnemyAi, HealthPool, Target,
     TargetIndicator,
 };
-use fellowship::{
-    Fellowship,
-    FellowshipPlugin,
-    JoinFellowship,
-    LeaveFellowship,
-};
-use character::{CharacterBuild, CharacterClass, CharacterRace};
 use content::{ContentDatabase, ContentId, ContentPackLoader};
+use fellowship::{Fellowship, FellowshipPlugin, JoinFellowship, LeaveFellowship};
 use interaction::InteractionPlugin;
-use navigation::NavigationPlugin;
-use enemy_navigation::EnemyNavigationPlugin;
+use navigation::{EnemyNavigationPlugin, NavigationPlugin};
 
 const STARTING_COMBAT_LEVEL: u32 = 60;
 
@@ -105,9 +78,7 @@ fn run_game() {
     app.insert_resource(load_content_database());
 
     if let Some(data_dir) = benilla_formats::wow_data() {
-        if let Err(error) =
-            benilla_assets::register_mpq_source(&mut app, &data_dir)
-        {
+        if let Err(error) = benilla_assets::register_mpq_source(&mut app, &data_dir) {
             eprintln!("Impossibile registrare gli archivi WoW: {error:#}");
         }
     } else {
@@ -132,10 +103,7 @@ fn run_game() {
 
     benilla_assets::register_asset_loaders(&mut app);
 
-    app.add_systems(
-        Startup,
-        setup_game.after(benilla_assets::AssetSet::Open),
-    );
+    app.add_systems(Startup, setup_game.after(benilla_assets::AssetSet::Open));
 
     app.add_plugins((
         PlayerPlugin,
@@ -281,53 +249,45 @@ fn run_headless_tests(app: &mut App) {
         let mut enemy_ai_query = world.query_filtered::<&EnemyAi, With<Enemy>>();
         let enemy_ai_states: Vec<EnemyAi> = enemy_ai_query.iter(world).copied().collect();
 
-        let mut combat_level_query =
-            world.query_filtered::<&CombatLevel, With<CombatStats>>();
+        let mut combat_level_query = world.query_filtered::<&CombatLevel, With<CombatStats>>();
         let combatant_levels: Vec<u32> = combat_level_query
             .iter(world)
             .map(|level| level.value())
             .collect();
 
-        let mut attributes_query =
-            world.query_filtered::<&CombatAttributes, With<CombatStats>>();
+        let mut attributes_query = world.query_filtered::<&CombatAttributes, With<CombatStats>>();
         let combatant_attributes_count = attributes_query.iter(world).count();
 
-        let mut health_pool_query =
-            world.query::<(&CombatStats, &HealthPool)>();
-        let combatant_health_values: Vec<(f32, f32, f32, f32)> =
-            health_pool_query
-                .iter(world)
-                .map(|(stats, health_pool)| {
-                    (
-                        stats.current_health,
-                        stats.max_health,
-                        health_pool.current(),
-                        health_pool.maximum(),
-                    )
-                })
-                .collect();
+        let mut health_pool_query = world.query::<(&CombatStats, &HealthPool)>();
+        let combatant_health_values: Vec<(f32, f32, f32, f32)> = health_pool_query
+            .iter(world)
+            .map(|(stats, health_pool)| {
+                (
+                    stats.current_health,
+                    stats.max_health,
+                    health_pool.current(),
+                    health_pool.maximum(),
+                )
+            })
+            .collect();
 
         assert_eq!(
-            player_count,
-            1,
+            player_count, 1,
             "Il test headless deve creare esattamente un giocatore."
         );
 
         assert_eq!(
-            local_player_count,
-            1,
+            local_player_count, 1,
             "Il test headless deve assegnare un LocalPlayer."
         );
 
         assert_eq!(
-            command_count,
-            1,
+            command_count, 1,
             "Il test headless deve assegnare i comandi al giocatore."
         );
 
         assert_eq!(
-            player_id_count,
-            1,
+            player_id_count, 1,
             "Il test headless deve assegnare PlayerId(1)."
         );
 
@@ -345,11 +305,7 @@ fn run_headless_tests(app: &mut App) {
         assert_eq!(builds[0].race, CharacterRace::Human);
         assert_eq!(builds[0].class, CharacterClass::Warrior);
 
-        assert_eq!(
-            enemy_count,
-            3,
-            "Il test headless deve creare tre nemici."
-        );
+        assert_eq!(enemy_count, 3, "Il test headless deve creare tre nemici.");
 
         assert_eq!(
             enemy_ai_states.len(),
@@ -480,36 +436,33 @@ fn run_headless_tests(app: &mut App) {
 }
 
 fn setup_headless_game(mut commands: Commands) {
-    commands.spawn((
-        Character,
-        LocalPlayer,
-        PlayerId(1),
-        CharacterBuild::new(
-            CharacterRace::Human,
-            CharacterClass::Warrior,
-        )
-        .expect("Configurazione iniziale razza-classe non valida."),
-        CharacterCommand::default(),
-        FellowshipRole::Tank,
-        MovementSpeed(8.0),
-        Velocity(Vec3::ZERO),
-        GroundingState::default(),
-        Target { entity: None },
-        CombatStats {
-            current_health: 100.0,
-            max_health: 100.0,
-            resource: 0.0,
-        },
-        CombatLevel::new(STARTING_COMBAT_LEVEL)
-            .expect("Livello iniziale del giocatore non valido."),
-        CombatAttributes::default(),
-        Transform::from_xyz(0.0, 1.0, 0.0),
-        GlobalTransform::default(),
-    ))
-    .insert(
-        HealthPool::new(100.0, 100.0)
-            .expect("HealthPool iniziale del giocatore non valida."),
-    );
+    commands
+        .spawn((
+            Character,
+            LocalPlayer,
+            PlayerId(1),
+            CharacterBuild::new(CharacterRace::Human, CharacterClass::Warrior)
+                .expect("Configurazione iniziale razza-classe non valida."),
+            CharacterCommand::default(),
+            FellowshipRole::Tank,
+            MovementSpeed(8.0),
+            Velocity(Vec3::ZERO),
+            GroundingState::default(),
+            Target { entity: None },
+            CombatStats {
+                current_health: 100.0,
+                max_health: 100.0,
+                resource: 0.0,
+            },
+            CombatLevel::new(STARTING_COMBAT_LEVEL)
+                .expect("Livello iniziale del giocatore non valido."),
+            CombatAttributes::default(),
+            Transform::from_xyz(0.0, 1.0, 0.0),
+            GlobalTransform::default(),
+        ))
+        .insert(
+            HealthPool::new(100.0, 100.0).expect("HealthPool iniziale del giocatore non valida."),
+        );
 
     let enemy_positions = [
         Vec3::new(5.0, 0.5, -5.0),
@@ -528,8 +481,7 @@ fn setup_headless_game(mut commands: Commands) {
                 max_health: health,
                 resource: 0.0,
             },
-            HealthPool::new(health, health)
-                .expect("HealthPool iniziale del nemico non valida."),
+            HealthPool::new(health, health).expect("HealthPool iniziale del nemico non valida."),
             CombatLevel::new(STARTING_COMBAT_LEVEL)
                 .expect("Livello iniziale del nemico non valido."),
             CombatAttributes::default(),
@@ -545,11 +497,7 @@ fn setup_game(
     mut materials: ResMut<Assets<StandardMaterial>>,
     msaa: Res<MsaaSetting>,
 ) {
-    let spawn_position = wow_to_bevy([
-        SPAWN_XY.0,
-        SPAWN_XY.1,
-        84.53,
-    ]);
+    let spawn_position = wow_to_bevy([SPAWN_XY.0, SPAWN_XY.1, 84.53]);
 
     commands.spawn((
         DirectionalLight {
@@ -557,10 +505,8 @@ fn setup_game(
             illuminance: 4000.0,
             ..default()
         },
-        Transform::from_translation(
-            spawn_position + Vec3::new(10.0, 20.0, 10.0),
-        )
-        .looking_at(spawn_position, Vec3::Y),
+        Transform::from_translation(spawn_position + Vec3::new(10.0, 20.0, 10.0))
+            .looking_at(spawn_position, Vec3::Y),
     ));
 
     let player_mesh = meshes.add(Capsule3d::new(0.5, 1.0));
@@ -574,11 +520,8 @@ fn setup_game(
             Character,
             LocalPlayer,
             PlayerId(1),
-            CharacterBuild::new(
-                CharacterRace::Human,
-                CharacterClass::Warrior,
-            )
-            .expect("Configurazione iniziale razza-classe non valida."),
+            CharacterBuild::new(CharacterRace::Human, CharacterClass::Warrior)
+                .expect("Configurazione iniziale razza-classe non valida."),
             CharacterCommand::default(),
             FellowshipRole::Tank,
             MovementSpeed(8.0),
@@ -597,8 +540,7 @@ fn setup_game(
             MeshMaterial3d(player_material),
         ))
         .insert(
-            HealthPool::new(100.0, 100.0)
-                .expect("HealthPool iniziale del giocatore non valida."),
+            HealthPool::new(100.0, 100.0).expect("HealthPool iniziale del giocatore non valida."),
         )
         .insert((
             PickBox,
@@ -634,31 +576,33 @@ fn setup_game(
     for (i, pos) in enemy_positions.iter().enumerate() {
         let health = 50.0 + (i as f32 * 20.0);
 
-        let enemy_entity = commands.spawn((
-            Enemy,
-            EnemyAi::default(),
-            CombatStats {
-                current_health: health,
-                max_health: health,
-                resource: 0.0,
-            },
-            HealthPool::new(health, health)
-                .expect("HealthPool iniziale del nemico non valida."),
-            CombatLevel::new(STARTING_COMBAT_LEVEL)
-                .expect("Livello iniziale del nemico non valido."),
-            CombatAttributes::default(),
-            Mesh3d(enemy_mesh.clone()),
-            MeshMaterial3d(enemy_material.clone()),
-            PickBox,
-            CreaturePickPart,
-            WorldObject {
-                kind: ModelKind::Creature,
-                label: format!("Nemico {}", i + 1),
-                id: 0,
-                detail: String::new(),
-            },
-            Transform::from_translation(*pos),
-        )).id();
+        let enemy_entity = commands
+            .spawn((
+                Enemy,
+                EnemyAi::default(),
+                CombatStats {
+                    current_health: health,
+                    max_health: health,
+                    resource: 0.0,
+                },
+                HealthPool::new(health, health)
+                    .expect("HealthPool iniziale del nemico non valida."),
+                CombatLevel::new(STARTING_COMBAT_LEVEL)
+                    .expect("Livello iniziale del nemico non valido."),
+                CombatAttributes::default(),
+                Mesh3d(enemy_mesh.clone()),
+                MeshMaterial3d(enemy_material.clone()),
+                PickBox,
+                CreaturePickPart,
+                WorldObject {
+                    kind: ModelKind::Creature,
+                    label: format!("Nemico {}", i + 1),
+                    id: 0,
+                    detail: String::new(),
+                },
+                Transform::from_translation(*pos),
+            ))
+            .id();
 
         commands.spawn((
             Mesh3d(target_indicator_mesh.clone()),
@@ -666,9 +610,7 @@ fn setup_game(
             TargetIndicator {
                 enemy: enemy_entity,
             },
-            Transform::from_translation(
-                *pos + Vec3::new(0.0, -0.49, 0.0),
-            ),
+            Transform::from_translation(*pos + Vec3::new(0.0, -0.49, 0.0)),
             Visibility::Hidden,
         ));
     }
@@ -690,9 +632,7 @@ fn setup_game(
             fov: CAM_FOVY,
             ..default()
         }),
-        Transform::from_translation(
-            spawn_position + Vec3::new(0.0, 4.5, 8.0),
-        )
-        .looking_at(spawn_position, Vec3::Y),
+        Transform::from_translation(spawn_position + Vec3::new(0.0, 4.5, 8.0))
+            .looking_at(spawn_position, Vec3::Y),
     ));
 }

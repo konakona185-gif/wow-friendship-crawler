@@ -39,9 +39,7 @@ impl ContentId {
     }
 
     pub fn local_id(&self) -> &str {
-        self.0
-            .split_once(':')
-            .map_or("", |(_, local_id)| local_id)
+        self.0.split_once(':').map_or("", |(_, local_id)| local_id)
     }
 }
 
@@ -68,15 +66,9 @@ impl Display for ContentIdError {
             Self::MissingSeparator => {
                 "L'identificativo deve contenere un namespace separato da ':'"
             }
-            Self::MultipleSeparators => {
-                "L'identificativo deve contenere un solo separatore ':'"
-            }
-            Self::InvalidNamespace => {
-                "Il namespace contiene caratteri non validi"
-            }
-            Self::InvalidLocalId => {
-                "L'identificativo locale contiene caratteri non validi"
-            }
+            Self::MultipleSeparators => "L'identificativo deve contenere un solo separatore ':'",
+            Self::InvalidNamespace => "Il namespace contiene caratteri non validi",
+            Self::InvalidLocalId => "L'identificativo locale contiene caratteri non validi",
         };
 
         formatter.write_str(message)

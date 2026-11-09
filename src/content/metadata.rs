@@ -59,21 +59,13 @@ pub enum ContentMetadataError {
 impl Display for ContentMetadataError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         let message = match self {
-            Self::InvalidPackNamespace => {
-                "Il pacchetto deve usare il namespace 'pack'"
-            }
+            Self::InvalidPackNamespace => "Il pacchetto deve usare il namespace 'pack'",
             Self::MismatchedContentNamespace => {
                 "Il namespace del contenuto deve corrispondere al pacchetto"
             }
-            Self::EmptyName => {
-                "Il nome del contenuto non può essere vuoto"
-            }
-            Self::EmptyTag => {
-                "I tag non possono essere vuoti"
-            }
-            Self::DuplicateTag => {
-                "Il contenuto contiene tag duplicati"
-            }
+            Self::EmptyName => "Il nome del contenuto non può essere vuoto",
+            Self::EmptyTag => "I tag non possono essere vuoti",
+            Self::DuplicateTag => "Il contenuto contiene tag duplicati",
         };
 
         formatter.write_str(message)
@@ -93,10 +85,7 @@ mod tests {
             name: "Charge".to_string(),
             description: "Carica verso il bersaglio".to_string(),
             icon: None,
-            tags: vec![
-                "warrior".to_string(),
-                "movement".to_string(),
-            ],
+            tags: vec!["warrior".to_string(), "movement".to_string()],
         }
     }
 
@@ -132,10 +121,7 @@ mod tests {
         let mut metadata = valid_metadata();
         metadata.name = " ".to_string();
 
-        assert_eq!(
-            metadata.validate(),
-            Err(ContentMetadataError::EmptyName)
-        );
+        assert_eq!(metadata.validate(), Err(ContentMetadataError::EmptyName));
     }
 
     #[test]
@@ -143,18 +129,12 @@ mod tests {
         let mut metadata = valid_metadata();
         metadata.tags.push(" ".to_string());
 
-        assert_eq!(
-            metadata.validate(),
-            Err(ContentMetadataError::EmptyTag)
-        );
+        assert_eq!(metadata.validate(), Err(ContentMetadataError::EmptyTag));
 
         let mut metadata = valid_metadata();
         metadata.tags.push("warrior".to_string());
 
-        assert_eq!(
-            metadata.validate(),
-            Err(ContentMetadataError::DuplicateTag)
-        );
+        assert_eq!(metadata.validate(), Err(ContentMetadataError::DuplicateTag));
     }
 
     #[test]
@@ -162,8 +142,7 @@ mod tests {
         let original = valid_metadata();
 
         let serialized = ron::to_string(&original).unwrap();
-        let restored: ContentMetadata =
-            ron::from_str(&serialized).unwrap();
+        let restored: ContentMetadata = ron::from_str(&serialized).unwrap();
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());

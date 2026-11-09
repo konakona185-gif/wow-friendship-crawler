@@ -1,27 +1,14 @@
-use super::{
-    aura,
-    database_with_classic_pack,
-    metadata,
-};
 use super::super::ContentDatabaseError;
+use super::{aura, database_with_classic_pack, metadata};
 
 use crate::content::{
-    ContentId,
-    EffectDefinition,
-    EffectKind,
-    EffectMagnitude,
-    EffectTarget,
-    EffectTrigger,
-    PeriodicAuraEffect,
-    PeriodicEffectStackScaling,
+    ContentId, EffectDefinition, EffectKind, EffectMagnitude, EffectTarget, EffectTrigger,
+    PeriodicAuraEffect, PeriodicEffectStackScaling,
 };
 
 fn periodic_heal_effect() -> EffectDefinition {
     EffectDefinition {
-        metadata: metadata(
-            "classic:effect.periodic_heal",
-            "Periodic Heal",
-        ),
+        metadata: metadata("classic:effect.periodic_heal", "Periodic Heal"),
         trigger: EffectTrigger::OnPeriodicTick,
         target: EffectTarget::SelectedTarget,
         kind: EffectKind::Heal {
@@ -39,8 +26,7 @@ fn database_rejects_auras_with_unknown_periodic_effects() {
     let mut aura = aura();
 
     let aura_id = aura.metadata.id.clone();
-    let unknown_effect =
-        ContentId::new("classic:effect.periodic_missing").unwrap();
+    let unknown_effect = ContentId::new("classic:effect.periodic_missing").unwrap();
 
     aura.periodic_effects.push(PeriodicAuraEffect {
         effect: unknown_effect.clone(),

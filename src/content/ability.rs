@@ -221,54 +221,30 @@ impl Display for AbilityValidationError {
             Self::InvalidMetadata(error) => {
                 return write!(formatter, "Metadati dell'abilità non validi: {error}");
             }
-            Self::InvalidCooldown => {
-                "Il cooldown deve essere finito e non negativo"
-            }
-            Self::InvalidCastTime => {
-                "Il tempo di lancio deve essere finito e positivo"
-            }
+            Self::InvalidCooldown => "Il cooldown deve essere finito e non negativo",
+            Self::InvalidCastTime => "Il tempo di lancio deve essere finito e positivo",
             Self::InvalidChannelDuration => {
                 "La durata della canalizzazione deve essere finita e positiva"
             }
             Self::InvalidChannelTickInterval => {
                 "L'intervallo dei tick deve essere positivo e non superare la durata"
             }
-            Self::InvalidRange => {
-                "La gittata deve essere finita, non negativa e coerente"
-            }
+            Self::InvalidRange => "La gittata deve essere finita, non negativa e coerente",
             Self::InvalidRangeForTargeting => {
                 "Le abilità senza bersaglio o su sé stessi devono avere gittata zero"
             }
-            Self::InvalidResourceCost => {
-                "Il costo della risorsa deve essere finito e positivo"
-            }
+            Self::InvalidResourceCost => "Il costo della risorsa deve essere finito e positivo",
             Self::DuplicateResourceCost => {
                 "L'abilità contiene costi duplicati per la stessa risorsa"
             }
-            Self::EmptyEffects => {
-                "L'abilità deve avere almeno un effetto"
-            }
-            Self::DuplicateEffect => {
-                "L'abilità contiene riferimenti a effetti duplicati"
-            }
-            Self::DuplicateClassRestriction => {
-                "L'abilità contiene restrizioni di classe duplicate"
-            }
-            Self::DuplicatePrerequisite => {
-                "L'abilità contiene prerequisiti duplicati"
-            }
-            Self::SelfPrerequisite => {
-                "Un'abilità non può essere prerequisito di sé stessa"
-            }
-            Self::PassiveHasCosts => {
-                "Un'abilità passiva non può avere costi di risorse"
-            }
-            Self::PassiveHasCooldown => {
-                "Un'abilità passiva non può avere cooldown"
-            }
-            Self::PassiveRequiresNoTarget => {
-                "Un'abilità passiva non può richiedere un bersaglio"
-            }
+            Self::EmptyEffects => "L'abilità deve avere almeno un effetto",
+            Self::DuplicateEffect => "L'abilità contiene riferimenti a effetti duplicati",
+            Self::DuplicateClassRestriction => "L'abilità contiene restrizioni di classe duplicate",
+            Self::DuplicatePrerequisite => "L'abilità contiene prerequisiti duplicati",
+            Self::SelfPrerequisite => "Un'abilità non può essere prerequisito di sé stessa",
+            Self::PassiveHasCosts => "Un'abilità passiva non può avere costi di risorse",
+            Self::PassiveHasCooldown => "Un'abilità passiva non può avere cooldown",
+            Self::PassiveRequiresNoTarget => "Un'abilità passiva non può richiedere un bersaglio",
         };
 
         formatter.write_str(message)
@@ -299,12 +275,8 @@ mod tests {
             },
             cooldown_seconds: 15.0,
             costs: Vec::new(),
-            effects: vec![
-                ContentId::new("classic_1_12_1:effect.charge").unwrap(),
-            ],
-            class_restrictions: vec![
-                ContentId::new("classic_1_12_1:class.warrior").unwrap(),
-            ],
+            effects: vec![ContentId::new("classic_1_12_1:effect.charge").unwrap()],
+            class_restrictions: vec![ContentId::new("classic_1_12_1:class.warrior").unwrap()],
             prerequisites: Vec::new(),
         }
     }
@@ -363,12 +335,10 @@ mod tests {
     #[test]
     fn ability_rejects_invalid_and_duplicate_resource_costs() {
         let mut ability = valid_ability();
-        ability.costs = vec![
-            ResourceCost {
-                resource: ContentId::new("classic_1_12_1:resource.mana").unwrap(),
-                amount: 0.0,
-            },
-        ];
+        ability.costs = vec![ResourceCost {
+            resource: ContentId::new("classic_1_12_1:resource.mana").unwrap(),
+            amount: 0.0,
+        }];
 
         assert_eq!(
             ability.validate(),

@@ -1,17 +1,7 @@
 use super::{
-    AbilityDefinition,
-    AuraDefinition,
-    CombatAttributeDefinition,
-    ContentDatabase,
-    ContentDatabaseError,
-    ContentId,
-    ContentMetadata,
-    ContentPackManifest,
-    CreatureDefinition,
-    DamageSchoolDefinition,
-    EffectDefinition,
-    ResourceDefinition,
-    TalentDefinition,
+    AbilityDefinition, AuraDefinition, CombatAttributeDefinition, ContentDatabase,
+    ContentDatabaseError, ContentId, ContentMetadata, ContentPackManifest, CreatureDefinition,
+    DamageSchoolDefinition, EffectDefinition, ResourceDefinition, TalentDefinition,
     TalentTreeDefinition,
 };
 
@@ -41,12 +31,8 @@ impl ContentDatabase {
         Ok(())
     }
 
-    pub fn register_aura(
-        &mut self,
-        aura: AuraDefinition,
-    ) -> Result<(), ContentDatabaseError> {
-        aura.validate()
-            .map_err(ContentDatabaseError::InvalidAura)?;
+    pub fn register_aura(&mut self, aura: AuraDefinition) -> Result<(), ContentDatabaseError> {
+        aura.validate().map_err(ContentDatabaseError::InvalidAura)?;
 
         self.validate_new_content(&aura.metadata)?;
 
@@ -167,14 +153,9 @@ impl ContentDatabase {
         Ok(())
     }
 
-    fn validate_new_content(
-        &self,
-        metadata: &ContentMetadata,
-    ) -> Result<(), ContentDatabaseError> {
+    fn validate_new_content(&self, metadata: &ContentMetadata) -> Result<(), ContentDatabaseError> {
         if self.packs.get(&metadata.pack_id).is_none() {
-            return Err(ContentDatabaseError::UnknownPack(
-                metadata.pack_id.clone(),
-            ));
+            return Err(ContentDatabaseError::UnknownPack(metadata.pack_id.clone()));
         }
 
         let id = &metadata.id;

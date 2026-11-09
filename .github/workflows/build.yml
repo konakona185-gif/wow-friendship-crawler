@@ -1,3 +1,4 @@
+
 name: Controllo, Compila, Testa ed Esporta Eseguibile
 
 on:
@@ -6,6 +7,12 @@ on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+    inputs:
+      format_rust:
+        description: "Applica cargo fmt e registra le modifiche sul branch selezionato"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,8 +22,54 @@ permissions:
   contents: read
 
 jobs:
+  format-rust:
+    name: Formattazione automatica Rust
+    if: github.event_name == 'workflow_dispatch' && inputs.format_rust == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Scarica il branch selezionato
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Verifica branch di destinazione
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_NAME" != "refactor/src-domain-layout" ]; then
+            echo "::error::Branch non autorizzato per questa operazione."
+            exit 1
+          fi
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Applica formattazione Rust
+        run: cargo fmt --all
+
+      - name: Registra le modifiche sul branch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "I file Rust sono già formattati."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -u
+          git commit -m "Apply Rust formatting"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
   check-project:
     name: Controllo preliminare Rust
+    if: github.event_name != 'workflow_dispatch' || inputs.format_rust != true
     runs-on: ubuntu-latest
 
     steps:
@@ -27,32 +80,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Verifica formattazione Rust
-        id: formatting
-        shell: bash
-        run: |
-          if cargo fmt --all -- --check > cargo-fmt.log 2>&1; then
-            echo "status=passed" >> "$GITHUB_OUTPUT"
-            echo "Formattazione Rust superata."
-          else
-            echo "status=warning" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Formattazione Rust::Sono presenti differenze di formattazione. Il controllo non blocca la compilazione."
-
-            files="$(grep -E '^Diff in ' cargo-fmt.log | sed -E 's#^Diff in .*?/wow-friendship-crawler/([^:]+):[0-9]+:.*#\1#' | sort -u || true)"
-
-            {
-              echo "### ⚠️ Differenze di formattazione Rust"
-              echo ""
-              echo "Il controllo rustfmt ha rilevato differenze nei file seguenti:"
-              echo ""
-              if [ -n "$files" ]; then
-                printf '%s\n' "$files" | sed 's/^/- /'
-              else
-                echo "Consultare il log cargo-fmt.log."
-              fi
-              echo ""
-              echo "La formattazione non blocca i controlli di compilazione e i test."
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+        run: cargo fmt --all -- --check
 
       - name: Installa dipendenze Linux
         run: |
@@ -76,11 +104,7 @@ jobs:
             echo "### ✅ Controllo preliminare superato"
             echo ""
             echo "- Controllo statico di tutti i target Rust: superato"
-            if [ "${{ steps.formatting.outputs.status }}" = "warning" ]; then
-              echo "- Formattazione Rust: avvisi presenti, non bloccanti"
-            else
-              echo "- Formattazione Rust: superata"
-            fi
+            echo "- Formattazione Rust: superata"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Mostra log su errore controllo preliminare

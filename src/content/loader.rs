@@ -2,19 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 use super::{
-    AbilityDefinition,
-    AuraDefinition,
-    CombatAttributeDefinition,
-    ContentDatabase,
-    ContentDatabaseError,
-    ContentId,
-    ContentMetadata,
-    ContentPackManifest,
-    CreatureDefinition,
-    DamageSchoolDefinition,
-    EffectDefinition,
-    ResourceDefinition,
-    TalentDefinition,
+    AbilityDefinition, AuraDefinition, CombatAttributeDefinition, ContentDatabase,
+    ContentDatabaseError, ContentId, ContentMetadata, ContentPackManifest, CreatureDefinition,
+    DamageSchoolDefinition, EffectDefinition, ResourceDefinition, TalentDefinition,
     TalentTreeDefinition,
 };
 
@@ -68,10 +58,7 @@ impl ContentPackLoader {
             .map_err(ContentPackLoaderError::Database)?;
 
         for school in pack.damage_schools {
-            validate_content_pack(
-                &school.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&school.metadata, &expected_pack)?;
 
             staged_database
                 .register_damage_school(school)
@@ -79,10 +66,7 @@ impl ContentPackLoader {
         }
 
         for attribute in pack.combat_attributes {
-            validate_content_pack(
-                &attribute.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&attribute.metadata, &expected_pack)?;
 
             staged_database
                 .register_combat_attribute(attribute)
@@ -90,10 +74,7 @@ impl ContentPackLoader {
         }
 
         for resource in pack.resources {
-            validate_content_pack(
-                &resource.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&resource.metadata, &expected_pack)?;
 
             staged_database
                 .register_resource(resource)
@@ -101,10 +82,7 @@ impl ContentPackLoader {
         }
 
         for creature in pack.creatures {
-            validate_content_pack(
-                &creature.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&creature.metadata, &expected_pack)?;
 
             staged_database
                 .register_creature(creature)
@@ -112,10 +90,7 @@ impl ContentPackLoader {
         }
 
         for effect in pack.effects {
-            validate_content_pack(
-                &effect.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&effect.metadata, &expected_pack)?;
 
             staged_database
                 .register_effect(effect)
@@ -123,10 +98,7 @@ impl ContentPackLoader {
         }
 
         for aura in pack.auras {
-            validate_content_pack(
-                &aura.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&aura.metadata, &expected_pack)?;
 
             staged_database
                 .register_aura(aura)
@@ -134,10 +106,7 @@ impl ContentPackLoader {
         }
 
         for ability in pack.abilities {
-            validate_content_pack(
-                &ability.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&ability.metadata, &expected_pack)?;
 
             staged_database
                 .register_ability(ability)
@@ -145,10 +114,7 @@ impl ContentPackLoader {
         }
 
         for tree in pack.talent_trees {
-            validate_content_pack(
-                &tree.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&tree.metadata, &expected_pack)?;
 
             staged_database
                 .register_talent_tree(tree)
@@ -156,10 +122,7 @@ impl ContentPackLoader {
         }
 
         for talent in pack.talents {
-            validate_content_pack(
-                &talent.metadata,
-                &expected_pack,
-            )?;
+            validate_content_pack(&talent.metadata, &expected_pack)?;
 
             staged_database
                 .register_talent(talent)
@@ -239,313 +202,4 @@ impl std::error::Error for ContentPackLoaderError {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::content::{
-        AuraRefreshPolicy,
-        AuraStackingPolicy,
-        AuraStackingScope,
-        CombatAttributeValueKind,
-    };
-    use serde::Serialize;
-
-    #[derive(Serialize)]
-    struct LegacyContentPackData {
-        manifest: ContentPackManifest,
-        damage_schools: Vec<DamageSchoolDefinition>,
-        combat_attributes: Vec<CombatAttributeDefinition>,
-        effects: Vec<EffectDefinition>,
-        abilities: Vec<AbilityDefinition>,
-        talent_trees: Vec<TalentTreeDefinition>,
-        talents: Vec<TalentDefinition>,
-    }
-
-    fn empty_pack() -> ContentPackData {
-        ContentPackData {
-            manifest: ContentPackManifest {
-                id: ContentId::new("pack:classic").unwrap(),
-                name: "Classic".to_string(),
-                version: "1.0.0".to_string(),
-                description: String::new(),
-                dependencies: Vec::new(),
-            },
-            damage_schools: Vec::new(),
-            combat_attributes: Vec::new(),
-            resources: Vec::new(),
-            effects: Vec::new(),
-            auras: Vec::new(),
-            creatures: Vec::new(),
-            abilities: Vec::new(),
-            talent_trees: Vec::new(),
-            talents: Vec::new(),
-        }
-    }
-
-    fn physical_damage_school() -> DamageSchoolDefinition {
-        DamageSchoolDefinition {
-            metadata: ContentMetadata {
-                id: ContentId::new("classic:school.physical").unwrap(),
-                pack_id: ContentId::new("pack:classic").unwrap(),
-                name: "Physical".to_string(),
-                description: String::new(),
-                icon: None,
-                tags: Vec::new(),
-            },
-            mitigation: super::super::DamageSchoolMitigation::Armor,
-        }
-    }
-
-    fn armor_attribute() -> CombatAttributeDefinition {
-        CombatAttributeDefinition {
-            metadata: ContentMetadata {
-                id: ContentId::new("classic:stat.armor").unwrap(),
-                pack_id: ContentId::new("pack:classic").unwrap(),
-                name: "Armor".to_string(),
-                description: String::new(),
-                icon: None,
-                tags: Vec::new(),
-            },
-            value_kind: CombatAttributeValueKind::Flat,
-        }
-    }
-
-    fn mana_resource() -> ResourceDefinition {
-        ResourceDefinition {
-            metadata: ContentMetadata {
-                id: ContentId::new("classic:resource.mana").unwrap(),
-                pack_id: ContentId::new("pack:classic").unwrap(),
-                name: "Mana".to_string(),
-                description: String::new(),
-                icon: None,
-                tags: Vec::new(),
-            },
-        }
-    }
-
-    fn test_aura() -> AuraDefinition {
-        AuraDefinition {
-            metadata: ContentMetadata {
-                id: ContentId::new("classic:aura.test").unwrap(),
-                pack_id: ContentId::new("pack:classic").unwrap(),
-                name: "Test Aura".to_string(),
-                description: String::new(),
-                icon: None,
-                tags: Vec::new(),
-            },
-            max_stacks: 5,
-            stacking_policy: AuraStackingPolicy::AddStacks,
-            stacking_scope: AuraStackingScope::Shared,
-            refresh_policy: AuraRefreshPolicy::ResetDuration,
-            periodic_effects: Vec::new(),
-        }
-    }
-
-    fn test_creature() -> CreatureDefinition {
-        CreatureDefinition {
-            metadata: ContentMetadata {
-                id: ContentId::new("classic:creature.wolf").unwrap(),
-                pack_id: ContentId::new("pack:classic").unwrap(),
-                name: "Wolf Companion".to_string(),
-                description: String::new(),
-                icon: None,
-                tags: vec!["summon".to_string()],
-            },
-            health: 150.0,
-            attack_damage: 12.0,
-            attack_interval_seconds: 2.0,
-            melee_range: 2.5,
-            aggro_range: 15.0,
-            leash_range: 40.0,
-            movement_speed: 5.0,
-        }
-    }
-
-    #[test]
-    fn pack_data_supports_ron_serialization() {
-        let mut original = empty_pack();
-        original.damage_schools.push(physical_damage_school());
-        original.combat_attributes.push(armor_attribute());
-        original.resources.push(mana_resource());
-        original.auras.push(test_aura());
-        original.creatures.push(test_creature());
-
-        let serialized = ron::to_string(&original).unwrap();
-        let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
-
-        assert_eq!(original, restored);
-    }
-
-    #[test]
-    fn pack_data_loads_legacy_ron_without_resources_or_auras() {
-        let pack = empty_pack();
-
-        let legacy = LegacyContentPackData {
-            manifest: pack.manifest,
-            damage_schools: pack.damage_schools,
-            combat_attributes: pack.combat_attributes,
-            effects: pack.effects,
-            abilities: pack.abilities,
-            talent_trees: pack.talent_trees,
-            talents: pack.talents,
-        };
-
-        let serialized = ron::to_string(&legacy).unwrap();
-        let restored = ContentPackLoader::parse_ron(&serialized).unwrap();
-
-        assert!(restored.resources.is_empty());
-        assert!(restored.auras.is_empty());
-        assert!(restored.creatures.is_empty());
-    }
-
-    #[test]
-    fn loader_registers_a_valid_pack() {
-        let mut database = ContentDatabase::new();
-
-        ContentPackLoader::load(
-            &mut database,
-            empty_pack(),
-        )
-        .unwrap();
-
-        assert_eq!(database.packs().len(), 1);
-        assert_eq!(database.pack_load_order().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn loader_registers_damage_schools() {
-        let mut database = ContentDatabase::new();
-        let mut pack = empty_pack();
-        let school = physical_damage_school();
-        let school_id = school.metadata.id.clone();
-
-        pack.damage_schools.push(school);
-
-        ContentPackLoader::load(
-            &mut database,
-            pack,
-        )
-        .unwrap();
-
-        assert_eq!(database.damage_school_count(), 1);
-        assert!(database.damage_school(&school_id).is_some());
-    }
-
-    #[test]
-    fn loader_registers_combat_attributes() {
-        let mut database = ContentDatabase::new();
-        let mut pack = empty_pack();
-        let attribute = armor_attribute();
-        let attribute_id = attribute.metadata.id.clone();
-
-        pack.combat_attributes.push(attribute);
-
-        ContentPackLoader::load(
-            &mut database,
-            pack,
-        )
-        .unwrap();
-
-        assert_eq!(database.combat_attribute_count(), 1);
-        assert!(database.combat_attribute(&attribute_id).is_some());
-    }
-
-    #[test]
-    fn loader_registers_resources() {
-        let mut database = ContentDatabase::new();
-        let mut pack = empty_pack();
-        let resource = mana_resource();
-        let resource_id = resource.metadata.id.clone();
-
-        pack.resources.push(resource);
-
-        ContentPackLoader::load(
-            &mut database,
-            pack,
-        )
-        .unwrap();
-
-        assert_eq!(database.resource_count(), 1);
-        assert!(database.resource(&resource_id).is_some());
-    }
-
-    #[test]
-    fn loader_registers_auras() {
-        let mut database = ContentDatabase::new();
-        let mut pack = empty_pack();
-        let aura = test_aura();
-        let aura_id = aura.metadata.id.clone();
-
-        pack.auras.push(aura);
-
-        ContentPackLoader::load(
-            &mut database,
-            pack,
-        )
-        .unwrap();
-
-        assert_eq!(database.aura_count(), 1);
-        assert!(database.aura(&aura_id).is_some());
-    }
-
-    #[test]
-    fn loader_registers_creatures() {
-        let mut database = ContentDatabase::new();
-        let mut pack = empty_pack();
-        let creature = test_creature();
-        let creature_id = creature.metadata.id.clone();
-
-        pack.creatures.push(creature);
-
-        ContentPackLoader::load(
-            &mut database,
-            pack,
-        )
-        .unwrap();
-
-        assert_eq!(database.creature_count(), 1);
-        assert!(database.creature(&creature_id).is_some());
-    }
-
-    #[test]
-    fn loader_rejects_content_from_another_pack_transactionally() {
-        let mut database = ContentDatabase::new();
-        let mut pack = empty_pack();
-
-        pack.effects.push(EffectDefinition {
-            metadata: ContentMetadata {
-                id: ContentId::new("other:effect.test").unwrap(),
-                pack_id: ContentId::new("pack:other").unwrap(),
-                name: "Test".to_string(),
-                description: String::new(),
-                icon: None,
-                tags: Vec::new(),
-            },
-            trigger: super::super::EffectTrigger::OnCast,
-            target: super::super::EffectTarget::SelectedTarget,
-            kind: super::super::EffectKind::Damage {
-                amount: super::super::EffectMagnitude {
-                    base: 10.0,
-                    scaling: Vec::new(),
-                },
-                school: ContentId::new("classic:school.physical").unwrap(),
-            },
-        });
-
-        let result = ContentPackLoader::load(
-            &mut database,
-            pack,
-        );
-
-        assert!(matches!(
-            result,
-            Err(ContentPackLoaderError::ContentFromDifferentPack { .. })
-        ));
-
-        assert!(database.packs().is_empty());
-    }
-
-    #[test]
-    fn loader_rejects_invalid_ron() {
-        assert!(ContentPackLoader::parse_ron("invalid ron").is_err());
-    }
-}
+mod tests;

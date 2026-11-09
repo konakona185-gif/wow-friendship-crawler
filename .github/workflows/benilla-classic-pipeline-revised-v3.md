@@ -1,12 +1,13 @@
 # Pipeline dei contenuti e struttura del progetto
 
-Ultimo aggiornamento: 7 novembre 2026  
+Ultimo aggiornamento: 9 novembre 2026  
 Branch stabile: `main`  
 Branch di lavoro per il refactoring: `refactor/src-domain-layout`  
 SHA iniziale del branch di refactoring: `454874a358a18e7e565043d797e3c42ddc46323f` (creato dallo stesso SHA di `main`)  
 Ultimo commit di codice verificato prima del refactoring: `55e001ec7dc06f5d9bbb3107f3b5ef3f96354b38` (`Update main.rs`)  
-Stato: Fase 3 completata; refactoring strutturale obbligatorio da eseguire prima della Fase 4.  
-CI di riferimento: Run #522, verde su Linux e Windows, 660 test superati per piattaforma e avvio headless verificato.
+Stato: Fase 3 completata; Fase 3.5 tecnicamente completata e in attesa dell'integrazione tramite Pull Request prima dell'avvio della Fase 4.  
+CI di riferimento della Fase 3: Run #522, verde su Linux e Windows, 660 test superati per piattaforma e avvio headless verificato.  
+CI finale della Fase 3.5: Run #544, verde su Linux e Windows, controllo statico, compilazione, test, avvio headless e artifact verificati sullo SHA `1a3c5f4d24fd25d599596b1d16a7fc4006d0106b`.
 
 ---
 
@@ -47,7 +48,7 @@ L'architettura deve essere modulare, estendibile e data-driven. I contenuti devo
 - In futuro dovrà essere possibile aggiungere contenuti originali o ispirati a espansioni successive: abilità, talenti, specializzazioni, classi, effetti, statistiche, formule, risorse e scuole di danno.
 - Le meccaniche già supportate dal motore devono essere configurabili tramite dati. Una meccanica nuova richiede un'implementazione specifica, da rendere riutilizzabile.
 - Evitare duplicazioni, responsabilità sovrapposte e dipendenze eccessive dalle singole classi.
-- Preferire componenti e risorse ECS riutilizzabili; evitare frammentazioni artificiali.
+- Preferire componenti e risorse ECS riutilizzabili; valutare confini modulari chiari in base alle responsabilità a qualunque dimensione dei file ed evitare frammentazioni artificiali.
 - Non modificare meccaniche esistenti senza spiegare prima le conseguenze e ottenere l'approvazione dell'utente.
 
 ### Decisioni sul combattimento
@@ -78,13 +79,19 @@ Il comportamento previsto comprende spawn, statistiche, durata, despawn, morte, 
 
 ## 3. Organizzazione del codice
 
-La struttura attuale è cresciuta per sistemi e sottosistemi, ma necessita di un refactoring complessivo per raggruppare meglio implementazioni e test. La mappa completa dei file sorgente e delle destinazioni previste è nel documento operativo:
+La Fase 3.5 ha completato il refactoring strutturale dei sorgenti Rust sotto `src/`, organizzando implementazioni, sottosistemi e test per dominio e responsabilità.
+
+La mappa della struttura iniziale, la tracciabilità degli spostamenti e il dettaglio delle verifiche sono conservati nel documento operativo:
 
 `.github/workflows/refactoring.md`
 
-Al checkpoint del 7 novembre 2026, l'inventario di `src/` su `main` comprendeva 88 file Rust in 18 directory. L'audit iniziale delle righe fisiche ha individuato quattro file oltre 1.000 righe (nessuno oltre 1.500); la loro suddivisione è dettagliata in `.github/workflows/refactoring.md`. Questa è la baseline da cui è stato creato `refactor/src-domain-layout`. Durante il lavoro, verificare i file non ancora modificati rispetto a tale baseline e usare il branch di refactoring come fonte per i file già spostati o modificati. `main` deve rimanere intatto fino alla Pull Request finale.
+Al checkpoint del 7 novembre 2026, l'inventario di `src/` su `main` comprendeva 88 file Rust in 18 directory. L'audit iniziale delle righe fisiche aveva individuato quattro file oltre 1.000 righe (nessuno oltre 1.500). Questa era la baseline da cui è stato creato `refactor/src-domain-layout`.
 
-Il refactoring deve organizzare il codice per dominio/sistema (per esempio `combat/summon/` per implementazione, sottosistemi e relativi test), mantenere chiari i confini tra moduli e lasciare in root soltanto i moduli di ingresso e gli aggregatori necessari. Non deve cambiare il comportamento del gioco.
+Il refactoring è stato eseguito sul branch dedicato, mantenendo `main` come baseline stabile. La struttura riorganizzata è stata verificata staticamente e successivamente sottoposta a formattazione, controllo statico, compilazione, test e avvio headless tramite GitHub Actions #544.
+
+La struttura organizza il codice per dominio/sistema (per esempio `combat/summon/` per implementazione, sottosistemi e relativi test), mantiene chiari i confini tra moduli e lascia in root soltanto i moduli di ingresso e gli aggregatori necessari. Il refactoring non ha introdotto modifiche intenzionali alle meccaniche di gioco.
+
+Il branch di refactoring deve ancora essere integrato in `main` tramite Pull Request. Fino a tale integrazione, `main` rimane intatto e la struttura riorganizzata è disponibile su `refactor/src-domain-layout`.
 
 ## 4. Stato del sistema contenuti
 
@@ -244,7 +251,7 @@ La Fase 3 è stata chiusa con la Run #522: controllo preliminare Rust superato; 
 
 ### Fase 3.5 — Refactoring e riorganizzazione strutturale
 
-**Stato: DA INIZIARE — OBBLIGATORIA PRIMA DELLA FASE 4.**
+**Stato: COMPLETATA TECNICAMENTE — 9 novembre 2026. GRUPPI 1–6 COMPLETATI E SOTTOPOSTI AD AUDIT STATICO. GRUPPO 7 COMPLETATO CON CI FINALE VERDE SU LINUX E WINDOWS, COMPILAZIONE, TEST, AVVIO HEADLESS E ARTIFACT VERIFICATI. INTEGRAZIONE IN `main` ANCORA DA ESEGUIRE TRAMITE PULL REQUEST.**
 
 Prima di sviluppare il sistema di esecuzione delle abilità, riorganizzare in modo pulito e coerente l'intera struttura dei sorgenti sotto `src/`.
 
@@ -253,37 +260,76 @@ Obiettivi:
 - Raggruppare codice, sottosistemi e test in directory per dominio/responsabilità. Esempio: `src/combat/summon/` deve contenere tutto ciò che riguarda Summon e i relativi test.
 - Dare una collocazione coerente anche ai sistemi aura, danno, effetti, nemici, giocatori, targeting, contenuti, navigazione e agli altri moduli presenti.
 - Ridurre la dispersione dei file nella root di `src/` e rendere i confini tra moduli chiari.
-- Suddividere file troppo grandi e raggruppare i test per responsabilità. Obiettivo: massimo 1.000 righe fisiche per file; oltre 1.000 la suddivisione va effettuata quando esistono responsabilità separabili; 1.500 è un limite eccezionale, da motivare e documentare.
+- Valutare tutti i moduli e i test per responsabilità separabili, anche quando sono molto sotto le 1.000 righe. Raggruppare test simili per funzionalità e comportamento, separare gruppi che verificano responsabilità differenti, e mantenere fixture/helper condivisi in moduli comuni senza duplicazioni. La soglia di 1.000 righe fisiche è un limite di attenzione che richiede una valutazione, non il criterio minimo per suddividere. Le suddivisioni devono migliorare concretamente coesione e architettura, senza creare file minuscoli o frammenti artificiali. Oltre 1.000 righe effettuare comunque una valutazione e suddividere quando le responsabilità sono separabili; oltre 1.500 righe serve una motivazione documentata e approvazione esplicita.
 - Aggiornare dichiarazioni `mod`, import, re-export, visibilità e percorsi dei test.
 - Conservare tutti i file, i test e il comportamento attuale: questo passaggio è strutturale, non una modifica alle meccaniche di gioco.
 
-Il documento operativo da seguire è:
+Il documento operativo seguito durante il lavoro è:
 
 `.github/workflows/refactoring.md`
 
-Quel documento contiene l'inventario e la mappatura dei file, la struttura proposta, i passaggi operativi e le checklist. Va aggiornato durante il lavoro per segnare progressi, decisioni e nuovi percorsi. Prima di spostare ogni gruppo si deve verificare la baseline su `main` per i file non ancora toccati; per file già spostati o modificati, la versione di riferimento è quella presente su `refactor/src-domain-layout`.
+Quel documento contiene l'inventario e la mappatura dei file, la struttura proposta, i passaggi operativi e le checklist. È stato aggiornato durante il lavoro per registrare progressi, decisioni e nuovi percorsi.
 
-Procedura obbligatoria:
+Procedura completata:
 
 1. Usare `main` soltanto come baseline stabile e verificare che il branch attivo sia `refactor/src-domain-layout`.
-2. Eseguire tutti gli spostamenti, gli aggiornamenti di moduli e gli altri commit esclusivamente su `refactor/src-domain-layout`; non committare direttamente su `main`.
-3. Seguire e, se necessario, correggere la mappa dei percorsi in `refactoring.md` prima degli spostamenti.
+2. Eseguire gli spostamenti e gli aggiornamenti di moduli esclusivamente su `refactor/src-domain-layout`; non committare direttamente su `main`.
+3. Seguire e correggere la mappa dei percorsi in `refactoring.md` prima degli spostamenti.
 4. Riorganizzare un gruppo coerente alla volta, mantenendo tutti i file e test.
-5. Suddividere i file oltre 1.000 righe quando esistono responsabilità o gruppi di test separabili; non superare 1.500 righe salvo eccezioni motivate e approvate.
+5. Valutare in tutti i domini ogni modulo e test per responsabilità separabili, indipendentemente dalle righe; suddividere quando c'è un vantaggio architetturale concreto. Usare 1.000 righe come soglia di attenzione e non come requisito minimo, raggruppare i test per funzione e riutilizzare fixture/helper condivisi. Evitare frammentazione artificiale; oltre 1.500 righe servono motivazione documentata e approvazione.
 6. Aggiornare moduli, import, re-export, visibilità e percorsi dei test.
 7. Controllare che non siano state introdotte modifiche funzionali involontarie.
-8. Completare l'intera riorganizzazione e poi eseguire una sola verifica CI finale, salvo errori che rendano indispensabili controlli intermedi.
-9. Verificare compilazione, test Linux e Windows e avvio headless; correggere ogni regressione prima di dichiarare conclusa la fase.
+8. Completare l'intera riorganizzazione ed eseguire la verifica CI finale.
+9. Verificare compilazione, test Linux e Windows e avvio headless.
 10. Aggiornare questo documento con la struttura definitiva, il commit e la CI finale.
-11. Dopo audit e CI verde, preparare una Pull Request da `refactor/src-domain-layout` verso `main`. Integrare il branch soltanto dopo la revisione della Pull Request.
+11. Preparare una Pull Request da `refactor/src-domain-layout` verso `main` e integrare il branch soltanto dopo la revisione della Pull Request.
 
-**Gate di avanzamento:** la Fase 4 non deve iniziare finché la Fase 3.5 non è completata, verificata e registrata nella roadmap. Non modificare il comportamento dei sistemi durante il refactoring senza una decisione esplicita dell'utente.
+Risultati dell'audit strutturale:
+
+- 88 sorgenti baseline mappati in 129 destinazioni operative.
+- 6 aggregatori combat aggiuntivi.
+- Totale: 135 file Rust.
+- Zero dichiarazioni `mod` senza destinazione.
+- Zero target mancanti nei riferimenti a percorsi e macro controllati.
+- 660 occorrenze di test e 656 nomi distinti sia in HEAD sia nel checkout.
+- Multinsieme dei test identico.
+- 67 re-export combat e 49 Content invariati.
+- Ordine dei 14 sistemi di `CombatPlugin` invariato.
+- Ordine di registrazione dei plugin in `main.rs` invariato.
+- Nessun riferimento residuo ai vecchi percorsi dei moduli.
+- File Rust più lungo: 893 righe.
+- `git diff --check` superato.
+
+La Run #544 ha verificato la struttura riorganizzata sullo SHA:
+
+`1a3c5f4d24fd25d599596b1d16a7fc4006d0106b`
+
+Controlli conclusivi:
+- `cargo fmt --all -- --check`: superato.
+- `cargo check --all-targets`: superato.
+- Compilazione Linux: superata.
+- Test unitari Linux: superati.
+- Test headless Linux: superati.
+- Compilazione Windows: superata.
+- Test unitari Windows: superati.
+- Test headless Windows: superati.
+- Artifact Linux e Windows: caricati correttamente.
+
+Run ID: `42587661206`.
+
+Link: https://github.com/konakona185-gif/wow-friendship-crawler/actions/runs/42587661206
+
+Artifact:
+- `gioco-linux`, ID `13661140684`.
+- `gioco-windows`, ID `13660802759`.
+
+**Gate di avanzamento:** la Fase 3.5 è tecnicamente completata. La Fase 4 potrà iniziare soltanto dopo l'integrazione del branch in `main` e l'autorizzazione esplicita dell'utente. Non modificare il comportamento dei sistemi senza una decisione esplicita dell'utente.
 
 ### Fase 4 — Sistema di esecuzione delle abilità
 
-**Stato: NON INIZIATA — BLOCCATA FINO AL COMPLETAMENTO DELLA FASE 3.5.**
+**Stato: NON INIZIATA — IN ATTESA DELL'INTEGRAZIONE DEL REFACTORING IN `main` E DELL'AUTORIZZAZIONE DELL'UTENTE.**
 
-Dopo il refactoring, implementare il runtime che gestisce:
+Dopo l'integrazione del refactoring, implementare il runtime che gestisce:
 
 - Attivazione delle abilità.
 - Selezione e validazione dei bersagli.
@@ -366,6 +412,74 @@ Le Run 446–448 erano fallite per l'import non risolto; la Run 449 era stata an
 
 Questa è la CI usata per dichiarare completata la Fase 3. Una CI è verde soltanto quando `conclusion = success` sulla run associata allo SHA esatto. `cancelled`, `failure`, `in_progress` e `pending` non sono esiti verdi.
 
+### Run #536 — prima verifica tecnica della Fase 3.5
+
+- Run ID: `42504899025`.
+- Branch: `refactor/src-domain-layout`.
+- Commit/SHA testato: `0cfcf2a61fff40500c7f9aac7ebec7c50cae7c77`.
+- Evento: `workflow_dispatch`.
+- Esito finale: **failure**.
+- Il job preliminare Rust è fallito durante `cargo fmt --all -- --check`.
+- Errore: `expected item after attributes` in `src/combat/effects/dispatcher/tests/reactive_runtime_tests.rs`, riga 488.
+- Causa: una direttiva `#[cfg(test)]` era rimasta orfana dopo lo spostamento della dichiarazione `mod area_tests` nel modulo parent.
+- I job di compilazione e test Windows e Linux sono stati saltati perché dipendenti dal controllo preliminare.
+- Compilazione, test release e avvio headless non sono stati verificati in questa esecuzione.
+- Run: https://github.com/konakona185-gif/wow-friendship-crawler/actions/runs/42504899025
+
+### Correzione successiva alla Run #536
+
+- Correzione applicata: rimossa esclusivamente la direttiva `#[cfg(test)]` orfana da `src/combat/effects/dispatcher/tests/reactive_runtime_tests.rs`.
+- La dichiarazione `mod area_tests` rimane nel modulo parent `tests/mod.rs`, già protetto da `#[cfg(test)]`.
+- Gli 11 test di `reactive_runtime_tests.rs` e le suite sibling sono stati preservati.
+- Commit della correzione: `b69aefcf7efe844d8c9bf32227bf04ec6cfca2ba`.
+- Messaggio: `Remove unnecessary lines from reactive_runtime_tests.rs`.
+- Il commit modifica esclusivamente `src/combat/effects/dispatcher/tests/reactive_runtime_tests.rs`, rimuovendo la direttiva orfana e la riga vuota finale.
+- La modifica è stata verificata leggendo il file aggiornato e confrontando il diff del commit su GitHub.
+
+### Correzioni di visibilità e import emerse durante la compilazione
+
+Durante la verifica sono stati affrontati errori di visibilità e import nei moduli riorganizzati.
+
+Per `summon_lifecycle_system` erano presenti due diagnostiche:
+- E0364: re-export non consentito per una funzione con visibilità insufficiente.
+- E0603: funzione non accessibile dal modulo chiamante.
+
+La correzione è stata applicata in `src/combat/summon/lifecycle.rs`, portando la visibilità della funzione da `pub(super)` a `pub(in crate::combat)`.
+
+Sono state inoltre corrette le visibilità dei sistemi e gli import necessari nei moduli e nei test interessati. Le correzioni sono state verificate dalla compilazione finale della Run #544.
+
+### Run #544 — CI finale della Fase 3.5
+
+- Run ID: `42587661206`.
+- Branch: `refactor/src-domain-layout`.
+- Commit/SHA testato: `1a3c5f4d24fd25d599596b1d16a7fc4006d0106b`.
+- Evento: `workflow_dispatch`.
+- Esito finale: **success**.
+- Run: https://github.com/konakona185-gif/wow-friendship-crawler/actions/runs/42587661206
+
+Controllo preliminare Rust:
+- Formattazione Rust: superata.
+- Installazione dipendenze Linux: superata.
+- Controllo statico di tutti i target Rust (`cargo check --all-targets`): superato.
+
+Linux:
+- Compilazione: superata.
+- Test unitari: superati.
+- Test headless: superati.
+- Artifact `gioco-linux`: caricato correttamente.
+
+Windows:
+- Compilazione: superata.
+- Test unitari: superati.
+- Test headless: superati.
+- Artifact `gioco-windows`: caricato correttamente.
+
+Artifact verificati:
+- `gioco-linux`, ID `13661140684`.
+- `gioco-windows`, ID `13660802759`.
+
+La Run #544 è il checkpoint conclusivo della Fase 3.5. I controlli configurati dal workflow sono stati completati con esito positivo sullo SHA esatto indicato. Non attribuire alla run un numero di test non riportato dai log.
+
 ## 9. Regole operative di sviluppo
 
 ### File e modifiche
@@ -385,8 +499,9 @@ Questa è la CI usata per dichiarare completata la Fase 3. Una CI è verde solta
 - Preservare tutte le funzionalità e i test esistenti.
 - Non aggiungere commenti al codice (`//` o `#`), salvo attributi Rust necessari.
 - Preferire sistemi modulari, riutilizzabili e data-driven; evitare duplicazioni e frammentazioni artificiali.
-- Obiettivo dimensionale per ogni file Rust sotto `src/`, inclusi i test: **1.000 righe fisiche o meno**, contando anche righe vuote e commenti.
-- Ogni file oltre 1.000 righe deve essere esaminato e suddiviso quando le responsabilità possono essere separate senza creare frammentazione artificiale.
+- Valutare la coesione di ogni file Rust sotto `src/`, inclusi i test, indipendentemente dal numero di righe. La soglia di **1.000 righe fisiche** (comprese righe vuote e commenti) è un limite di attenzione che richiede una valutazione, non il criterio minimo per suddividere.
+- Suddividere file di qualunque dimensione quando responsabilità distinte possono essere organizzate in unità coerenti con un vantaggio architetturale concreto. Oltre 1.000 righe la valutazione è obbligatoria; oltre 1.500 righe serve una motivazione tecnica documentata e approvazione esplicita.
+- Per i test, raggruppare i casi simili per funzionalità e comportamento e separare i gruppi che verificano responsabilità diverse; mantenere fixture e helper condivisi in moduli comuni ed evitare duplicazioni. Non creare file minuscoli o frammenti senza vantaggio concreto.
 - **1.500 righe è il limite eccezionale**: un file oltre tale soglia richiede motivazione tecnica documentata e approvazione esplicita.
 - Prima della chiusura della Fase 3.5 eseguire un audit dimensionale completo e registrare tutte le eccezioni.
 - I test devono essere suddivisi per aree funzionali; fixture e helper condivisi possono rimanere nel rispettivo `tests/mod.rs`.
@@ -394,7 +509,7 @@ Questa è la CI usata per dichiarare completata la Fase 3. Una CI è verde solta
 
 ### CI e commit
 
-- Tutti i commit del refactoring devono essere creati su `refactor/src-domain-layout`; `main` non va modificato direttamente.
+- Tutti i commit del refactoring devono essere creati su `refactor/src-domain-layout`; `main` non va modificato direttamente durante la Fase 3.5.
 - Raggruppare modifiche compatibili prima di avviare nuove verifiche; evitare run intermedie inutili.
 - Non è necessario attendere una CI verde per ogni singolo file se è sicuro proseguire.
 - Dichiarare una CI superata solo dopo aver verificato l'esito e lo SHA esatto del branch interessato.
@@ -405,28 +520,31 @@ Questa è la CI usata per dichiarare completata la Fase 3. Una CI è verde solta
 
 Questa roadmap è la memoria progettuale primaria. Prima di ogni sessione verificare repository, commit, file interessati e CI corrente. Aggiornare la roadmap dopo milestone o cambiamenti architetturali significativi, non dopo ogni commit.
 
-Il documento operativo del refactoring è `.github/workflows/refactoring.md` e va mantenuto sincronizzato durante la Fase 3.5.
+Il documento operativo del refactoring è `.github/workflows/refactoring.md` e va mantenuto sincronizzato durante la Fase 3.5. Dopo la conclusione tecnica della Fase 3.5, le informazioni ancora utili dovranno essere conservate nella roadmap e nel registro di avanzamento prima di un'eventuale eliminazione del documento operativo.
 
 Durante queste sessioni concentrarsi esclusivamente sul progetto WoW, non sul progetto Godot.
 
 ## 10. Prossimi passaggi immediati
 
 1. La Fase 3 è completata sulla revisione `55e001ec7dc06f5d9bbb3107f3b5ef3f96354b38`, verificata dalla Run #522.
-2. Proseguire esclusivamente sul branch `refactor/src-domain-layout`, creato dallo SHA `454874a358a18e7e565043d797e3c42ddc46323f`; non modificare direttamente `main`.
-3. Avviare la Fase 3.5 seguendo `.github/workflows/refactoring.md`.
-4. Verificare la mappatura dei file rispetto alla baseline di `main` e riorganizzare l'intero `src/` sul branch dedicato, senza modificare le meccaniche.
-5. Aggiornare `refactoring.md` durante il lavoro e completare la CI finale Linux/Windows/headless sul branch di refactoring.
-6. Registrare struttura definitiva, commit e CI in questa roadmap.
-7. Dopo revisione e CI verde, preparare una Pull Request verso `main`; solo dopo la sua approvazione integrare il refactoring.
-8. Solo dopo la chiusura della Fase 3.5 iniziare la Fase 4.
+2. La Fase 3.5 è tecnicamente completata sul branch `refactor/src-domain-layout`, con audit statico e CI finale verde alla Run #544.
+3. La Run #544 ha verificato lo SHA `1a3c5f4d24fd25d599596b1d16a7fc4006d0106b`, superando controllo statico, compilazione, test e avvio headless su Linux e Windows.
+4. Aggiornare e verificare i documenti di continuità sul branch di refactoring, mantenendo coerenza tra roadmap, piano operativo e `CODEX_PROGRESS.md`.
+5. Riconciliare i tre commit documentali successivi di `main`, preservando i contenuti aggiornati dei documenti e senza ripristinare le versioni obsolete.
+6. Verificare nuovamente il confronto tra `main` e `refactor/src-domain-layout` prima di aprire una Pull Request.
+7. Preparare una Pull Request da `refactor/src-domain-layout` verso `main`, includendo il riepilogo del refactoring, la Run #544 e lo SHA testato.
+8. Esaminare la Pull Request e le verifiche automatiche associate prima dell'integrazione.
+9. Integrare il branch in `main` soltanto dopo revisione e approvazione esplicita dell'utente.
+10. Dopo il merge, verificare il nuovo HEAD di `main`, la struttura riorganizzata, i documenti e gli eventuali controlli CI associati.
+11. Creare un branch dedicato alla Fase 4 soltanto dopo aver concordato requisiti e criteri di completamento.
 
-**Non iniziare la Fase 4 prima del completamento del refactoring.**
+**Non iniziare la Fase 4 prima dell'integrazione verificata della Fase 3.5 in `main` e dell'autorizzazione esplicita dell'utente.**
 
 ## 11. Posizione dei documenti e fonti di verità
 
 Questa roadmap si trova in:
 
-`.github/workflows/benilla-classic-pipeline-revised-v2.md`
+`.github/workflows/benilla-classic-pipeline-revised-v3.md`
 
 Il piano operativo del refactoring si trova in:
 
@@ -437,7 +555,7 @@ Entrambi sono collocati nella cartella `.github/workflows/`, insieme al workflow
 In caso di discrepanza:
 
 - `main` rappresenta la baseline stabile del progetto e non deve essere modificato direttamente durante la Fase 3.5.
-- `refactor/src-domain-layout` è la fonte di verità per lo stato corrente dei lavori di riorganizzazione.
+- `refactor/src-domain-layout` è la fonte di verità per lo stato corrente dei lavori di riorganizzazione fino all'integrazione.
 - Le decisioni progettuali approvate e registrate qui stabiliscono il comportamento desiderato.
 - `refactoring.md` governa la mappatura e l'avanzamento della riorganizzazione strutturale.
 - I log CI stabiliscono gli errori effettivamente verificatisi sullo SHA testato.

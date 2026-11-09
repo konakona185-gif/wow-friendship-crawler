@@ -12,27 +12,19 @@ pub(super) fn local_player_command_system(
     let mut forward_move = 0.0;
     let mut strafe_move = 0.0;
 
-    if keyboard_input.pressed(KeyCode::KeyW)
-        || keyboard_input.pressed(KeyCode::ArrowUp)
-    {
+    if keyboard_input.pressed(KeyCode::KeyW) || keyboard_input.pressed(KeyCode::ArrowUp) {
         forward_move += 1.0;
     }
 
-    if keyboard_input.pressed(KeyCode::KeyS)
-        || keyboard_input.pressed(KeyCode::ArrowDown)
-    {
+    if keyboard_input.pressed(KeyCode::KeyS) || keyboard_input.pressed(KeyCode::ArrowDown) {
         forward_move -= 1.0;
     }
 
-    if keyboard_input.pressed(KeyCode::KeyA)
-        || keyboard_input.pressed(KeyCode::ArrowLeft)
-    {
+    if keyboard_input.pressed(KeyCode::KeyA) || keyboard_input.pressed(KeyCode::ArrowLeft) {
         strafe_move -= 1.0;
     }
 
-    if keyboard_input.pressed(KeyCode::KeyD)
-        || keyboard_input.pressed(KeyCode::ArrowRight)
-    {
+    if keyboard_input.pressed(KeyCode::KeyD) || keyboard_input.pressed(KeyCode::ArrowRight) {
         strafe_move += 1.0;
     }
 

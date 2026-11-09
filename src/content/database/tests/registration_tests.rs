@@ -1,21 +1,10 @@
+use super::super::{ContentDatabase, ContentDatabaseError};
 use super::{
-    ability,
-    aura,
-    combat_attribute,
-    database_with_classic_pack,
-    damage_effect,
-    physical_damage_school,
-    resource,
-};
-use super::super::{
-    ContentDatabase,
-    ContentDatabaseError,
+    ability, aura, combat_attribute, damage_effect, database_with_classic_pack,
+    physical_damage_school, resource,
 };
 use crate::content::{
-    AuraValidationError,
-    CombatAttributeValidationError,
-    ContentId,
-    ContentMetadataError,
+    AuraValidationError, CombatAttributeValidationError, ContentId, ContentMetadataError,
     ResourceValidationError,
 };
 
@@ -54,9 +43,7 @@ fn database_rejects_invalid_auras() {
     assert_eq!(
         database.register_aura(aura),
         Err(ContentDatabaseError::InvalidAura(
-            AuraValidationError::InvalidMetadata(
-                ContentMetadataError::EmptyName
-            )
+            AuraValidationError::InvalidMetadata(ContentMetadataError::EmptyName)
         ))
     );
 
@@ -70,8 +57,7 @@ fn database_rejects_duplicate_ids_between_auras_and_other_content_types() {
     database.register_effect(damage_effect()).unwrap();
 
     let mut aura = aura();
-    aura.metadata.id =
-        ContentId::new("classic:effect.strike").unwrap();
+    aura.metadata.id = ContentId::new("classic:effect.strike").unwrap();
 
     assert_eq!(
         database.register_aura(aura),
@@ -132,9 +118,7 @@ fn database_rejects_invalid_combat_attributes() {
     assert_eq!(
         database.register_combat_attribute(attribute),
         Err(ContentDatabaseError::InvalidCombatAttribute(
-            CombatAttributeValidationError::InvalidMetadata(
-                ContentMetadataError::EmptyName
-            )
+            CombatAttributeValidationError::InvalidMetadata(ContentMetadataError::EmptyName)
         ))
     );
 
@@ -150,9 +134,7 @@ fn database_rejects_invalid_resources() {
     assert_eq!(
         database.register_resource(resource),
         Err(ContentDatabaseError::InvalidResource(
-            ResourceValidationError::InvalidMetadata(
-                ContentMetadataError::EmptyName
-            )
+            ResourceValidationError::InvalidMetadata(ContentMetadataError::EmptyName)
         ))
     );
 
@@ -163,8 +145,7 @@ fn database_rejects_invalid_resources() {
 fn database_rejects_duplicate_combat_attribute_ids() {
     let mut database = database_with_classic_pack();
     let mut attribute = combat_attribute();
-    attribute.metadata.id =
-        ContentId::new("classic:effect.strike").unwrap();
+    attribute.metadata.id = ContentId::new("classic:effect.strike").unwrap();
 
     database.register_effect(damage_effect()).unwrap();
 
@@ -182,8 +163,7 @@ fn database_rejects_duplicate_combat_attribute_ids() {
 fn database_rejects_duplicate_resource_ids() {
     let mut database = database_with_classic_pack();
     let mut resource = resource();
-    resource.metadata.id =
-        ContentId::new("classic:effect.strike").unwrap();
+    resource.metadata.id = ContentId::new("classic:effect.strike").unwrap();
 
     database.register_effect(damage_effect()).unwrap();
 
@@ -213,8 +193,7 @@ fn database_rejects_content_from_unknown_packs() {
 fn database_rejects_duplicate_ids_across_content_types() {
     let mut database = database_with_classic_pack();
     let mut ability = ability();
-    ability.metadata.id =
-        ContentId::new("classic:effect.strike").unwrap();
+    ability.metadata.id = ContentId::new("classic:effect.strike").unwrap();
 
     database.register_effect(damage_effect()).unwrap();
 

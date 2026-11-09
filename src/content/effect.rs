@@ -124,10 +124,7 @@ impl EffectMagnitude {
         self.validate_with_sign(true)
     }
 
-    fn validate_with_sign(
-        &self,
-        allow_negative: bool,
-    ) -> Result<(), EffectValidationError> {
+    fn validate_with_sign(&self, allow_negative: bool) -> Result<(), EffectValidationError> {
         if !self.base.is_finite() || (!allow_negative && self.base < 0.0) {
             return Err(EffectValidationError::InvalidMagnitude);
         }
@@ -210,27 +207,13 @@ impl Display for EffectValidationError {
             Self::InvalidMetadata(error) => {
                 return write!(formatter, "Metadati dell'effetto non validi: {error}");
             }
-            Self::InvalidMagnitude => {
-                "Il valore dell'effetto deve essere finito e non negativo"
-            }
-            Self::InvalidScalingCoefficient => {
-                "Il coefficiente di scaling deve essere finito"
-            }
-            Self::InvalidRadius => {
-                "Il raggio dell'effetto deve essere finito e positivo"
-            }
-            Self::InvalidDuration => {
-                "La durata deve essere finita e positiva"
-            }
-            Self::ZeroStacks => {
-                "Il numero di stack deve essere maggiore di zero"
-            }
-            Self::ZeroSummonCount => {
-                "Il numero di creature evocate deve essere maggiore di zero"
-            }
-            Self::InvalidDisplacement => {
-                "La distanza di spostamento deve essere finita e positiva"
-            }
+            Self::InvalidMagnitude => "Il valore dell'effetto deve essere finito e non negativo",
+            Self::InvalidScalingCoefficient => "Il coefficiente di scaling deve essere finito",
+            Self::InvalidRadius => "Il raggio dell'effetto deve essere finito e positivo",
+            Self::InvalidDuration => "La durata deve essere finita e positiva",
+            Self::ZeroStacks => "Il numero di stack deve essere maggiore di zero",
+            Self::ZeroSummonCount => "Il numero di creature evocate deve essere maggiore di zero",
+            Self::InvalidDisplacement => "La distanza di spostamento deve essere finita e positiva",
         };
 
         formatter.write_str(message)
@@ -239,9 +222,7 @@ impl Display for EffectValidationError {
 
 impl std::error::Error for EffectValidationError {}
 
-fn validate_duration(
-    duration: Option<f32>,
-) -> Result<(), EffectValidationError> {
+fn validate_duration(duration: Option<f32>) -> Result<(), EffectValidationError> {
     if duration.is_some_and(|value| !value.is_finite() || value <= 0.0) {
         return Err(EffectValidationError::InvalidDuration);
     }
@@ -274,10 +255,7 @@ mod tests {
                     base: 100.0,
                     scaling: Vec::new(),
                 },
-                school: ContentId::new(
-                    "classic_1_12_1:school.physical",
-                )
-                .unwrap(),
+                school: ContentId::new("classic_1_12_1:school.physical").unwrap(),
             },
         }
     }
@@ -309,10 +287,7 @@ mod tests {
                 base: -10.0,
                 scaling: Vec::new(),
             },
-            school: ContentId::new(
-                "classic_1_12_1:school.physical",
-            )
-            .unwrap(),
+            school: ContentId::new("classic_1_12_1:school.physical").unwrap(),
         };
 
         assert_eq!(
@@ -364,8 +339,7 @@ mod tests {
         };
 
         let serialized = ron::to_string(&effect).unwrap();
-        let restored: EffectDefinition =
-            ron::from_str(&serialized).unwrap();
+        let restored: EffectDefinition = ron::from_str(&serialized).unwrap();
 
         assert_eq!(effect, restored);
         assert!(restored.validate().is_ok());
@@ -379,10 +353,7 @@ mod tests {
             amount: EffectMagnitude {
                 base: 50.0,
                 scaling: vec![EffectScaling {
-                    stat: ContentId::new(
-                        "classic_1_12_1:stat.spell_power",
-                    )
-                    .unwrap(),
+                    stat: ContentId::new("classic_1_12_1:stat.spell_power").unwrap(),
                     coefficient: f32::INFINITY,
                 }],
             },
@@ -397,14 +368,9 @@ mod tests {
     #[test]
     fn effect_rejects_invalid_area_radius() {
         let mut effect = valid_damage_effect();
-        effect.target = EffectTarget::EnemiesInRadius {
-            radius: 0.0,
-        };
+        effect.target = EffectTarget::EnemiesInRadius { radius: 0.0 };
 
-        assert_eq!(
-            effect.validate(),
-            Err(EffectValidationError::InvalidRadius)
-        );
+        assert_eq!(effect.validate(), Err(EffectValidationError::InvalidRadius));
     }
 
     #[test]
@@ -412,10 +378,7 @@ mod tests {
         let mut effect = valid_damage_effect();
 
         effect.kind = EffectKind::ApplyAura {
-            aura: ContentId::new(
-                "classic_1_12_1:aura.test",
-            )
-            .unwrap(),
+            aura: ContentId::new("classic_1_12_1:aura.test").unwrap(),
             stacks: 1,
             duration_seconds: Some(-1.0),
         };
@@ -428,18 +391,12 @@ mod tests {
         let mut effect = valid_damage_effect();
 
         effect.kind = EffectKind::ApplyAura {
-            aura: ContentId::new(
-                "classic_1_12_1:aura.test",
-            )
-            .unwrap(),
+            aura: ContentId::new("classic_1_12_1:aura.test").unwrap(),
             stacks: 0,
             duration_seconds: Some(5.0),
         };
 
-        assert_eq!(
-            effect.validate(),
-            Err(EffectValidationError::ZeroStacks)
-        );
+        assert_eq!(effect.validate(), Err(EffectValidationError::ZeroStacks));
     }
 
     #[test]
@@ -447,8 +404,7 @@ mod tests {
         let original = valid_damage_effect();
 
         let serialized = ron::to_string(&original).unwrap();
-        let restored: EffectDefinition =
-            ron::from_str(&serialized).unwrap();
+        let restored: EffectDefinition = ron::from_str(&serialized).unwrap();
 
         assert_eq!(original, restored);
         assert!(restored.validate().is_ok());
@@ -463,8 +419,7 @@ mod tests {
             EffectTrigger::OnResourceSpent,
         ] {
             let serialized = ron::to_string(&trigger).unwrap();
-            let restored: EffectTrigger =
-                ron::from_str(&serialized).unwrap();
+            let restored: EffectTrigger = ron::from_str(&serialized).unwrap();
 
             assert_eq!(restored, trigger);
         }
@@ -472,13 +427,9 @@ mod tests {
 
     #[test]
     fn aura_triggers_support_ron_serialization() {
-        for trigger in [
-            EffectTrigger::OnAuraApplied,
-            EffectTrigger::OnAuraRemoved,
-        ] {
+        for trigger in [EffectTrigger::OnAuraApplied, EffectTrigger::OnAuraRemoved] {
             let serialized = ron::to_string(&trigger).unwrap();
-            let restored: EffectTrigger =
-                ron::from_str(&serialized).unwrap();
+            let restored: EffectTrigger = ron::from_str(&serialized).unwrap();
 
             assert_eq!(restored, trigger);
         }

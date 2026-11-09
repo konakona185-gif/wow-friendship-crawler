@@ -1,17 +1,7 @@
 use bevy::prelude::Entity;
 
-use crate::combat::{
-    calculate_damage_mitigation,
-    CombatAttributes,
-    CombatLevel,
-    DamageRequest,
-};
-use crate::content::{
-    ContentDatabase,
-    ContentId,
-    ContentPackLoader,
-    DamageSchoolMitigation,
-};
+use crate::combat::{calculate_damage_mitigation, CombatAttributes, CombatLevel, DamageRequest};
+use crate::content::{ContentDatabase, ContentId, ContentPackLoader, DamageSchoolMitigation};
 
 #[test]
 fn classic_pack_loads_all_composite_damage_schools() {
@@ -94,8 +84,7 @@ fn classic_pack_composite_schools_use_only_the_highest_mitigation() {
         ),
     ];
 
-    let armor_id =
-        ContentId::new("classic_1_12_1:stat.armor").unwrap();
+    let armor_id = ContentId::new("classic_1_12_1:stat.armor").unwrap();
     let attacker_level = CombatLevel::new(60).unwrap();
 
     for (school_id, first_stat, second_stat) in expected_schools {
@@ -119,14 +108,9 @@ fn classic_pack_composite_schools_use_only_the_highest_mitigation() {
             school: school_id,
         };
 
-        let result = calculate_damage_mitigation(
-            &request,
-            school,
-            &armor_id,
-            &attributes,
-            &attacker_level,
-        )
-        .unwrap();
+        let result =
+            calculate_damage_mitigation(&request, school, &armor_id, &attributes, &attacker_level)
+                .unwrap();
 
         assert_eq!(result.incoming_amount, 100.0);
         assert_eq!(result.mitigated_amount, 50.0);

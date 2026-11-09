@@ -10,10 +10,7 @@ pub struct CharacterBuild {
 }
 
 impl CharacterBuild {
-    pub fn new(
-        race: CharacterRace,
-        class: CharacterClass,
-    ) -> Option<Self> {
+    pub fn new(race: CharacterRace, class: CharacterClass) -> Option<Self> {
         if race.can_play_class(class) {
             Some(Self { race, class })
         } else {
