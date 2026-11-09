@@ -5,7 +5,7 @@ use crate::content::{ContentDatabase, ContentId};
 use crate::combat::{ActiveAuras, AuraRuntimeError, ResolvedEffect, ResolvedEffectOperation};
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum AuraExecutionResult {
+pub(in crate::combat) enum AuraExecutionResult {
     Applied {
         aura: ContentId,
         total_stacks: u32,
@@ -16,7 +16,7 @@ pub(super) enum AuraExecutionResult {
     },
 }
 
-pub(super) fn execute_aura_effect(
+pub(in crate::combat) fn execute_aura_effect(
     effect: &ResolvedEffect,
     database: &ContentDatabase,
     target_auras: Option<&mut ActiveAuras>,
@@ -61,7 +61,7 @@ pub(super) fn execute_aura_effect(
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum AuraExecutionError {
+pub(in crate::combat) enum AuraExecutionError {
     MissingAuraDefinition(ContentId),
     MissingTargetAuras,
     Application(AuraRuntimeError),
