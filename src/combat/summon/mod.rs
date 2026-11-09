@@ -12,6 +12,7 @@ mod tests;
 
 pub(super) use ai::ally_summon_aggro_system;
 pub(super) use attacks::{ally_summon_attack_system, AllySummonAttackState};
+pub(super) use lifecycle::summon_lifecycle_system;
 
 use crate::combat::{
     CombatAttributes, CombatLevel, CombatStats, Enemy, EnemyAi, EnemyHomePosition, HealthPool,
