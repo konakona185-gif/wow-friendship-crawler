@@ -9,7 +9,7 @@ fn combatant_is_alive(stats: Option<&CombatStats>, health_pool: Option<&HealthPo
         .is_some_and(|health| health > 0.0)
 }
 
-pub(super) fn enemy_aggro_system(
+pub(in crate::combat) fn enemy_aggro_system(
     ally_query: Query<
         (
             Entity,
