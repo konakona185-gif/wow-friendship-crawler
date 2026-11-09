@@ -7,12 +7,12 @@ use crate::combat::{
 };
 
 #[derive(Component)]
-pub(super) struct EnemyAttackState {
+pub(in crate::combat) struct EnemyAttackState {
     target: Entity,
     cooldown: Timer,
 }
 
-pub(super) fn enemy_attack_system(
+pub(in crate::combat) fn enemy_attack_system(
     time: Res<Time>,
     mut commands: Commands,
     mut enemy_query: Query<
