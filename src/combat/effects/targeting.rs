@@ -98,7 +98,7 @@ pub(super) fn acquire_area_targets(
     Ok(EffectTargetSelection::Area(targets))
 }
 
-pub(super) fn acquire_area_targets_from_world(
+pub(in crate::combat) fn acquire_area_targets_from_world(
     effect_target: &EffectTarget,
     source: Entity,
     combatants: &Query<
