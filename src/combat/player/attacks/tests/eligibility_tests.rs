@@ -1,5 +1,9 @@
 use super::*;
 
+use crate::combat::{
+    EnemyHomePosition, DEFAULT_ENEMY_AGGRO_RANGE, DEFAULT_ENEMY_LEASH_RANGE,
+};
+
 #[test]
 fn defeated_targets_cannot_receive_additional_player_casts() {
     let mut app = App::new();
