@@ -5,6 +5,7 @@ use crate::combat::{
     SummonCombatProfile, DEFAULT_ENEMY_ATTACK_DAMAGE, DEFAULT_ENEMY_ATTACK_INTERVAL,
     DEFAULT_ENEMY_MELEE_RANGE,
 };
+use crate::player::Character;
 
 #[derive(Component)]
 pub(in crate::combat) struct EnemyAttackState {
